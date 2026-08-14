@@ -1,2 +1,4 @@
-/** Kernmodul für Polls, Optionen und Stimmen. */
+/**
+ * Kernmodul für Polls, Optionen und Stimmen.
+ */
 package de.justvotes.pollmanagement;
