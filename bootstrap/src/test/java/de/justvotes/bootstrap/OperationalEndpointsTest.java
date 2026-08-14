@@ -22,6 +22,8 @@ class OperationalEndpointsTest {
     @DynamicPropertySource
     static void databaseProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + databasePath);
+        registry.add("ADMIN_USERNAME", () -> "systemadmin");
+        registry.add("ADMIN_PASSWORD_HASH", () -> "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy");
     }
 
     @Test

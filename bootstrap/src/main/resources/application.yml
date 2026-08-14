@@ -1,6 +1,9 @@
 spring:
   application:
     name: justvotes
+  mvc:
+    problemdetails:
+      enabled: true
   datasource:
     url: ${DATABASE_URL:jdbc:sqlite:/data/justvotes.db}
     driver-class-name: org.sqlite.JDBC

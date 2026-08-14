@@ -33,6 +33,8 @@ class SchemaDeviationStartupTest {
     private static ConfigurableApplicationContext start(String databaseUrl) {
         return new SpringApplication(JustVotesApplication.class).run(
                 "--spring.main.web-application-type=none",
-                "--spring.datasource.url=" + databaseUrl);
+                "--spring.datasource.url=" + databaseUrl,
+                "--ADMIN_USERNAME=systemadmin",
+                "--ADMIN_PASSWORD_HASH=$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy");
     }
 }
