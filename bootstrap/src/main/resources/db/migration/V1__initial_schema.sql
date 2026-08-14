@@ -2,7 +2,7 @@ CREATE TABLE "Poll" (
   id TEXT PRIMARY KEY NOT NULL,
   title TEXT NOT NULL,
   visibility TEXT NOT NULL DEFAULT 'public',
-  state TEXT NOT NULL DEFAULT 'draft' CHECK (state IN ('draft', 'active', 'expired', 'archived', 'deleted')),
+  state TEXT NOT NULL DEFAULT 'draft',
   "createdBy" TEXT NOT NULL,
   "createdAt" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
