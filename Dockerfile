@@ -1,11 +1,11 @@
-FROM eclipse-temurin:21-jdk AS build
+FROM maven:3.9.9-eclipse-temurin-21 AS build
 WORKDIR /workspace
 COPY . .
 RUN mvn -s .mvn/settings.xml -DskipTests package
 
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:21-jre
 WORKDIR /app
-RUN mkdir /data
+RUN mkdir /data && apt-get update && apt-get install -y --no-install-recommends wget && rm -rf /var/lib/apt/lists/*
 COPY --from=build /workspace/bootstrap/target/bootstrap-0.1.0-SNAPSHOT.jar /app/justvotes.jar
 VOLUME ["/data"]
 EXPOSE 8080
