@@ -1,0 +1,111 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Poll Management
+model Poll {
+  id         String   @id
+  title      String
+  visibility String   @default("public")
+  state      String   @default("draft")
+  createdBy  String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now())
+  endsAt     DateTime?
+
+  options    Option[]
+  votes      Vote[]
+  events     PollDomainEvent[]
+}
+
+model Option {
+  id       Int    @id @default(autoincrement())
+  pollID   String
+  text     String
+  number   Int
+
+  poll     Poll   @relation(fields: [pollID], references: [id], onDelete: Cascade)
+  votes    Vote[]
+
+  @@unique([pollID, number])
+}
+
+model Vote {
+  id       Int      @id @default(autoincrement())
+  pollID   String
+  optionID Int
+  userID   String
+  votedAt  DateTime @default(now())
+
+  poll     Poll     @relation(fields: [pollID], references: [id], onDelete: Cascade)
+  option   Option   @relation(fields: [optionID], references: [id], onDelete: Cascade)
+
+  @@unique([userID, pollID])
+  @@index([pollID])
+  @@index([optionID])
+}
+
+// Option Template Management
+model OptionTemplate {
+  id           Int      @id @default(autoincrement())
+  name         String   @unique
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now())
+
+  groups       OptionTemplateGroupMember[]
+}
+
+model OptionTemplateGroup {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now())
+
+  members     OptionTemplateGroupMember[]
+}
+
+model OptionTemplateGroupMember {
+  id           Int      @id @default(autoincrement())
+  templateID   Int
+  groupID      Int
+  createdAt    DateTime @default(now())
+
+  template     OptionTemplate      @relation(fields: [templateID], references: [id], onDelete: Cascade)
+  group        OptionTemplateGroup @relation(fields: [groupID], references: [id], onDelete: Cascade)
+
+  @@unique([templateID, groupID])
+  @@index([templateID])
+  @@index([groupID])
+}
+
+// Domain event
+model PollDomainEvent {
+  id        Int      @id @default(autoincrement())
+  pollId    String
+  eventType String
+  actorId   String
+  metadata  String?
+  createdAt DateTime @default(now())
+
+  poll      Poll     @relation(fields: [pollId], references: [id], onDelete: Cascade)
+
+  @@index([pollId])
+}
+
+// Admin Management
+model Admin {
+  id             Int      @id @default(autoincrement())
+  username       String   @unique
+  hashedPassword String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @default(now())
+}

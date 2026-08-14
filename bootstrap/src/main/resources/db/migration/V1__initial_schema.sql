@@ -1,0 +1,72 @@
+CREATE TABLE "Poll" (
+  id TEXT PRIMARY KEY NOT NULL,
+  title TEXT NOT NULL,
+  visibility TEXT NOT NULL DEFAULT 'public',
+  state TEXT NOT NULL DEFAULT 'draft' CHECK (state IN ('draft', 'active', 'expired', 'archived', 'deleted')),
+  "createdBy" TEXT NOT NULL,
+  "createdAt" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "endsAt" TEXT
+);
+
+CREATE TABLE "Option" (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  "pollID" TEXT NOT NULL REFERENCES "Poll"(id) ON DELETE CASCADE,
+  text TEXT NOT NULL,
+  number INTEGER NOT NULL,
+  UNIQUE ("pollID", number)
+);
+
+CREATE TABLE "Vote" (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  "pollID" TEXT NOT NULL REFERENCES "Poll"(id) ON DELETE CASCADE,
+  "optionID" INTEGER NOT NULL REFERENCES "Option"(id) ON DELETE CASCADE,
+  "userID" TEXT NOT NULL,
+  "votedAt" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE ("userID", "pollID")
+);
+CREATE INDEX "Vote_pollID_idx" ON "Vote"("pollID");
+CREATE INDEX "Vote_optionID_idx" ON "Vote"("optionID");
+
+CREATE TABLE "OptionTemplate" (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE,
+  "createdAt" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE "OptionTemplateGroup" (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE,
+  description TEXT NOT NULL,
+  "createdAt" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE "OptionTemplateGroupMember" (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  "templateID" INTEGER NOT NULL REFERENCES "OptionTemplate"(id) ON DELETE CASCADE,
+  "groupID" INTEGER NOT NULL REFERENCES "OptionTemplateGroup"(id) ON DELETE CASCADE,
+  "createdAt" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE ("templateID", "groupID")
+);
+CREATE INDEX "OptionTemplateGroupMember_templateID_idx" ON "OptionTemplateGroupMember"("templateID");
+CREATE INDEX "OptionTemplateGroupMember_groupID_idx" ON "OptionTemplateGroupMember"("groupID");
+
+CREATE TABLE "PollDomainEvent" (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  "pollId" TEXT NOT NULL REFERENCES "Poll"(id) ON DELETE CASCADE,
+  "eventType" TEXT NOT NULL,
+  "actorId" TEXT NOT NULL,
+  metadata TEXT,
+  "createdAt" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX "PollDomainEvent_pollId_idx" ON "PollDomainEvent"("pollId");
+
+CREATE TABLE "Admin" (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT NOT NULL UNIQUE,
+  "hashedPassword" TEXT NOT NULL,
+  "createdAt" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
