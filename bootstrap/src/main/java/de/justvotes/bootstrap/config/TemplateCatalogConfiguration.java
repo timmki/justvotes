@@ -1,4 +1,4 @@
-package de.justvotes.bootstrap;
+package de.justvotes.bootstrap.config;
 
 import de.justvotes.adapters.templatecatalog.infra.in.http.TemplateCatalogController;
 import de.justvotes.adapters.templatecatalog.infra.in.transaction.TransactionalTemplateCatalogAdministration;
@@ -11,10 +11,10 @@ import de.justvotes.templatecatalog.core.ports.in.ManageTemplateCatalog;
 import de.justvotes.templatecatalog.core.ports.in.ViewTemplateCatalog;
 import de.justvotes.templatecatalog.core.ports.out.OptionTemplateGroupRepository;
 import de.justvotes.templatecatalog.core.ports.out.OptionTemplateRepository;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 @Configuration
@@ -28,13 +28,13 @@ class TemplateCatalogConfiguration {
 
     @Bean
     OptionTemplateGroupRepository optionTemplateGroupRepository(SpringDataOptionTemplateRepository templates,
-                                                                 SpringDataOptionTemplateGroupRepository groups) {
+                                                                SpringDataOptionTemplateGroupRepository groups) {
         return new JpaOptionTemplateGroupPersistenceAdapter(templates, groups);
     }
 
     @Bean
     TemplateCatalogAdministration templateCatalogAdministration(OptionTemplateRepository templates,
-                                                                 OptionTemplateGroupRepository groups) {
+                                                                OptionTemplateGroupRepository groups) {
         return new TemplateCatalogAdministration(templates, groups);
     }
 

@@ -4,10 +4,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.RequestEntity;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -31,6 +31,13 @@ class AdminAuthenticationTest {
         registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + DATABASE_PATH);
         registry.add("ADMIN_USERNAME", () -> "systemadmin");
         registry.add("ADMIN_PASSWORD_HASH", () -> new BCryptPasswordEncoder().encode("password"));
+    }
+
+    private static String cookieHeader(HttpHeaders headers) {
+        return headers.get(HttpHeaders.SET_COOKIE).stream()
+                .map(cookie -> cookie.substring(0, cookie.indexOf(';')))
+                .reduce((first, second) -> first + "; " + second)
+                .orElseThrow();
     }
 
     @Test
@@ -106,12 +113,5 @@ class AdminAuthenticationTest {
         ResponseEntity<String> afterLogout = client.exchange(RequestEntity.get(baseUrl + "/api/v1/admin/session")
                 .header(HttpHeaders.COOKIE, cookies).build(), String.class);
         assertThat(afterLogout.getStatusCode().value()).isEqualTo(401);
-    }
-
-    private static String cookieHeader(HttpHeaders headers) {
-        return headers.get(HttpHeaders.SET_COOKIE).stream()
-                .map(cookie -> cookie.substring(0, cookie.indexOf(';')))
-                .reduce((first, second) -> first + "; " + second)
-                .orElseThrow();
     }
 }

@@ -9,22 +9,57 @@ import java.util.Optional;
 public final class JpaPollPersistenceAdapter implements PollRepository {
     private final SpringDataPollRepository polls;
 
-    public JpaPollPersistenceAdapter(SpringDataPollRepository polls) { this.polls = polls; }
+    public JpaPollPersistenceAdapter(SpringDataPollRepository polls) {
+        this.polls = polls;
+    }
 
-    @Override public Poll save(Poll poll) {
-        PollEntity entity = polls.findById(poll.id().value()).orElseGet(() -> new PollEntity(poll.id().value(), poll.title(), poll.createdBy(), poll.visibility().name().toLowerCase(), poll.state().name().toLowerCase(), poll.templateGroup().id().value(), poll.templateGroup().name()));
-        if (entity.templateSnapshotOptions().isEmpty()) entity.addTemplateSnapshotOptions(poll.templateSnapshotOptions().stream().map(Poll.Option::text).toList());
+    @Override
+    public Poll save(Poll poll) {
+        PollEntity entity = polls.findById(poll.id().value())
+                .orElseGet(() -> new PollEntity(
+                        poll.id().value(),
+                        poll.title(),
+                        poll.createdBy(),
+                        poll.visibility().name().toLowerCase(),
+                        poll.state().name().toLowerCase(),
+                        poll.templateGroup().id().value(),
+                        poll.templateGroup().name()));
+
+        Optional.ofNullable(entity.templateSnapshotOptions())
+                .map(list -> list.stream().map(PollTemplateSnapshotOptionEntity::text).toList())
+                .ifPresent(entity::addTemplateSnapshotOptions);
+
         entity.clearOptions();
         polls.flush();
         entity.addOptions(poll.options().stream().map(Poll.Option::text).toList());
         return poll(polls.save(entity));
     }
 
-    @Override public Optional<Poll> findById(Poll.PollId id) { return polls.findById(id.value()).map(this::poll); }
-    @Override public List<Poll> findAllByCreator(String creator) { return polls.findAllByCreatedBy(creator).stream().map(this::poll).toList(); }
+    @Override
+    public Optional<Poll> findById(Poll.PollId id) {
+        return polls.findById(id.value()).map(this::poll);
+    }
+
+    @Override
+    public List<Poll> findAllByCreator(String creator) {
+        return polls.findAllByCreatedBy(creator).stream().map(this::poll).toList();
+    }
 
     private Poll poll(PollEntity entity) {
-        return new Poll(Poll.PollId.of(entity.id()), entity.title(), entity.createdBy(), Poll.Visibility.valueOf(entity.visibility().toUpperCase()), Poll.State.valueOf(entity.state().toUpperCase()),
-                new Poll.TemplateGroup(Poll.TemplateGroupId.of(entity.templateGroupId()), entity.templateGroupName()), entity.templateSnapshotOptions().stream().sorted(java.util.Comparator.comparingInt(PollTemplateSnapshotOptionEntity::number)).map(PollTemplateSnapshotOptionEntity::text).toList(), entity.options().stream().sorted(java.util.Comparator.comparingInt(PollOptionEntity::number)).map(PollOptionEntity::text).toList());
+        return Poll.reconstitue(
+                Poll.PollId.of(entity.id()),
+                entity.title(),
+                entity.createdBy(),
+                Poll.Visibility.valueOf(entity.visibility().toUpperCase()),
+                Poll.State.valueOf(entity.state().toUpperCase()),
+                Poll.TemplateGroup.of(Poll.TemplateGroupId.of(entity.templateGroupId()), entity.templateGroupName()),
+                entity.templateSnapshotOptions().stream()
+                        .sorted(java.util.Comparator.comparingInt(PollTemplateSnapshotOptionEntity::number))
+                        .map(PollTemplateSnapshotOptionEntity::text)
+                        .toList(),
+                entity.options().stream()
+                        .sorted(java.util.Comparator.comparingInt(PollOptionEntity::number))
+                        .map(PollOptionEntity::text)
+                        .toList());
     }
 }

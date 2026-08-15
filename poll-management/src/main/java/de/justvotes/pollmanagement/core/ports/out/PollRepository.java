@@ -7,6 +7,8 @@ import java.util.Optional;
 
 public interface PollRepository {
     Poll save(Poll poll);
+
     Optional<Poll> findById(Poll.PollId id);
+
     List<Poll> findAllByCreator(String creator);
 }

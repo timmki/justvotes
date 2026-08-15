@@ -33,7 +33,7 @@ public final class JpaTemplateCatalogPersistenceAdapter implements OptionTemplat
 
     @Override
     public OptionTemplate save(OptionTemplate template) {
-        OptionTemplateEntity entity = template.id().isEmpty()
+        OptionTemplateEntity entity = template.id().isNew()
                 ? new OptionTemplateEntity(template.name())
                 : templates.findById(template.id().value()).orElseThrow();
         entity.rename(template.name());

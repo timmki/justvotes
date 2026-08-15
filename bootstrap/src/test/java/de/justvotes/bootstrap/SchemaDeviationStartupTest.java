@@ -13,6 +13,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class SchemaDeviationStartupTest {
+    private static ConfigurableApplicationContext start(String databaseUrl) {
+        return new SpringApplication(JustVotesApplication.class).run(
+                "--spring.main.web-application-type=none",
+                "--spring.datasource.url=" + databaseUrl,
+                "--ADMIN_USERNAME=systemadmin",
+                "--ADMIN_PASSWORD_HASH=$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy");
+    }
+
     @Test
     void refusesToStartWhenAnExpectedIndexIsMissing() throws SQLException {
         Path database = Path.of("target", "schema-deviation-" + UUID.randomUUID() + ".db");
@@ -28,13 +36,5 @@ class SchemaDeviationStartupTest {
 
         assertThatThrownBy(() -> start(databaseUrl))
                 .satisfies(exception -> assertThat(exception.getCause()).hasMessageContaining("Schema deviation"));
-    }
-
-    private static ConfigurableApplicationContext start(String databaseUrl) {
-        return new SpringApplication(JustVotesApplication.class).run(
-                "--spring.main.web-application-type=none",
-                "--spring.datasource.url=" + databaseUrl,
-                "--ADMIN_USERNAME=systemadmin",
-                "--ADMIN_PASSWORD_HASH=$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy");
     }
 }

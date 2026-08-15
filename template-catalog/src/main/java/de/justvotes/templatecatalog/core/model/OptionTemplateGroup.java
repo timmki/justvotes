@@ -11,7 +11,7 @@ public final class OptionTemplateGroup {
     private final Set<OptionTemplate.OptionTemplateId> templateReferences;
 
     public OptionTemplateGroup(String name, String description) {
-        this(OptionTemplateGroupId.empty(), name, description, Set.of());
+        this(OptionTemplateGroupId.newId(), name, description, Set.of());
     }
 
     public OptionTemplateGroup(OptionTemplateGroupId id, String name, String description, Set<OptionTemplate.OptionTemplateId> templateReferences) {
@@ -72,11 +72,11 @@ public final class OptionTemplateGroup {
             return new OptionTemplateGroupId(id);
         }
 
-        public static OptionTemplateGroupId empty() {
+        public static OptionTemplateGroupId newId() {
             return new OptionTemplateGroupId(0);
         }
 
-        public boolean isEmpty() {
+        public boolean isNew() {
             return value == 0;
         }
     }

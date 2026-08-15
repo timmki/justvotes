@@ -1,15 +1,14 @@
 package de.justvotes.pollmanagement.core;
 
-import de.justvotes.pollmanagement.core.model.Poll;
 import de.justvotes.pollmanagement.core.exception.PollNotFoundException;
+import de.justvotes.pollmanagement.core.model.Poll;
 import de.justvotes.pollmanagement.core.ports.in.ManagePolls;
 import de.justvotes.pollmanagement.core.ports.in.ViewPolls;
 import de.justvotes.pollmanagement.core.ports.out.PollRepository;
-import de.justvotes.pollmanagement.core.ports.out.TemplateGroupSnapshot;
 import de.justvotes.pollmanagement.core.ports.out.TemplateGroupSnapshotProvider;
+import io.vavr.control.Try;
 
 import java.util.List;
-import io.vavr.control.Try;
 
 public final class PollManagement implements ManagePolls, ViewPolls {
     private final PollRepository polls;

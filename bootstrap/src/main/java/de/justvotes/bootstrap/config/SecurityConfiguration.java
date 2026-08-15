@@ -1,4 +1,4 @@
-package de.justvotes.bootstrap;
+package de.justvotes.bootstrap.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
@@ -15,8 +15,8 @@ import org.springframework.security.authentication.dao.DaoAuthenticationProvider
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.bcrypt.BCrypt;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
@@ -30,6 +30,26 @@ import java.io.IOException;
 @Configuration
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 class SecurityConfiguration {
+    private static void validateAdminConfiguration(String username, String passwordHash) {
+        if (username.isBlank()) {
+            throw new IllegalStateException("ADMIN_USERNAME must not be blank.");
+        }
+        try {
+            BCrypt.checkpw("configuration-validation", passwordHash);
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalStateException("ADMIN_PASSWORD_HASH must be a BCrypt hash.", exception);
+        }
+    }
+
+    static void writeProblemDetail(HttpServletRequest request, HttpServletResponse response, ObjectMapper objectMapper,
+                                   HttpStatus status, String detail) throws IOException {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);
+        problem.setInstance(java.net.URI.create(request.getRequestURI()));
+        response.setStatus(status.value());
+        response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
+        objectMapper.writeValue(response.getOutputStream(), problem);
+    }
+
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http, CsrfTokenRepository csrfTokenRepository,
                                             SecurityContextRepository securityContextRepository,
@@ -67,7 +87,7 @@ class SecurityConfiguration {
 
     @Bean
     UserDetailsService systemAdmin(@Value("${ADMIN_USERNAME}") String username,
-                                  @Value("${ADMIN_PASSWORD_HASH}") String passwordHash) {
+                                   @Value("${ADMIN_PASSWORD_HASH}") String passwordHash) {
         validateAdminConfiguration(username, passwordHash);
         return ignored -> User.withUsername(username)
                 .password(passwordHash)
@@ -86,25 +106,5 @@ class SecurityConfiguration {
         provider.setUserDetailsService(systemAdmin);
         provider.setPasswordEncoder(passwordEncoder);
         return provider::authenticate;
-    }
-
-    private static void validateAdminConfiguration(String username, String passwordHash) {
-        if (username.isBlank()) {
-            throw new IllegalStateException("ADMIN_USERNAME must not be blank.");
-        }
-        try {
-            BCrypt.checkpw("configuration-validation", passwordHash);
-        } catch (IllegalArgumentException exception) {
-            throw new IllegalStateException("ADMIN_PASSWORD_HASH must be a BCrypt hash.", exception);
-        }
-    }
-
-    static void writeProblemDetail(HttpServletRequest request, HttpServletResponse response, ObjectMapper objectMapper,
-                                   HttpStatus status, String detail) throws IOException {
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);
-        problem.setInstance(java.net.URI.create(request.getRequestURI()));
-        response.setStatus(status.value());
-        response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
-        objectMapper.writeValue(response.getOutputStream(), problem);
     }
 }

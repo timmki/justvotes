@@ -2,8 +2,7 @@ package de.justvotes.pollmanagement.core;
 
 import de.justvotes.pollmanagement.core.model.Poll;
 import de.justvotes.pollmanagement.core.ports.out.PollRepository;
-import de.justvotes.pollmanagement.core.ports.out.TemplateGroupSnapshot;
-import de.justvotes.pollmanagement.core.ports.out.TemplateGroupSnapshotProvider;
+import de.justvotes.pollmanagement.core.model.TemplateGroupSnapshot;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -43,8 +42,20 @@ class PollManagementTest {
     private static final class InMemoryPollRepository implements PollRepository {
         private Poll poll;
 
-        @Override public Poll save(Poll poll) { this.poll = poll; return poll; }
-        @Override public Optional<Poll> findById(Poll.PollId id) { return Optional.ofNullable(poll).filter(candidate -> candidate.id().equals(id)); }
-        @Override public List<Poll> findAllByCreator(String creator) { return poll == null || !poll.createdBy().equals(creator) ? List.of() : List.of(poll); }
+        @Override
+        public Poll save(Poll poll) {
+            this.poll = poll;
+            return poll;
+        }
+
+        @Override
+        public Optional<Poll> findById(Poll.PollId id) {
+            return Optional.ofNullable(poll).filter(candidate -> candidate.id().equals(id));
+        }
+
+        @Override
+        public List<Poll> findAllByCreator(String creator) {
+            return poll == null || !poll.createdBy().equals(creator) ? List.of() : List.of(poll);
+        }
     }
 }

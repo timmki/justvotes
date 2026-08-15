@@ -10,7 +10,7 @@ public final class OptionTemplate {
     private final Set<OptionTemplateGroup.OptionTemplateGroupId> groupReferences;
 
     public OptionTemplate(String name) {
-        this(OptionTemplateId.empty(), name, Set.of());
+        this(OptionTemplateId.newId(), name, Set.of());
     }
 
     public OptionTemplate(OptionTemplateId id, String name, Set<OptionTemplateGroup.OptionTemplateGroupId> groupReferences) {
@@ -47,11 +47,11 @@ public final class OptionTemplate {
             return new OptionTemplateId(id);
         }
 
-        public static OptionTemplateId empty() {
+        public static OptionTemplateId newId() {
             return new OptionTemplateId(0);
         }
 
-        public boolean isEmpty() {
+        public boolean isNew() {
             return value == 0;
         }
     }

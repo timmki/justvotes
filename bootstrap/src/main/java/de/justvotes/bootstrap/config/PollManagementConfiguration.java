@@ -1,4 +1,4 @@
-package de.justvotes.bootstrap;
+package de.justvotes.bootstrap.config;
 
 import de.justvotes.adapters.pollmanagement.infra.in.http.PollController;
 import de.justvotes.adapters.pollmanagement.infra.in.transaction.TransactionalPollManagement;
@@ -17,10 +17,33 @@ import org.springframework.context.annotation.Configuration;
 
 @Configuration
 class PollManagementConfiguration {
-    @Bean PollRepository pollRepository(SpringDataPollRepository polls) { return new JpaPollPersistenceAdapter(polls); }
-    @Bean TemplateGroupSnapshotProvider templateGroupSnapshotProvider(@Qualifier("templateCatalogQueries") ViewTemplateCatalog catalog) { return new TemplateCatalogSnapshotAdapter(catalog); }
-    @Bean PollManagement pollManagement(PollRepository polls, TemplateGroupSnapshotProvider groups) { return new PollManagement(polls, groups); }
-    @Bean ManagePolls pollCommands(PollManagement management) { return new TransactionalPollManagement(management, management); }
-    @Bean ViewPolls pollQueries(PollManagement management) { return new TransactionalPollManagement(management, management); }
-    @Bean PollController pollController(@Qualifier("pollCommands") ManagePolls commands, @Qualifier("pollQueries") ViewPolls queries) { return new PollController(commands, queries); }
+    @Bean
+    PollRepository pollRepository(SpringDataPollRepository polls) {
+        return new JpaPollPersistenceAdapter(polls);
+    }
+
+    @Bean
+    TemplateGroupSnapshotProvider templateGroupSnapshotProvider(@Qualifier("templateCatalogQueries") ViewTemplateCatalog catalog) {
+        return new TemplateCatalogSnapshotAdapter(catalog);
+    }
+
+    @Bean
+    PollManagement pollManagement(PollRepository polls, TemplateGroupSnapshotProvider groups) {
+        return new PollManagement(polls, groups);
+    }
+
+    @Bean
+    ManagePolls pollCommands(PollManagement management) {
+        return new TransactionalPollManagement(management, management);
+    }
+
+    @Bean
+    ViewPolls pollQueries(PollManagement management) {
+        return new TransactionalPollManagement(management, management);
+    }
+
+    @Bean
+    PollController pollController(@Qualifier("pollCommands") ManagePolls commands, @Qualifier("pollQueries") ViewPolls queries) {
+        return new PollController(commands, queries);
+    }
 }

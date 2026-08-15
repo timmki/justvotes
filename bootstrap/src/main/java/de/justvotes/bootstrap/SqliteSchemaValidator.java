@@ -14,8 +14,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.LinkedHashMap;
-import java.util.Locale;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -36,21 +36,6 @@ class SqliteSchemaValidator implements ApplicationRunner {
 
     SqliteSchemaValidator(DataSource dataSource) {
         this.dataSource = dataSource;
-    }
-
-    @Override
-    public void run(ApplicationArguments arguments) throws SQLException {
-        Map<String, String> expectedSchema = expectedSchema();
-        SqliteBusyRetry.execute(() -> {
-            try (Connection connection = dataSource.getConnection()) {
-                Map<String, String> actualSchema = actualSchema(connection);
-                if (!actualSchema.equals(expectedSchema)) {
-                    throw new SQLException("Schema deviation: expected " + expectedSchema.keySet()
-                            + " but found " + actualSchema.keySet());
-                }
-            }
-            return null;
-        });
     }
 
     private static Map<String, String> expectedSchema() throws SQLException {
@@ -97,5 +82,20 @@ class SqliteSchemaValidator implements ApplicationRunner {
 
     private static String normalize(String sql) {
         return sql.replaceAll("\\s+", " ").trim().toLowerCase(Locale.ROOT);
+    }
+
+    @Override
+    public void run(ApplicationArguments arguments) throws SQLException {
+        Map<String, String> expectedSchema = expectedSchema();
+        SqliteBusyRetry.execute(() -> {
+            try (Connection connection = dataSource.getConnection()) {
+                Map<String, String> actualSchema = actualSchema(connection);
+                if (!actualSchema.equals(expectedSchema)) {
+                    throw new SQLException("Schema deviation: expected " + expectedSchema.keySet()
+                            + " but found " + actualSchema.keySet());
+                }
+            }
+            return null;
+        });
     }
 }

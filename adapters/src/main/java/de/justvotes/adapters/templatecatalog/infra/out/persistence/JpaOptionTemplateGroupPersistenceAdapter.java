@@ -41,7 +41,7 @@ public final class JpaOptionTemplateGroupPersistenceAdapter implements OptionTem
 
     @Override
     public OptionTemplateGroup save(OptionTemplateGroup group) {
-        OptionTemplateGroupEntity entity = group.id().isEmpty()
+        OptionTemplateGroupEntity entity = group.id().isNew()
                 ? new OptionTemplateGroupEntity(group.name(), group.description())
                 : groups.findById(group.id().value()).orElseThrow();
         entity.rename(group.name());
