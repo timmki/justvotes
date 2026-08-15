@@ -1,7 +1,7 @@
 package de.justvotes.adapters.templatecatalog.infra.in.http;
 
-import de.justvotes.templatecatalog.core.CatalogNameAlreadyExistsException;
-import de.justvotes.templatecatalog.core.CatalogItemNotFoundException;
+import de.justvotes.templatecatalog.core.exception.CatalogItemNotFoundException;
+import de.justvotes.templatecatalog.core.exception.CatalogNameAlreadyExistsException;
 import de.justvotes.templatecatalog.core.model.OptionTemplate;
 import de.justvotes.templatecatalog.core.model.OptionTemplateGroup;
 import de.justvotes.templatecatalog.core.ports.in.ManageTemplateCatalog;
@@ -10,16 +10,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -111,19 +102,21 @@ public final class TemplateCatalogController {
                 .body(ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, exception.getMessage()));
     }
 
-    public record NameRequest(String name) { }
+    public record NameRequest(String name) {
+    }
 
-    public record GroupRequest(String name, String description) { }
+    public record GroupRequest(String name, String description) {
+    }
 
     public record TemplateResponse(long id, String name) {
         static TemplateResponse from(OptionTemplate template) {
-            return new TemplateResponse(template.id(), template.name());
+            return new TemplateResponse(template.id().value(), template.name());
         }
     }
 
     public record GroupResponse(long id, String name, String description) {
         static GroupResponse from(OptionTemplateGroup group) {
-            return new GroupResponse(group.id(), group.name(), group.description());
+            return new GroupResponse(group.id().value(), group.name(), group.description());
         }
     }
 }

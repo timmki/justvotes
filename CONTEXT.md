@@ -29,6 +29,16 @@ Eine global benannte Gruppe von Optionsvorlagen, aus der beim Anlegen eines
 Polls dessen Optionen übernommen werden.
 _Avoid_: Poll-Gruppe, Optionsliste
 
+**Optionsvorlage**:
+Eine global benannte, wiederverwendbare Vorlage für eine Poll-Option.
+_Avoid_: Option, Poll-Option
+
+**Vorlagengruppenmitgliedschaft**:
+Die Zuordnung einer Optionsvorlage zu einer Vorlagengruppe. Sie wird durch die
+Vorlagengruppe verwaltet; die Optionsvorlage kennt die Gruppe nur über deren
+Identität.
+_Avoid_: eingebettete Vorlage, gemeinsame Entität
+
 **Poll-Snapshot**:
 Der unveränderliche, beim Anlegen übernommene Stand der Vorlagengruppe und
 ihrer Optionen eines Polls.

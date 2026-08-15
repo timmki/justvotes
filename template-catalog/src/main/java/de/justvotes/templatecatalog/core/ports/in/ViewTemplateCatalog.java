@@ -7,6 +7,8 @@ import java.util.List;
 
 public interface ViewTemplateCatalog {
     List<OptionTemplate> templates();
+
     List<OptionTemplateGroup> groups();
+
     List<OptionTemplate> templatesInGroup(long groupId);
 }

@@ -1,25 +1,56 @@
 package de.justvotes.bootstrap;
 
 import de.justvotes.adapters.templatecatalog.infra.in.http.TemplateCatalogController;
-import de.justvotes.templatecatalog.core.model.OptionTemplate;
+import de.justvotes.adapters.templatecatalog.infra.in.transaction.TransactionalTemplateCatalogAdministration;
+import de.justvotes.adapters.templatecatalog.infra.out.persistence.JpaOptionTemplateGroupPersistenceAdapter;
+import de.justvotes.adapters.templatecatalog.infra.out.persistence.JpaTemplateCatalogPersistenceAdapter;
+import de.justvotes.adapters.templatecatalog.infra.out.persistence.SpringDataOptionTemplateGroupRepository;
+import de.justvotes.adapters.templatecatalog.infra.out.persistence.SpringDataOptionTemplateRepository;
 import de.justvotes.templatecatalog.core.TemplateCatalogAdministration;
+import de.justvotes.templatecatalog.core.ports.in.ManageTemplateCatalog;
+import de.justvotes.templatecatalog.core.ports.in.ViewTemplateCatalog;
 import de.justvotes.templatecatalog.core.ports.out.OptionTemplateGroupRepository;
 import de.justvotes.templatecatalog.core.ports.out.OptionTemplateRepository;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 @Configuration
-@EntityScan(basePackageClasses = OptionTemplate.class)
-@EnableJpaRepositories(basePackageClasses = OptionTemplateRepository.class)
+@EntityScan(basePackages = "de.justvotes.adapters.templatecatalog.infra.out.persistence")
+@EnableJpaRepositories(basePackages = "de.justvotes.adapters.templatecatalog.infra.out.persistence")
 class TemplateCatalogConfiguration {
-    @Bean TemplateCatalogAdministration templateCatalogAdministration(OptionTemplateRepository templates,
-                                                                       OptionTemplateGroupRepository groups) {
+    @Bean
+    OptionTemplateRepository optionTemplateRepository(SpringDataOptionTemplateRepository templates) {
+        return new JpaTemplateCatalogPersistenceAdapter(templates);
+    }
+
+    @Bean
+    OptionTemplateGroupRepository optionTemplateGroupRepository(SpringDataOptionTemplateRepository templates,
+                                                                 SpringDataOptionTemplateGroupRepository groups) {
+        return new JpaOptionTemplateGroupPersistenceAdapter(templates, groups);
+    }
+
+    @Bean
+    TemplateCatalogAdministration templateCatalogAdministration(OptionTemplateRepository templates,
+                                                                 OptionTemplateGroupRepository groups) {
         return new TemplateCatalogAdministration(templates, groups);
     }
 
-    @Bean TemplateCatalogController templateCatalogController(TemplateCatalogAdministration administration) {
-        return new TemplateCatalogController(administration, administration);
+    @Bean
+    ManageTemplateCatalog templateCatalogCommands(TemplateCatalogAdministration administration) {
+        return new TransactionalTemplateCatalogAdministration(administration, administration);
+    }
+
+    @Bean
+    ViewTemplateCatalog templateCatalogQueries(TemplateCatalogAdministration administration) {
+        return new TransactionalTemplateCatalogAdministration(administration, administration);
+    }
+
+    @Bean
+    TemplateCatalogController templateCatalogController(@Qualifier("templateCatalogCommands") ManageTemplateCatalog commands,
+                                                        @Qualifier("templateCatalogQueries") ViewTemplateCatalog queries) {
+        return new TemplateCatalogController(commands, queries);
     }
 }

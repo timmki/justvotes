@@ -1,12 +1,15 @@
 package de.justvotes.templatecatalog.core;
 
+import de.justvotes.templatecatalog.core.exception.CatalogItemNotFoundException;
+import de.justvotes.templatecatalog.core.exception.CatalogNameAlreadyExistsException;
 import de.justvotes.templatecatalog.core.model.OptionTemplate;
 import de.justvotes.templatecatalog.core.model.OptionTemplateGroup;
 import de.justvotes.templatecatalog.core.ports.in.ManageTemplateCatalog;
 import de.justvotes.templatecatalog.core.ports.in.ViewTemplateCatalog;
 import de.justvotes.templatecatalog.core.ports.out.OptionTemplateGroupRepository;
 import de.justvotes.templatecatalog.core.ports.out.OptionTemplateRepository;
-import org.springframework.transaction.annotation.Transactional;
+import io.vavr.API;
+import io.vavr.control.Try;
 
 import java.util.List;
 
@@ -19,81 +22,138 @@ public class TemplateCatalogAdministration implements ManageTemplateCatalog, Vie
         this.groups = groups;
     }
 
+    private static String normalizedName(String name) {
+        return name.trim().toLowerCase(java.util.Locale.ROOT);
+    }
+
     @Override
     public OptionTemplate createTemplate(String name) {
-        String validName = validName(name);
-        ensureNameIsAvailable(validName);
-        return templates.save(new OptionTemplate(validName));
+        return Try.success(name)
+                .map(this::ensureNameIsAvailable)
+                .map(OptionTemplate::new)
+                .map(templates::save)
+                .get();
     }
 
-    @Override @Transactional public OptionTemplate renameTemplate(long templateId, String name) {
-        String validName = validName(name);
-        ensureNameIsAvailable(validName, templateId, null);
-        OptionTemplate template = template(templateId);
-        template.rename(validName);
-        return template;
+    @Override
+    public OptionTemplate renameTemplate(long templateId, String name) {
+        return Try.of(() -> OptionTemplate.OptionTemplateId.of(templateId))
+                .map(this::template)
+                .andThen(template -> ensureNameIsAvailable(name, template.id(), null))
+                .map(template -> template.rename(name))
+                .map(templates::save)
+                .get();
     }
 
-    @Override @Transactional public void deleteTemplate(long templateId) {
-        OptionTemplate template = template(templateId);
-        groups.findAllByTemplatesContaining(template).forEach(group -> group.removeTemplate(template));
-        templates.delete(template);
+    @Override
+    public void deleteTemplate(long templateId) {
+        Try.of(() -> OptionTemplate.OptionTemplateId.of(templateId))
+                .map(this::template)
+                .andThen(template -> this.groups.findAllReferencing(OptionTemplate.OptionTemplateId.of(templateId))
+                        .forEach(group -> {
+                                group.removeTemplate(OptionTemplate.OptionTemplateId.of(templateId));
+                                groups.save(group);
+                        }))
+                .andThen(templates::delete)
+                .get();
     }
 
     @Override
     public OptionTemplateGroup createGroup(String name, String description) {
-        String validName = validName(name);
-        ensureNameIsAvailable(validName);
-        return groups.save(new OptionTemplateGroup(validName, description == null ? "" : description.trim()));
+        return Try.success(name)
+                .map(this::ensureNameIsAvailable)
+                .map(validName -> new OptionTemplateGroup(validName, description))
+                .map(groups::save)
+                .get();
     }
 
-    @Override @Transactional public OptionTemplateGroup renameGroup(long groupId, String name) {
-        String validName = validName(name);
-        ensureNameIsAvailable(validName, null, groupId);
-        OptionTemplateGroup group = group(groupId);
-        group.rename(validName);
-        return group;
+    @Override
+    public OptionTemplateGroup renameGroup(long groupId, String name) {
+        return Try.of(() -> OptionTemplateGroup.OptionTemplateGroupId.of(groupId))
+                .map(this::group)
+                .andThen(group -> ensureNameIsAvailable(name, null, group.id()))
+                .map(group -> group.rename(name))
+                .map(groups::save)
+                .get();
     }
 
-    @Override @Transactional public void deleteGroup(long groupId) { groups.delete(group(groupId)); }
+    @Override
+    public void deleteGroup(long groupId) {
+        Try.of(() -> OptionTemplateGroup.OptionTemplateGroupId.of(groupId))
+                .map(this::group)
+                .andThen(groups::delete)
+                .get();
+    }
 
-    @Override @Transactional public void assignTemplateToGroup(long templateId, long groupId) { group(groupId).addTemplate(template(templateId)); }
-    @Override @Transactional public void removeTemplateFromGroup(long templateId, long groupId) { group(groupId).removeTemplate(template(templateId)); }
-    @Override public List<OptionTemplate> templates() { return templates.findAll(); }
-    @Override public List<OptionTemplateGroup> groups() { return groups.findAll(); }
-    @Override @Transactional public List<OptionTemplate> templatesInGroup(long groupId) { return List.copyOf(group(groupId).templates()); }
+    @Override
+    public OptionTemplateGroup assignTemplateToGroup(long templateId, long groupId) {
+        Try<OptionTemplate> templateIdTry = Try.of(() -> OptionTemplate.OptionTemplateId.of(templateId))
+                .mapTry(this::template);
+        Try<OptionTemplateGroup> groupIdTry = Try.of(() -> OptionTemplateGroup.OptionTemplateGroupId.of(groupId))
+                .mapTry(this::group);
 
-    private void ensureNameIsAvailable(String name) {
-        if (templates.findByNormalizedName(normalizedName(name)).isPresent()
-                || groups.findByNormalizedName(normalizedName(name)).isPresent()) {
+        return API.For(templateIdTry, groupIdTry).yield((template, group) -> {
+            group.addTemplate(template.id());
+            return groups.save(group);
+        }).get();
+    }
+
+    @Override
+    public OptionTemplateGroup removeTemplateFromGroup(long templateId, long groupId) {
+        Try<OptionTemplate> templateIdTry = Try.of(() -> OptionTemplate.OptionTemplateId.of(templateId))
+                .mapTry(this::template);
+        Try<OptionTemplateGroup> groupIdTry = Try.of(() -> OptionTemplateGroup.OptionTemplateGroupId.of(groupId))
+                .mapTry(this::group);
+
+        return API.For(templateIdTry, groupIdTry).yield((template, group) -> {
+            group.removeTemplate(template.id());
+            return groups.save(group);
+        }).get();
+    }
+
+    @Override
+    public List<OptionTemplate> templates() {
+        return templates.findAll();
+    }
+
+    @Override
+    public List<OptionTemplateGroup> groups() {
+        return groups.findAll();
+    }
+
+    @Override
+    public List<OptionTemplate> templatesInGroup(long groupId) {
+        return group(OptionTemplateGroup.OptionTemplateGroupId.of(groupId))
+                .templateReferences().stream()
+                .map(this::template)
+                .toList();
+    }
+
+    private String ensureNameIsAvailable(String name) {
+        String normalizedName = normalizedName(name);
+        if (templates.findByNormalizedName(normalizedName).isPresent()
+                || groups.findByNormalizedName(normalizedName).isPresent()) {
             throw new CatalogNameAlreadyExistsException(name);
         }
+        return normalizedName;
     }
 
-    private void ensureNameIsAvailable(String name, Long templateId, Long groupId) {
-        boolean usedByAnotherTemplate = templates.findByNormalizedName(normalizedName(name))
-                .filter(template -> templateId == null || template.id() != templateId).isPresent();
-        boolean usedByAnotherGroup = groups.findByNormalizedName(normalizedName(name))
-                .filter(group -> groupId == null || group.id() != groupId).isPresent();
+    private void ensureNameIsAvailable(String name, OptionTemplate.OptionTemplateId templateId, OptionTemplateGroup.OptionTemplateGroupId groupId) {
+        String normalizedName = normalizedName(name);
+        boolean usedByAnotherTemplate = templates.findByNormalizedName(normalizedName)
+                .filter(template -> !template.id().equals(templateId)).isPresent();
+        boolean usedByAnotherGroup = groups.findByNormalizedName(normalizedName)
+                .filter(group -> !group.id().equals(groupId)).isPresent();
         if (usedByAnotherTemplate || usedByAnotherGroup) {
             throw new CatalogNameAlreadyExistsException(name);
         }
     }
 
-    private static String validName(String name) {
-        if (name == null || name.trim().isEmpty()) throw new IllegalArgumentException("A catalog name must not be blank.");
-        return name.trim();
+    private OptionTemplate template(OptionTemplate.OptionTemplateId id) {
+        return templates.findById(id).orElseThrow(() -> new CatalogItemNotFoundException("Template", id));
     }
 
-    private OptionTemplate template(long id) {
-        return templates.findById(Math.toIntExact(id)).orElseThrow(() -> new CatalogItemNotFoundException("Template", id));
-    }
-
-    private OptionTemplateGroup group(long id) {
-        return groups.findById(Math.toIntExact(id)).orElseThrow(() -> new CatalogItemNotFoundException("Template group", id));
-    }
-
-    private static String normalizedName(String name) {
-        return name.trim().toLowerCase(java.util.Locale.ROOT);
+    private OptionTemplateGroup group(OptionTemplateGroup.OptionTemplateGroupId id) {
+        return groups.findById(id).orElseThrow(() -> new CatalogItemNotFoundException("Template group", id));
     }
 }

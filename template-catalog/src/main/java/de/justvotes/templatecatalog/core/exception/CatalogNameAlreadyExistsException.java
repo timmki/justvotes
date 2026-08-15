@@ -1,4 +1,4 @@
-package de.justvotes.templatecatalog.core;
+package de.justvotes.templatecatalog.core.exception;
 
 public final class CatalogNameAlreadyExistsException extends RuntimeException {
     public CatalogNameAlreadyExistsException(String name) {

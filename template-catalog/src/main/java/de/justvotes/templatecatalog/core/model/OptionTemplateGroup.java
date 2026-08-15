@@ -1,52 +1,83 @@
 package de.justvotes.templatecatalog.core.model;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.JoinTable;
-import jakarta.persistence.ManyToMany;
-import jakarta.persistence.Table;
-
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
-@Entity
-@Table(name = "OptionTemplateGroup")
-public class OptionTemplateGroup {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Integer id;
+public final class OptionTemplateGroup {
+    private final OptionTemplateGroupId id;
     private String name;
     private String description;
-
-    @ManyToMany
-    @JoinTable(name = "OptionTemplateGroupMember",
-            joinColumns = @JoinColumn(name = "groupID"),
-            inverseJoinColumns = @JoinColumn(name = "templateID"))
-    private final Set<OptionTemplate> templates = new LinkedHashSet<>();
-
-    protected OptionTemplateGroup() {
-    }
+    private final Set<OptionTemplate.OptionTemplateId> templateReferences;
 
     public OptionTemplateGroup(String name, String description) {
-        this.name = name;
-        this.description = description;
+        this(OptionTemplateGroupId.empty(), name, description, Set.of());
     }
 
-    public long id() { return id; }
-    public String name() { return name; }
-    public String description() { return description; }
-    public Set<OptionTemplate> templates() { return Collections.unmodifiableSet(templates); }
-    public void rename(String name) { this.name = name; }
-
-    public void addTemplate(OptionTemplate template) {
-        if (templates.add(template)) template.addToGroup(this);
+    public OptionTemplateGroup(OptionTemplateGroupId id, String name, String description, Set<OptionTemplate.OptionTemplateId> templateReferences) {
+        this.id = id;
+        this.name = validateName(name);
+        this.description = description == null ? "" : description.trim();
+        this.templateReferences = new LinkedHashSet<>(templateReferences);
     }
 
-    public void removeTemplate(OptionTemplate template) {
-        if (templates.remove(template)) template.removeFromGroup(this);
+    public OptionTemplateGroupId id() {
+        return id;
+    }
+
+    public String name() {
+        return name;
+    }
+
+    public String description() {
+        return description;
+    }
+
+    public Set<OptionTemplate.OptionTemplateId> templateReferences() {
+        return Collections.unmodifiableSet(templateReferences);
+    }
+
+    public OptionTemplateGroup addTemplate(OptionTemplate.OptionTemplateId templateId) {
+        templateReferences.add(templateId);
+        return this;
+    }
+
+    public OptionTemplateGroup removeTemplate(OptionTemplate.OptionTemplateId templateId) {
+        templateReferences.remove(templateId);
+        return this;
+    }
+
+    public OptionTemplateGroup rename(String name) {
+        this.name = validateName(name);
+        return this;
+    }
+
+    public OptionTemplateGroup description(String description) {
+        this.description = description == null ? "" : description.trim();
+        return this;
+    }
+
+    private static OptionTemplate.OptionTemplateId templateReference(long templateId) {
+        return OptionTemplate.OptionTemplateId.of(templateId);
+    }
+
+    private String validateName(String name) {
+        if (name == null || name.trim().isEmpty()) throw new IllegalArgumentException("An OptionTemplateGroup name must not be blank.");
+        return name.trim();
+    }
+
+    public record OptionTemplateGroupId(long value) {
+
+        public static OptionTemplateGroupId of(long id) {
+            return new OptionTemplateGroupId(id);
+        }
+
+        public static OptionTemplateGroupId empty() {
+            return new OptionTemplateGroupId(0);
+        }
+
+        public boolean isEmpty() {
+            return value == 0;
+        }
     }
 }
