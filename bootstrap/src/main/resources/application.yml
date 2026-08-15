@@ -18,6 +18,15 @@ spring:
     validate-on-migrate: true
     clean-disabled: true
     connect-retries: 3
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+      naming:
+        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+    properties:
+      hibernate:
+        dialect: org.hibernate.community.dialect.SQLiteDialect
 management:
   endpoints:
     web:
