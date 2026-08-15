@@ -15,6 +15,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.LinkedHashMap;
 import java.util.Locale;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -25,6 +26,12 @@ import java.util.regex.Pattern;
 @Component
 class SqliteSchemaValidator implements ApplicationRunner {
     private static final Pattern CREATE_OBJECT = Pattern.compile("CREATE (?:TABLE|INDEX) \\\"([^\\\"]+)\\\"");
+    private static final Pattern ADD_COLUMN = Pattern.compile("ALTER TABLE \\\"([^\\\"]+)\\\" ADD COLUMN (.+)", Pattern.DOTALL);
+    private static final List<String> MIGRATIONS = List.of(
+            "/db/migration/V1__initial_schema.sql",
+            "/db/migration/V2__enforce_global_catalog_name_rules.sql",
+            "/db/migration/V3__store_poll_template_group_snapshots.sql",
+            "/db/migration/V4__store_poll_template_option_snapshots.sql");
     private final DataSource dataSource;
 
     SqliteSchemaValidator(DataSource dataSource) {
@@ -47,21 +54,28 @@ class SqliteSchemaValidator implements ApplicationRunner {
     }
 
     private static Map<String, String> expectedSchema() throws SQLException {
-        try (InputStream migration = SqliteSchemaValidator.class.getResourceAsStream("/db/migration/V1__initial_schema.sql")) {
-            if (migration == null) {
-                throw new SQLException("Initial schema migration is unavailable");
-            }
+        try {
             Map<String, String> schema = new LinkedHashMap<>();
-            for (String statement : new String(migration.readAllBytes(), StandardCharsets.UTF_8).split(";")) {
-                Matcher object = CREATE_OBJECT.matcher(statement);
-                if (object.find()) {
-                    schema.put(object.group(1), normalize(statement));
+            for (String migrationPath : MIGRATIONS) {
+                try (InputStream migration = SqliteSchemaValidator.class.getResourceAsStream(migrationPath)) {
+                    if (migration == null) throw new SQLException("Schema migration is unavailable: " + migrationPath);
+                    for (String statement : new String(migration.readAllBytes(), StandardCharsets.UTF_8).split(";")) {
+                        Matcher object = CREATE_OBJECT.matcher(statement);
+                        Matcher column = ADD_COLUMN.matcher(statement.trim());
+                        if (object.find()) schema.put(object.group(1), normalize(statement));
+                        if (column.matches()) addColumn(schema, column.group(1), column.group(2));
+                    }
                 }
             }
             return schema;
         } catch (IOException exception) {
             throw new SQLException("Could not read the initial schema migration", exception);
         }
+    }
+
+    private static void addColumn(Map<String, String> schema, String table, String column) {
+        String createTable = schema.get(table);
+        schema.put(table, normalize(createTable.substring(0, createTable.lastIndexOf(')')) + ", " + column + ')'));
     }
 
     private static Map<String, String> actualSchema(Connection connection) throws SQLException {

@@ -18,8 +18,8 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 @Configuration
-@EntityScan(basePackages = "de.justvotes.adapters.templatecatalog.infra.out.persistence")
-@EnableJpaRepositories(basePackages = "de.justvotes.adapters.templatecatalog.infra.out.persistence")
+@EntityScan(basePackages = "de.justvotes.adapters")
+@EnableJpaRepositories(basePackages = "de.justvotes.adapters")
 class TemplateCatalogConfiguration {
     @Bean
     OptionTemplateRepository optionTemplateRepository(SpringDataOptionTemplateRepository templates) {

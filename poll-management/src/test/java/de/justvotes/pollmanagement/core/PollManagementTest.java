@@ -18,30 +18,33 @@ class PollManagementTest {
         var polls = new InMemoryPollRepository();
         var management = new PollManagement(polls, groupId -> new TemplateGroupSnapshot(groupId, "Gremium", List.of("Zeta", "Alpha")));
 
-        Poll poll = management.createDraft("Mitgliederwahl", 7, "systemadmin");
+        Poll poll = management.createDraft("Mitgliederwahl", Poll.TemplateGroupId.of(7), "systemadmin");
 
         assertEquals(Poll.Visibility.PRIVATE, poll.visibility());
         assertEquals(Poll.State.DRAFT, poll.state());
-        assertEquals(7, poll.templateGroup().id());
+        assertEquals(7, poll.templateGroup().id().value());
         assertEquals(List.of("Alpha", "Zeta"), poll.options().stream().map(Poll.Option::text).toList());
+        assertEquals(List.of("Alpha", "Zeta"), poll.templateSnapshotOptions().stream().map(Poll.Option::text).toList());
     }
 
     @Test
     void rejectsAnEmptyTemplateGroupAndDuplicateNormalizedDraftOptions() {
-        var management = new PollManagement(new InMemoryPollRepository(), groupId -> new TemplateGroupSnapshot(groupId, "Leer", List.of()));
+        var emptyGroupManagement = new PollManagement(new InMemoryPollRepository(), groupId -> new TemplateGroupSnapshot(groupId, "Leer", List.of()));
 
-        assertThrows(IllegalArgumentException.class, () -> management.createDraft("Mitgliederwahl", 7, "systemadmin"));
+        assertThrows(IllegalArgumentException.class, () -> emptyGroupManagement.createDraft("Mitgliederwahl", Poll.TemplateGroupId.of(7), "systemadmin"));
 
-        Poll poll = new PollManagement(new InMemoryPollRepository(), groupId -> new TemplateGroupSnapshot(groupId, "Gremium", List.of("Ja")))
-                .createDraft("Mitgliederwahl", 7, "systemadmin");
+        var management = new PollManagement(new InMemoryPollRepository(), groupId -> new TemplateGroupSnapshot(groupId, "Gremium", List.of("Ja")));
+        Poll poll = management.createDraft("Mitgliederwahl", Poll.TemplateGroupId.of(7), "systemadmin");
         assertThrows(IllegalArgumentException.class, () -> management.replaceDraftOptions(poll.id(), List.of(" Ja ", "ja")));
+        management.replaceDraftOptions(poll.id(), List.of("Nein"));
+        assertEquals(List.of("Ja"), poll.templateSnapshotOptions().stream().map(Poll.Option::text).toList());
     }
 
     private static final class InMemoryPollRepository implements PollRepository {
         private Poll poll;
 
         @Override public Poll save(Poll poll) { this.poll = poll; return poll; }
-        @Override public Optional<Poll> findById(String id) { return Optional.ofNullable(poll).filter(candidate -> candidate.id().equals(id)); }
+        @Override public Optional<Poll> findById(Poll.PollId id) { return Optional.ofNullable(poll).filter(candidate -> candidate.id().equals(id)); }
         @Override public List<Poll> findAllByCreator(String creator) { return poll == null || !poll.createdBy().equals(creator) ? List.of() : List.of(poll); }
     }
 }

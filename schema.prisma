@@ -20,10 +20,24 @@ model Poll {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @default(now())
   endsAt     DateTime?
+  templateGroupID   Int      @default(0)
+  templateGroupName String   @default("")
 
   options    Option[]
+  templateSnapshotOptions PollTemplateSnapshotOption[]
   votes      Vote[]
   events     PollDomainEvent[]
+}
+
+model PollTemplateSnapshotOption {
+  id       Int    @id @default(autoincrement())
+  pollID   String
+  text     String
+  number   Int
+
+  poll     Poll   @relation(fields: [pollID], references: [id], onDelete: Cascade)
+
+  @@unique([pollID, number])
 }
 
 model Option {

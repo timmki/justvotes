@@ -61,6 +61,33 @@ class TemplateCatalogHttpTest {
         assertEquals(409, admin.post(baseUrl + "/groups", "{\"name\":\" gremium b \",\"description\":\"\"}").getStatusCode().value());
     }
 
+    @Test
+    void letsTheSystemAdminCreateAndEditPrivateDraftsFromTemplateGroupSnapshots() {
+        String catalogUrl = "http://localhost:" + port + "/api/v1/admin/template-catalog";
+        String pollsUrl = "http://localhost:" + port + "/api/v1/admin/polls";
+        AuthenticatedAdmin admin = login();
+        long zeta = createdId(admin.post(catalogUrl + "/templates", "{\"name\":\"Zeta\"}"));
+        long alpha = createdId(admin.post(catalogUrl + "/templates", "{\"name\":\"Alpha\"}"));
+        long group = createdId(admin.post(catalogUrl + "/groups", "{\"name\":\"Wahl\",\"description\":\"\"}"));
+        assertEquals(204, admin.put(catalogUrl + "/groups/" + group + "/templates/" + zeta).getStatusCode().value());
+        assertEquals(204, admin.put(catalogUrl + "/groups/" + group + "/templates/" + alpha).getStatusCode().value());
+
+        ResponseEntity<String> created = admin.post(pollsUrl, "{\"title\":\"Vorstand\",\"templateGroupId\":" + group + "}");
+        assertEquals(201, created.getStatusCode().value());
+        assertTrue(created.getBody().contains("\"visibility\":\"private\""));
+        assertTrue(created.getBody().contains("\"state\":\"draft\""));
+        assertTrue(created.getBody().indexOf("alpha") < created.getBody().indexOf("zeta"));
+        String pollId = stringField(created, "id");
+
+        ResponseEntity<String> edited = admin.put(pollsUrl + "/" + pollId + "/options", "{\"optionTexts\":[\"Ja\",\"Nein\"]}");
+        assertEquals(200, edited.getStatusCode().value(), edited.getBody());
+        assertTrue(edited.getBody().contains("Ja"));
+        assertTrue(edited.getBody().contains("alpha"));
+        assertTrue(edited.getBody().contains("zeta"));
+        assertEquals(400, admin.put(pollsUrl + "/" + pollId + "/options", "{\"optionTexts\":[\" Ja \",\"ja\"]}").getStatusCode().value());
+        assertTrue(admin.get(pollsUrl).getBody().contains(pollId));
+    }
+
     private AuthenticatedAdmin login() {
         TestRestTemplate client = new TestRestTemplate();
         String origin = "http://localhost:" + port;
@@ -87,6 +114,12 @@ class TemplateCatalogHttpTest {
         return Long.parseLong(matcher.group(1));
     }
 
+    private static String stringField(ResponseEntity<String> response, String name) {
+        var matcher = Pattern.compile("\\\"" + name + "\\\":\\\"([^\\\"]+)\\\"").matcher(response.getBody());
+        assertTrue(matcher.find());
+        return matcher.group(1);
+    }
+
     private static String cookieHeader(HttpHeaders headers) {
         return headers.get(HttpHeaders.SET_COOKIE).stream().map(cookie -> cookie.substring(0, cookie.indexOf(';')))
                 .reduce((first, second) -> first + "; " + second).orElseThrow();
@@ -97,6 +130,7 @@ class TemplateCatalogHttpTest {
         ResponseEntity<String> post(String url, String body) { return client.exchange(RequestEntity.post(url).contentType(MediaType.APPLICATION_JSON).header(HttpHeaders.COOKIE, cookies).header("X-XSRF-TOKEN", csrfToken).body(body), String.class); }
         ResponseEntity<String> patch(String url, String body) { return client.exchange(RequestEntity.patch(url).contentType(MediaType.APPLICATION_JSON).header(HttpHeaders.COOKIE, cookies).header("X-XSRF-TOKEN", csrfToken).body(body), String.class); }
         ResponseEntity<String> put(String url) { return client.exchange(RequestEntity.put(url).header(HttpHeaders.COOKIE, cookies).header("X-XSRF-TOKEN", csrfToken).build(), String.class); }
+        ResponseEntity<String> put(String url, String body) { return client.exchange(RequestEntity.put(url).contentType(MediaType.APPLICATION_JSON).header(HttpHeaders.COOKIE, cookies).header("X-XSRF-TOKEN", csrfToken).body(body), String.class); }
         ResponseEntity<String> delete(String url) { return client.exchange(RequestEntity.delete(url).header(HttpHeaders.COOKIE, cookies).header("X-XSRF-TOKEN", csrfToken).build(), String.class); }
     }
 }
