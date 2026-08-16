@@ -8,9 +8,11 @@ import java.util.Optional;
 
 public final class JpaPollPersistenceAdapter implements PollRepository {
     private final SpringDataPollRepository polls;
+    private final SpringDataPollDomainEventRepository events;
 
-    public JpaPollPersistenceAdapter(SpringDataPollRepository polls) {
+    public JpaPollPersistenceAdapter(SpringDataPollRepository polls, SpringDataPollDomainEventRepository events) {
         this.polls = polls;
+        this.events = events;
     }
 
     @Override
@@ -22,10 +24,11 @@ public final class JpaPollPersistenceAdapter implements PollRepository {
                         poll.createdBy(),
                         poll.visibility().name().toLowerCase(),
                         poll.state().name().toLowerCase(),
+                        poll.endsAt() == null ? null : poll.endsAt().toString(),
                         poll.templateGroup().id().value(),
                         poll.templateGroup().name()));
 
-        entity.updateVisibilityAndState(poll.visibility().name().toLowerCase(), poll.state().name().toLowerCase());
+        entity.updateLifecycle(poll.visibility().name().toLowerCase(), poll.state().name().toLowerCase(), poll.endsAt());
 
         if (entity.templateSnapshotOptions().isEmpty()) {
             entity.addTemplateSnapshotOptions(poll.templateSnapshotOptions().stream().map(Poll.Option::text).toList());
@@ -47,7 +50,7 @@ public final class JpaPollPersistenceAdapter implements PollRepository {
 
     @Override
     public List<Poll> findAllByCreator(String creator) {
-        return polls.findAllByCreatedBy(creator).stream().map(this::poll).toList();
+        return polls.findAllByCreatedByOrderByCreatedAtAsc(creator).stream().map(this::poll).toList();
     }
 
     @Override
@@ -63,6 +66,17 @@ public final class JpaPollPersistenceAdapter implements PollRepository {
         ).stream().map(this::poll).toList();
     }
 
+    @Override
+    public List<Poll> findAllActive() {
+        return polls.findAllByState(Poll.State.ACTIVE.name().toLowerCase()).stream().map(this::poll).toList();
+    }
+
+    @Override
+    public void delete(Poll poll) {
+        events.deleteAllByPollId(poll.id().value());
+        polls.deleteById(poll.id().value());
+    }
+
     private Poll poll(PollEntity entity) {
         return Poll.reconstitue(
                 Poll.PollId.of(entity.id()),
@@ -70,6 +84,7 @@ public final class JpaPollPersistenceAdapter implements PollRepository {
                 entity.createdBy(),
                 Poll.Visibility.valueOf(entity.visibility().toUpperCase()),
                 Poll.State.valueOf(entity.state().toUpperCase()),
+                entity.endsAt(),
                 Poll.TemplateGroup.of(Poll.TemplateGroupId.of(entity.templateGroupId()), entity.templateGroupName()),
                 entity.templateSnapshotOptions().stream()
                         .sorted(java.util.Comparator.comparingInt(PollTemplateSnapshotOptionEntity::number))

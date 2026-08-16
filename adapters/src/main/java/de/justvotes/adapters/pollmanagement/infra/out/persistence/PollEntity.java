@@ -17,8 +17,12 @@ public class PollEntity {
     private String title;
     private String visibility;
     private String state;
+    @Column(name = "endsAt")
+    private String endsAt;
     @Column(name = "createdBy")
     private String createdBy;
+    @Column(name = "createdAt", insertable = false, updatable = false)
+    private String createdAt;
     @Column(name = "templateGroupID")
     private int templateGroupId;
     @Column(name = "templateGroupName")
@@ -33,12 +37,13 @@ public class PollEntity {
     protected PollEntity() {
     }
 
-    PollEntity(String id, String title, String createdBy, String visibility, String state, long templateGroupId, String templateGroupName) {
+    PollEntity(String id, String title, String createdBy, String visibility, String state, String endsAt, long templateGroupId, String templateGroupName) {
         this.id = id;
         this.title = title;
         this.createdBy = createdBy;
         this.visibility = visibility;
         this.state = state;
+        this.endsAt = endsAt;
         this.templateGroupId = Math.toIntExact(templateGroupId);
         this.templateGroupName = templateGroupName;
     }
@@ -63,6 +68,10 @@ public class PollEntity {
         return state;
     }
 
+    java.time.Instant endsAt() {
+        return endsAt == null ? null : java.time.Instant.parse(endsAt);
+    }
+
     long templateGroupId() {
         return templateGroupId;
     }
@@ -83,9 +92,10 @@ public class PollEntity {
     void clearOptions() {
         options.clear();
     }
-    void updateVisibilityAndState(String visibility, String state) {
+    void updateLifecycle(String visibility, String state, java.time.Instant endsAt) {
         this.visibility = visibility;
         this.state = state;
+        this.endsAt = endsAt == null ? null : endsAt.toString();
     }
 
     void addOptions(List<String> texts) {

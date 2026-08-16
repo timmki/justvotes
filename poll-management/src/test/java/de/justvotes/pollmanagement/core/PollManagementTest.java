@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Optional;
+import java.time.Instant;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -51,11 +52,28 @@ class PollManagementTest {
                 groupId -> new TemplateGroupSnapshot(groupId, "Gremium", List.of("Ja")), publishedEvents::add);
         Poll draft = management.createDraft("Mitgliederwahl", Poll.TemplateGroupId.of(7), "systemadmin");
 
-        Poll published = management.publish(draft.id(), "systemadmin");
+        Poll published = management.publish(draft.id(), "systemadmin", java.time.Instant.parse("2099-01-01T00:00:00Z"));
 
         assertEquals(Poll.Visibility.PUBLIC, published.visibility());
         assertEquals(Poll.State.ACTIVE, published.state());
         assertEquals(List.of(new PollPublished(draft.id(), "systemadmin")), publishedEvents);
+    }
+
+    @Test
+    void expiresDuePollsIdempotentlyAndArchivesThenRestoresThemAsExpired() {
+        var events = new java.util.ArrayList<PollDomainEvent>();
+        var repository = new InMemoryPollRepository();
+        var management = new PollManagement(repository, groupId -> new TemplateGroupSnapshot(groupId, "Gremium", List.of("Ja")), events::add);
+        Poll draft = management.createDraft("Mitgliederwahl", Poll.TemplateGroupId.of(7), "systemadmin");
+        Instant expiry = Instant.parse("2026-08-16T10:00:00Z");
+        management.publish(draft.id(), "systemadmin", expiry);
+
+        assertEquals(1, management.expireDuePolls(expiry));
+        assertEquals(0, management.expireDuePolls(expiry));
+        assertEquals(Poll.State.EXPIRED, draft.state());
+        assertEquals(Poll.State.ARCHIVED, management.archive(draft.id(), "systemadmin").state());
+        assertEquals(Poll.State.EXPIRED, management.restoreFromArchive(draft.id(), "systemadmin").state());
+        assertEquals("PollExpired", events.get(1).eventType());
     }
 
     private static final class InMemoryPollRepository implements PollRepository {
@@ -85,6 +103,16 @@ class PollManagementTest {
         @Override
         public List<Poll> findAllPublicActive() {
             return poll != null && poll.isPubliclyVisible() ? List.of(poll) : List.of();
+        }
+
+        @Override
+        public List<Poll> findAllActive() {
+            return poll != null && poll.state() == Poll.State.ACTIVE ? List.of(poll) : List.of();
+        }
+
+        @Override
+        public void delete(Poll poll) {
+            if (this.poll == poll) this.poll = null;
         }
     }
 }

@@ -33,8 +33,8 @@ public final class PollController {
     }
 
     @PutMapping("/{pollId}/publication")
-    public PollResponse publish(@PathVariable("pollId") String pollId, Principal admin) {
-        return PollResponse.from(commands.publish(Poll.PollId.of(pollId), admin.getName()));
+    public PollResponse publish(@PathVariable("pollId") String pollId, @RequestBody ExpiryRequest request, Principal admin) {
+        return PollResponse.from(commands.publish(Poll.PollId.of(pollId), admin.getName(), request.endsAt()));
     }
 
     @DeleteMapping("/{pollId}/publication")
@@ -44,8 +44,16 @@ public final class PollController {
 
     @GetMapping
     public List<PollResponse> drafts(Principal admin) {
-        return queries.draftsCreatedBy(admin.getName()).stream().map(PollResponse::from).toList();
+        return queries.pollsCreatedBy(admin.getName()).stream().map(PollResponse::from).toList();
     }
+
+    @PutMapping("/{pollId}/archive") public PollResponse archive(@PathVariable String pollId, Principal admin) { return PollResponse.from(commands.archive(Poll.PollId.of(pollId), admin.getName())); }
+    @PutMapping("/{pollId}/restore-from-archive") public PollResponse restoreFromArchive(@PathVariable String pollId, Principal admin) { return PollResponse.from(commands.restoreFromArchive(Poll.PollId.of(pollId), admin.getName())); }
+    @PutMapping("/{pollId}/expiry") public PollResponse changeExpiry(@PathVariable String pollId, @RequestBody ExpiryRequest request, Principal admin) { return PollResponse.from(commands.changeExpiry(Poll.PollId.of(pollId), request.endsAt(), admin.getName())); }
+    @PutMapping("/{pollId}/reopen") public PollResponse reopen(@PathVariable String pollId, Principal admin) { return PollResponse.from(commands.reopen(Poll.PollId.of(pollId), java.time.Instant.now(), admin.getName())); }
+    @DeleteMapping("/{pollId}") public PollResponse softDelete(@PathVariable String pollId, Principal admin) { return PollResponse.from(commands.softDelete(Poll.PollId.of(pollId), admin.getName())); }
+    @PutMapping("/{pollId}/restore") public PollResponse restore(@PathVariable String pollId, Principal admin) { return PollResponse.from(commands.restore(Poll.PollId.of(pollId), admin.getName())); }
+    @DeleteMapping("/{pollId}/permanently") @ResponseStatus(HttpStatus.NO_CONTENT) public void permanentlyDelete(@PathVariable String pollId, @RequestParam boolean confirmed, @RequestParam boolean confirmationRepeated) { commands.permanentlyDelete(Poll.PollId.of(pollId), confirmed, confirmationRepeated); }
 
     @ExceptionHandler({IllegalArgumentException.class, IllegalStateException.class})
     ResponseEntity<String> invalidPollChange(RuntimeException exception) {
@@ -63,11 +71,14 @@ public final class PollController {
     public record OptionsRequest(List<String> optionTexts) {
     }
 
-    public record PollResponse(String id, String title, String visibility, String state,
+    public record ExpiryRequest(java.time.Instant endsAt) {
+    }
+
+    public record PollResponse(String id, String title, String visibility, String state, java.time.Instant endsAt,
                                TemplateGroupResponse templateGroup, List<OptionResponse> templateSnapshotOptions,
                                List<OptionResponse> options) {
         static PollResponse from(Poll poll) {
-            return new PollResponse(poll.id().value(), poll.title(), poll.visibility().name().toLowerCase(), poll.state().name().toLowerCase(), new TemplateGroupResponse(poll.templateGroup().id().value(), poll.templateGroup().name()), poll.templateSnapshotOptions().stream().map(option -> new OptionResponse(option.number(), option.text())).toList(), poll.options().stream().map(option -> new OptionResponse(option.number(), option.text())).toList());
+            return new PollResponse(poll.id().value(), poll.title(), poll.visibility().name().toLowerCase(), poll.state().name().toLowerCase(), poll.endsAt(), new TemplateGroupResponse(poll.templateGroup().id().value(), poll.templateGroup().name()), poll.templateSnapshotOptions().stream().map(option -> new OptionResponse(option.number(), option.text())).toList(), poll.options().stream().map(option -> new OptionResponse(option.number(), option.text())).toList());
         }
     }
 

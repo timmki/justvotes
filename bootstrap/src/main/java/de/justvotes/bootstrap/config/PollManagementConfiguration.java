@@ -3,6 +3,7 @@ package de.justvotes.bootstrap.config;
 import de.justvotes.adapters.pollmanagement.infra.in.http.IdentityController;
 import de.justvotes.adapters.pollmanagement.infra.in.http.PollController;
 import de.justvotes.adapters.pollmanagement.infra.in.http.PublicPollController;
+import de.justvotes.adapters.pollmanagement.infra.in.scheduling.PollExpiryScheduler;
 import de.justvotes.adapters.pollmanagement.infra.in.transaction.TransactionalPollManagement;
 import de.justvotes.adapters.pollmanagement.infra.in.transaction.TransactionalVoteManagement;
 import de.justvotes.adapters.pollmanagement.infra.out.persistence.*;
@@ -22,8 +23,8 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 class PollManagementConfiguration {
     @Bean
-    PollRepository pollRepository(SpringDataPollRepository polls) {
-        return new JpaPollPersistenceAdapter(polls);
+    PollRepository pollRepository(SpringDataPollRepository polls, SpringDataPollDomainEventRepository events) {
+        return new JpaPollPersistenceAdapter(polls, events);
     }
 
     @Bean
@@ -57,8 +58,14 @@ class PollManagementConfiguration {
     }
 
     @Bean
-    VoteManagement voteManagement(PollRepository polls, PollAuditRepository audit, PollEventPublisher events) {
-        return new VoteManagement(polls, audit, events);
+    de.justvotes.pollmanagement.core.ports.out.UtcClock utcClock() {
+        return java.time.Instant::now;
+    }
+
+    @Bean
+    VoteManagement voteManagement(PollRepository polls, PollAuditRepository audit, PollEventPublisher events,
+                                  de.justvotes.pollmanagement.core.ports.out.UtcClock clock) {
+        return new VoteManagement(polls, audit, events, clock);
     }
 
     @Bean
@@ -84,5 +91,10 @@ class PollManagementConfiguration {
     @Bean
     IdentityController identityController(@Qualifier("voteCommands") ManageVotes votes) {
         return new IdentityController(votes);
+    }
+
+    @Bean
+    PollExpiryScheduler pollExpiryScheduler(@Qualifier("pollCommands") ManagePolls commands) {
+        return new PollExpiryScheduler(commands);
     }
 }

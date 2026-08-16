@@ -5,9 +5,11 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 
 public interface SpringDataPollRepository extends JpaRepository<PollEntity, String> {
-    List<PollEntity> findAllByCreatedBy(String createdBy);
+    List<PollEntity> findAllByCreatedByOrderByCreatedAtAsc(String createdBy);
 
     List<PollEntity> findAllByVisibility(String visibility);
 
     List<PollEntity> findAllByVisibilityAndState(String visibility, String state);
+
+    List<PollEntity> findAllByState(String state);
 }

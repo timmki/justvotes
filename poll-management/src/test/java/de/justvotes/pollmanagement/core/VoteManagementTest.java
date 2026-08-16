@@ -28,7 +28,7 @@ class VoteManagementTest {
         );
         var polls = new InMemoryPollRepository(firstOpenPoll, secondOpenPoll, closedPoll);
         var events = new ArrayList<PollDomainEvent>();
-        VoteManagement management = new VoteManagement(polls, pollId -> List.of(), events::add);
+        VoteManagement management = new VoteManagement(polls, pollId -> List.of(), events::add, java.time.Instant::now);
 
         management.changeIdentity(OLD_IDENTITY, NEW_IDENTITY);
 
@@ -47,7 +47,7 @@ class VoteManagementTest {
         Poll openPoll = activePollWithVote(OLD_IDENTITY);
         var polls = new InMemoryPollRepository(openPoll);
         var events = new ArrayList<PollDomainEvent>();
-        VoteManagement management = new VoteManagement(polls, pollId -> List.of(), events::add);
+        VoteManagement management = new VoteManagement(polls, pollId -> List.of(), events::add, java.time.Instant::now);
 
         management.changeIdentity(OLD_IDENTITY, OLD_IDENTITY);
 
@@ -101,6 +101,16 @@ class VoteManagementTest {
         @Override
         public List<Poll> findAllPublicActive() {
             return polls.stream().filter(Poll::isPubliclyVisible).toList();
+        }
+
+        @Override
+        public List<Poll> findAllActive() {
+            return polls.stream().filter(poll -> poll.state() == Poll.State.ACTIVE).toList();
+        }
+
+        @Override
+        public void delete(Poll poll) {
+            throw new UnsupportedOperationException();
         }
 
         private List<Poll> saved() {

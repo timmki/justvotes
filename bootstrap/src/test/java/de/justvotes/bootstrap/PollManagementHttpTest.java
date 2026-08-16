@@ -102,7 +102,7 @@ class PollManagementHttpTest {
         assertEquals(404, privatePoll.getStatusCode().value(), privatePoll.getBody());
         assertEquals("no-store", privatePoll.getHeaders().getCacheControl());
 
-        ResponseEntity<String> published = admin.put(pollsUrl + "/" + pollId + "/publication");
+        ResponseEntity<String> published = admin.put(pollsUrl + "/" + pollId + "/publication", "{\"endsAt\":\"2099-01-01T00:00:00Z\"}");
         assertEquals(200, published.getStatusCode().value(), published.getBody());
         assertTrue(published.getBody().contains("\"visibility\":\"public\""));
         assertTrue(published.getBody().contains("\"state\":\"active\""));
@@ -128,7 +128,7 @@ class PollManagementHttpTest {
         admin.put(catalogUrl + "/groups/" + group + "/templates/" + yes);
         admin.put(catalogUrl + "/groups/" + group + "/templates/" + no);
         String pollId = stringField(admin.post(pollsUrl, "{\"title\":\"Vorstand\",\"templateGroupId\":" + group + "}"), "id");
-        admin.put(pollsUrl + "/" + pollId + "/publication");
+        admin.put(pollsUrl + "/" + pollId + "/publication", "{\"endsAt\":\"2099-01-01T00:00:00Z\"}");
 
         PublicVisitor visitor = publicVisitor();
         ResponseEntity<String> identity = visitor.post("http://localhost:" + port + "/api/v1/identity", "{\"userID\":\"  Alice_1  \"}");

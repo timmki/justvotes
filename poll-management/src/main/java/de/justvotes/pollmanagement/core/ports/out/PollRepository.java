@@ -15,4 +15,8 @@ public interface PollRepository {
     List<Poll> findAllByVisibility(Poll.Visibility visibility);
 
     List<Poll> findAllPublicActive();
+
+    List<Poll> findAllActive();
+
+    void delete(Poll poll);
 }

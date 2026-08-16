@@ -10,4 +10,6 @@ public interface ViewPolls {
     List<Poll> publicPolls();
 
     Poll publicPoll(Poll.PollId pollId);
+
+    List<Poll> pollsCreatedBy(String systemAdmin);
 }

@@ -2,6 +2,7 @@ package de.justvotes.pollmanagement.core.model;
 
 import de.justvotes.pollmanagement.core.event.PollPublished;
 
+import java.time.Instant;
 import java.util.*;
 
 public final class Poll {
@@ -12,6 +13,7 @@ public final class Poll {
     private final List<Option> templateSnapshotOptions;
     private Visibility visibility;
     private State state;
+    private Instant endsAt;
     private List<Option> options;
     private final List<Vote> votes;
 
@@ -27,12 +29,13 @@ public final class Poll {
         this.votes = null;
     }
 
-    private Poll(PollId id, String title, String createdBy, Visibility visibility, State state, TemplateGroup templateGroup, List<String> templateSnapshotOptionTexts, List<String> optionTexts, List<Vote> votes) {
+    private Poll(PollId id, String title, String createdBy, Visibility visibility, State state, Instant endsAt, TemplateGroup templateGroup, List<String> templateSnapshotOptionTexts, List<String> optionTexts, List<Vote> votes) {
         this.id = id;
         this.title = requiredText(title, "A poll title must not be blank.");
         this.createdBy = requiredText(createdBy, "A poll creator must not be blank.");
         this.visibility = visibility;
         this.state = state;
+        this.endsAt = endsAt;
         if (templateGroup == null) {
             throw new IllegalArgumentException("A poll must have a template group.");
         }
@@ -42,13 +45,17 @@ public final class Poll {
         this.votes = new ArrayList<>(votes);
     }
 
+    public static Poll reconstitue(PollId id, String title, String createdBy, Visibility visibility, State state, Instant endsAt, TemplateGroup templateGroup, List<String> templateSnapshotOptionTexts, List<String> optionTexts, List<Vote> votes) {
+        return new Poll(id, title, createdBy, visibility, state, endsAt, templateGroup, templateSnapshotOptionTexts, optionTexts, votes);
+    }
+
     public static Poll reconstitue(PollId id, String title, String createdBy, Visibility visibility, State state, TemplateGroup templateGroup, List<String> templateSnapshotOptionTexts, List<String> optionTexts, List<Vote> votes) {
-        return new Poll(id, title, createdBy, visibility, state, templateGroup, templateSnapshotOptionTexts, optionTexts, votes);
+        return reconstitue(id, title, createdBy, visibility, state, null, templateGroup, templateSnapshotOptionTexts, optionTexts, votes);
     }
 
     public static Poll privateDraftFrom(TemplateGroup templateGroup, String title, String createdBy, List<String> templateOptionTexts) {
         List<String> orderedTemplateOptions = templateOptionTexts.stream().sorted(java.util.Comparator.comparing(text -> text.toLowerCase(Locale.ROOT))).toList();
-        return new Poll(PollId.newId(), title, createdBy, Visibility.PRIVATE, State.DRAFT, templateGroup, orderedTemplateOptions, orderedTemplateOptions, List.of());
+        return new Poll(PollId.newId(), title, createdBy, Visibility.PRIVATE, State.DRAFT, null, templateGroup, orderedTemplateOptions, orderedTemplateOptions, List.of());
     }
 
     private static List<Option> options(List<String> optionTexts) {
@@ -90,6 +97,10 @@ public final class Poll {
 
     public State state() {
         return state;
+    }
+
+    public Instant endsAt() {
+        return endsAt;
     }
 
     public TemplateGroup templateGroup() {
@@ -153,9 +164,65 @@ public final class Poll {
         return new PollPublished(id, requiredText(actorId, "A publication actor must not be blank."));
     }
 
+    public PollPublished publish(String actorId, Instant endsAt) {
+        if (endsAt == null) throw new IllegalArgumentException("A published poll must have an expiry.");
+        PollPublished event = publish(actorId);
+        this.endsAt = endsAt;
+        return event;
+    }
+
+    public boolean expireIfDue(Instant now) {
+        if (state != State.ACTIVE || endsAt == null || now.isBefore(endsAt)) return false;
+        state = State.EXPIRED;
+        return true;
+    }
+
+    public Poll archive() {
+        if (state != State.ACTIVE && state != State.EXPIRED) throw new IllegalStateException("Only an active or expired poll can be archived.");
+        state = State.ARCHIVED;
+        return this;
+    }
+
+    public Poll restoreFromArchive() {
+        if (state != State.ARCHIVED) throw new IllegalStateException("Only an archived poll can be restored.");
+        state = State.EXPIRED;
+        return this;
+    }
+
+    public Poll changeExpiry(Instant newEndsAt) {
+        if (state != State.EXPIRED) throw new IllegalStateException("Only an expired poll expiry can be changed.");
+        if (newEndsAt == null) throw new IllegalArgumentException("A poll expiry must not be null.");
+        endsAt = newEndsAt;
+        return this;
+    }
+
+    public Poll reopen(Instant now) {
+        if (state != State.EXPIRED) throw new IllegalStateException("Only an expired poll can be reopened.");
+        if (endsAt == null || !endsAt.isAfter(now)) throw new IllegalStateException("A poll can only be reopened with a future expiry.");
+        visibility = Visibility.PUBLIC;
+        state = State.ACTIVE;
+        return this;
+    }
+
+    public Poll softDelete() {
+        if (state != State.ACTIVE && state != State.EXPIRED && state != State.ARCHIVED) throw new IllegalStateException("Only an active, expired or archived poll can be deleted.");
+        state = State.DELETED;
+        return this;
+    }
+
+    public Poll restore() {
+        if (state != State.DELETED) throw new IllegalStateException("Only a deleted poll can be restored.");
+        state = State.ARCHIVED;
+        return this;
+    }
+
+    public void requireDeleted() {
+        if (state != State.DELETED) throw new IllegalStateException("Only a deleted poll can be permanently deleted.");
+    }
+
     public Poll makePrivate() {
-        if (visibility != Visibility.PUBLIC) {
-            throw new IllegalStateException("Only a public poll can be made private.");
+        if (visibility != Visibility.PUBLIC || state != State.ACTIVE) {
+            throw new IllegalStateException("Only an active public poll can be made private.");
         }
         visibility = Visibility.PRIVATE;
         return this;
@@ -163,6 +230,10 @@ public final class Poll {
 
     public boolean isPubliclyVisible() {
         return visibility == Visibility.PUBLIC && state == State.ACTIVE;
+    }
+
+    public boolean isPubliclyReadable() {
+        return visibility == Visibility.PUBLIC && (state == State.ACTIVE || state == State.EXPIRED || state == State.ARCHIVED);
     }
 
     public enum Visibility {PRIVATE, PUBLIC}

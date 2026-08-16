@@ -21,11 +21,14 @@ public final class VoteManagement implements ManageVotes, ViewVotes {
     private final PollRepository polls;
     private final PollAuditRepository audit;
     private final PollEventPublisher events;
+    private final de.justvotes.pollmanagement.core.ports.out.UtcClock clock;
 
-    public VoteManagement(PollRepository polls, PollAuditRepository audit, PollEventPublisher events) {
+    public VoteManagement(PollRepository polls, PollAuditRepository audit, PollEventPublisher events,
+                          de.justvotes.pollmanagement.core.ports.out.UtcClock clock) {
         this.polls = polls;
         this.audit = audit;
         this.events = events;
+        this.clock = clock;
     }
 
     @Override
@@ -74,15 +77,25 @@ public final class VoteManagement implements ManageVotes, ViewVotes {
 
     @Override
     public List<AuditEntry> publicAudit(Poll.PollId pollId) {
-        publiclyVotable(pollId);
+        publiclyReadable(pollId);
         return audit.findByPollId(pollId);
     }
 
     private Poll publiclyVotable(Poll.PollId pollId) {
         Poll poll = polls.findById(pollId).orElseThrow(() -> new PollNotFoundException(pollId));
+        if (poll.expireIfDue(clock.now())) {
+            events.publish(new de.justvotes.pollmanagement.core.event.PollLifecycleChanged(poll.id(), "System", de.justvotes.pollmanagement.core.event.PollLifecycleChanged.Type.PollExpired, null));
+            polls.save(poll);
+        }
         if (!poll.isPubliclyVisible()) {
             throw new PollNotFoundException(pollId);
         }
+        return poll;
+    }
+
+    private Poll publiclyReadable(Poll.PollId pollId) {
+        Poll poll = polls.findById(pollId).orElseThrow(() -> new PollNotFoundException(pollId));
+        if (!poll.isPubliclyReadable()) throw new PollNotFoundException(pollId);
         return poll;
     }
 
