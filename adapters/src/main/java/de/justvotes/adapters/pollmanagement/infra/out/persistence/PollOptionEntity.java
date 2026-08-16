@@ -30,4 +30,8 @@ public class PollOptionEntity {
     String text() {
         return text;
     }
+
+    PollEntity poll() {
+        return poll;
+    }
 }

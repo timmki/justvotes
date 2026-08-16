@@ -35,6 +35,28 @@ class PollManagementHttpTest {
         registry.add("ADMIN_PASSWORD_HASH", () -> new BCryptPasswordEncoder().encode("password"));
     }
 
+    private static long createdId(ResponseEntity<String> response) {
+        assertEquals(201, response.getStatusCode().value());
+        return id(response);
+    }
+
+    private static long id(ResponseEntity<String> response) {
+        var matcher = ID.matcher(response.getBody());
+        assertTrue(matcher.find());
+        return Long.parseLong(matcher.group(1));
+    }
+
+    private static String stringField(ResponseEntity<String> response, String name) {
+        var matcher = Pattern.compile("\\\"" + name + "\\\":\\\"([^\\\"]+)\\\"").matcher(response.getBody());
+        assertTrue(matcher.find());
+        return matcher.group(1);
+    }
+
+    private static String cookieHeader(HttpHeaders headers) {
+        return headers.get(HttpHeaders.SET_COOKIE).stream().map(cookie -> cookie.substring(0, cookie.indexOf(';')))
+                .reduce((first, second) -> first + "; " + second).orElseThrow();
+    }
+
     @Test
     void letsTheSystemAdminCreateAndEditPrivateDraftsFromTemplateGroupSnapshots() {
         String catalogUrl = "http://localhost:" + port + "/api/v1/admin/template-catalog";
@@ -68,7 +90,7 @@ class PollManagementHttpTest {
         String pollsUrl = "http://localhost:" + port + "/api/v1/admin/polls";
         String publicPollsUrl = "http://localhost:" + port + "/api/v1/polls";
         AuthenticatedAdmin admin = login();
-        long template = createdId(admin.post(catalogUrl + "/templates", "{\"name\":\"Ja\"}"));
+        long template = createdId(admin.post(catalogUrl + "/templates", "{\"name\":\"Sichtbarkeit\"}"));
         long group = createdId(admin.post(catalogUrl + "/groups", "{\"name\":\"Öffentliche Wahl\",\"description\":\"\"}"));
         assertEquals(204, admin.put(catalogUrl + "/groups/" + group + "/templates/" + template).getStatusCode().value());
         ResponseEntity<String> created = admin.post(pollsUrl, "{\"title\":\"Vorstand\",\"templateGroupId\":" + group + "}");
@@ -94,21 +116,46 @@ class PollManagementHttpTest {
         assertTrue(!visitor.getForEntity(publicPollsUrl, String.class).getBody().contains(pollId));
     }
 
-    private static long createdId(ResponseEntity<String> response) {
-        assertEquals(201, response.getStatusCode().value());
-        return id(response);
-    }
+    @Test
+    void storesNormalizedIdentityAndReportsCreatedReplacedAndUnchangedVotesInThePublicAudit() {
+        String catalogUrl = "http://localhost:" + port + "/api/v1/admin/template-catalog";
+        String pollsUrl = "http://localhost:" + port + "/api/v1/admin/polls";
+        String publicPollsUrl = "http://localhost:" + port + "/api/v1/polls";
+        AuthenticatedAdmin admin = login();
+        long yes = createdId(admin.post(catalogUrl + "/templates", "{\"name\":\"Ja\"}"));
+        long no = createdId(admin.post(catalogUrl + "/templates", "{\"name\":\"Nein\"}"));
+        long group = createdId(admin.post(catalogUrl + "/groups", "{\"name\":\"Abstimmung\",\"description\":\"\"}"));
+        admin.put(catalogUrl + "/groups/" + group + "/templates/" + yes);
+        admin.put(catalogUrl + "/groups/" + group + "/templates/" + no);
+        String pollId = stringField(admin.post(pollsUrl, "{\"title\":\"Vorstand\",\"templateGroupId\":" + group + "}"), "id");
+        admin.put(pollsUrl + "/" + pollId + "/publication");
 
-    private static long id(ResponseEntity<String> response) {
-        var matcher = ID.matcher(response.getBody());
-        assertTrue(matcher.find());
-        return Long.parseLong(matcher.group(1));
-    }
+        PublicVisitor visitor = publicVisitor();
+        ResponseEntity<String> identity = visitor.post("http://localhost:" + port + "/api/v1/identity", "{\"userID\":\"  Alice_1  \"}");
+        assertEquals(204, identity.getStatusCode().value(), identity.getBody());
+        assertTrue(identity.getHeaders().get(HttpHeaders.SET_COOKIE).stream().anyMatch(cookie -> cookie.startsWith("userID=alice_1;")));
+        visitor = new PublicVisitor(visitor.client(), visitor.cookies() + "; userID=alice_1", visitor.csrfToken());
 
-    private static String stringField(ResponseEntity<String> response, String name) {
-        var matcher = Pattern.compile("\\\"" + name + "\\\":\\\"([^\\\"]+)\\\"").matcher(response.getBody());
-        assertTrue(matcher.find());
-        return matcher.group(1);
+        ResponseEntity<String> created = visitor.post(publicPollsUrl + "/" + pollId + "/votes", "{\"optionNumber\":1}");
+        assertEquals(200, created.getStatusCode().value(), created.getBody());
+        assertTrue(created.getBody().contains("\"status\":\"created\""));
+        ResponseEntity<String> unchanged = visitor.post(publicPollsUrl + "/" + pollId + "/votes", "{\"optionNumber\":1}");
+        assertEquals(200, unchanged.getStatusCode().value(), unchanged.getBody());
+        assertTrue(unchanged.getBody().contains("\"status\":\"unchanged\""));
+        ResponseEntity<String> replaced = visitor.post(publicPollsUrl + "/" + pollId + "/votes", "{\"optionNumber\":2}");
+        assertEquals(200, replaced.getStatusCode().value(), replaced.getBody());
+        assertTrue(replaced.getBody().contains("\"status\":\"replaced\""));
+
+        ResponseEntity<String> audit = visitor.get(publicPollsUrl + "/" + pollId + "/audit");
+        assertEquals(200, audit.getStatusCode().value(), audit.getBody());
+        assertTrue(audit.getBody().contains("alice_1"));
+        assertTrue(audit.getBody().contains("VoteCast"));
+        assertTrue(audit.getBody().contains("VoteReplaced"));
+        assertTrue(
+                audit.getBody().contains("\"selection\":\"ja\"")
+                        || audit.getBody().contains("\"selection\":\"nein\""),
+                audit.getBody()
+        );
     }
 
     private AuthenticatedAdmin login() {
@@ -126,9 +173,13 @@ class PollManagementHttpTest {
         return new AuthenticatedAdmin(client, cookies + "; " + cookieHeader(login.getHeaders()), token);
     }
 
-    private static String cookieHeader(HttpHeaders headers) {
-        return headers.get(HttpHeaders.SET_COOKIE).stream().map(cookie -> cookie.substring(0, cookie.indexOf(';')))
-                .reduce((first, second) -> first + "; " + second).orElseThrow();
+    private PublicVisitor publicVisitor() {
+        TestRestTemplate client = new TestRestTemplate();
+        String origin = "http://localhost:" + port;
+        ResponseEntity<String> csrf = client.getForEntity(origin + "/api/v1/csrf", String.class);
+        var matcher = CSRF_TOKEN.matcher(csrf.getBody());
+        assertTrue(matcher.find());
+        return new PublicVisitor(client, cookieHeader(csrf.getHeaders()), matcher.group(1));
     }
 
     private record AuthenticatedAdmin(TestRestTemplate client, String cookies, String csrfToken) {
@@ -150,6 +201,17 @@ class PollManagementHttpTest {
 
         ResponseEntity<String> delete(String url) {
             return client.exchange(RequestEntity.delete(url).header(HttpHeaders.COOKIE, cookies).header("X-XSRF-TOKEN", csrfToken).build(), String.class);
+        }
+    }
+
+    private record PublicVisitor(TestRestTemplate client, String cookies, String csrfToken) {
+        ResponseEntity<String> get(String url) {
+            return client.exchange(RequestEntity.get(url).header(HttpHeaders.COOKIE, cookies).build(), String.class);
+        }
+
+        ResponseEntity<String> post(String url, String body) {
+            return client.exchange(RequestEntity.post(url).contentType(MediaType.APPLICATION_JSON)
+                    .header(HttpHeaders.COOKIE, cookies).header("X-XSRF-TOKEN", csrfToken).body(body), String.class);
         }
     }
 }

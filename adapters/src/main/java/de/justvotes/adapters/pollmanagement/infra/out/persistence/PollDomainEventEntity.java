@@ -14,13 +14,34 @@ public class PollDomainEventEntity {
     private String eventType;
     @Column(name = "actorId")
     private String actorId;
+    private String metadata;
+    @Column(name = "createdAt")
+    private String createdAt;
 
     protected PollDomainEventEntity() {
     }
 
-    PollDomainEventEntity(String pollId, String eventType, String actorId) {
+    PollDomainEventEntity(String pollId, String eventType, String actorId, String metadata) {
         this.pollId = pollId;
         this.eventType = eventType;
         this.actorId = actorId;
+        this.metadata = metadata;
+        this.createdAt = java.time.Instant.now().toString();
+    }
+
+    String actorId() {
+        return actorId;
+    }
+
+    String eventType() {
+        return eventType;
+    }
+
+    String metadata() {
+        return metadata;
+    }
+
+    java.time.Instant createdAt() {
+        return java.time.Instant.parse(createdAt.replace(' ', 'T') + (createdAt.endsWith("Z") ? "" : "Z"));
     }
 }

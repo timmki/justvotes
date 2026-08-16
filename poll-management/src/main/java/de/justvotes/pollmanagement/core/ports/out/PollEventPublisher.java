@@ -1,7 +1,7 @@
 package de.justvotes.pollmanagement.core.ports.out;
 
-import de.justvotes.pollmanagement.core.model.PollPublished;
+import de.justvotes.pollmanagement.core.event.PollDomainEvent;
 
 public interface PollEventPublisher {
-    void publish(PollPublished event);
+    void publish(PollDomainEvent event);
 }

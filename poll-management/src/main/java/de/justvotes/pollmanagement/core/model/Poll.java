@@ -1,5 +1,7 @@
 package de.justvotes.pollmanagement.core.model;
 
+import de.justvotes.pollmanagement.core.event.PollPublished;
+
 import java.util.*;
 
 public final class Poll {
@@ -11,6 +13,7 @@ public final class Poll {
     private Visibility visibility;
     private State state;
     private List<Option> options;
+    private final List<Vote> votes;
 
     private Poll() {
         this.id = null;
@@ -21,27 +24,31 @@ public final class Poll {
         this.templateGroup = null;
         this.templateSnapshotOptions = null;
         this.options = null;
+        this.votes = null;
     }
 
-    private Poll(PollId id, String title, String createdBy, Visibility visibility, State state, TemplateGroup templateGroup, List<String> templateSnapshotOptionTexts, List<String> optionTexts) {
+    private Poll(PollId id, String title, String createdBy, Visibility visibility, State state, TemplateGroup templateGroup, List<String> templateSnapshotOptionTexts, List<String> optionTexts, List<Vote> votes) {
         this.id = id;
         this.title = requiredText(title, "A poll title must not be blank.");
         this.createdBy = requiredText(createdBy, "A poll creator must not be blank.");
         this.visibility = visibility;
         this.state = state;
-        if (templateGroup == null) throw new IllegalArgumentException("A poll must have a template group.");
+        if (templateGroup == null) {
+            throw new IllegalArgumentException("A poll must have a template group.");
+        }
         this.templateGroup = templateGroup;
         this.templateSnapshotOptions = options(templateSnapshotOptionTexts);
         this.options = options(optionTexts);
+        this.votes = new ArrayList<>(votes);
     }
 
-    public static Poll reconstitue(PollId id, String title, String createdBy, Visibility visibility, State state, TemplateGroup templateGroup, List<String> templateSnapshotOptionTexts, List<String> optionTexts) {
-        return new Poll(id, title, createdBy, visibility, state, templateGroup, templateSnapshotOptionTexts, optionTexts);
+    public static Poll reconstitue(PollId id, String title, String createdBy, Visibility visibility, State state, TemplateGroup templateGroup, List<String> templateSnapshotOptionTexts, List<String> optionTexts, List<Vote> votes) {
+        return new Poll(id, title, createdBy, visibility, state, templateGroup, templateSnapshotOptionTexts, optionTexts, votes);
     }
 
     public static Poll privateDraftFrom(TemplateGroup templateGroup, String title, String createdBy, List<String> templateOptionTexts) {
         List<String> orderedTemplateOptions = templateOptionTexts.stream().sorted(java.util.Comparator.comparing(text -> text.toLowerCase(Locale.ROOT))).toList();
-        return new Poll(PollId.newId(), title, createdBy, Visibility.PRIVATE, State.DRAFT, templateGroup, orderedTemplateOptions, orderedTemplateOptions);
+        return new Poll(PollId.newId(), title, createdBy, Visibility.PRIVATE, State.DRAFT, templateGroup, orderedTemplateOptions, orderedTemplateOptions, List.of());
     }
 
     private static List<Option> options(List<String> optionTexts) {
@@ -97,21 +104,59 @@ public final class Poll {
         return options;
     }
 
+    public List<Vote> votes() {
+        return List.copyOf(votes);
+    }
+
+    public VoteOutcome castOrReplace(Identity identity, int optionNumber) {
+        if (!isPubliclyVisible()) {
+            throw new IllegalStateException("Votes can only be cast in public active polls.");
+        }
+        if (options.stream().noneMatch(option -> option.number() == optionNumber)) {
+            throw new IllegalArgumentException("The selected option does not belong to the poll.");
+        }
+        Optional<Vote> current = votes.stream().filter(vote -> vote.identity().equals(identity)).findFirst();
+        if (current.isPresent() && current.get().optionNumber() == optionNumber) {
+            return new VoteOutcome(VoteOutcome.Status.UNCHANGED, current.get());
+        }
+
+        Vote vote = new Vote(identity, optionNumber);
+        votes.removeIf(candidate -> candidate.identity().equals(identity));
+        votes.add(vote);
+
+        return new VoteOutcome(current.isPresent() ? VoteOutcome.Status.REPLACED : VoteOutcome.Status.CREATED, vote);
+    }
+
+    public Optional<Vote> removeVoteForIdentity(Identity identity) {
+        if (!isPubliclyVisible()) {
+            return Optional.empty();
+        }
+        Optional<Vote> current = votes.stream().filter(vote -> vote.identity().equals(identity)).findFirst();
+        current.ifPresent(votes::remove);
+        return current;
+    }
+
     public Poll replaceOptions(List<String> optionTexts) {
-        if (state != State.DRAFT) throw new IllegalStateException("Poll options can only be changed in a draft.");
+        if (state != State.DRAFT) {
+            throw new IllegalStateException("Poll options can only be changed in a draft.");
+        }
         options = options(optionTexts);
         return this;
     }
 
     public PollPublished publish(String actorId) {
-        if (state != State.DRAFT) throw new IllegalStateException("Only a draft can be published.");
+        if (state != State.DRAFT) {
+            throw new IllegalStateException("Only a draft can be published.");
+        }
         visibility = Visibility.PUBLIC;
         state = State.ACTIVE;
         return new PollPublished(id, requiredText(actorId, "A publication actor must not be blank."));
     }
 
     public Poll makePrivate() {
-        if (visibility != Visibility.PUBLIC) throw new IllegalStateException("Only a public poll can be made private.");
+        if (visibility != Visibility.PUBLIC) {
+            throw new IllegalStateException("Only a public poll can be made private.");
+        }
         visibility = Visibility.PRIVATE;
         return this;
     }
@@ -140,7 +185,9 @@ public final class Poll {
 
     public record TemplateGroup(TemplateGroupId id, String name) {
         public TemplateGroup {
-            if (id == null) throw new IllegalArgumentException("A poll must have a template group.");
+            if (id == null) {
+                throw new IllegalArgumentException("A poll must have a template group.");
+            }
             name = requiredText(name, "A template group name must not be blank.");
         }
 
@@ -151,7 +198,9 @@ public final class Poll {
 
     public record TemplateGroupId(long value) {
         public TemplateGroupId {
-            if (value <= 0) throw new IllegalArgumentException("A template group ID must be positive.");
+            if (value <= 0) {
+                throw new IllegalArgumentException("A template group ID must be positive.");
+            }
         }
 
         public static TemplateGroupId of(long value) {

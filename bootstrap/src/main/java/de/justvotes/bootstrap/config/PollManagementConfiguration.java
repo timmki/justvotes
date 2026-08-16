@@ -1,19 +1,19 @@
 package de.justvotes.bootstrap.config;
 
+import de.justvotes.adapters.pollmanagement.infra.in.http.IdentityController;
 import de.justvotes.adapters.pollmanagement.infra.in.http.PollController;
 import de.justvotes.adapters.pollmanagement.infra.in.http.PublicPollController;
 import de.justvotes.adapters.pollmanagement.infra.in.transaction.TransactionalPollManagement;
-import de.justvotes.adapters.pollmanagement.infra.out.persistence.JpaPollPersistenceAdapter;
-import de.justvotes.adapters.pollmanagement.infra.out.persistence.JpaPollEventPublisher;
-import de.justvotes.adapters.pollmanagement.infra.out.persistence.SpringDataPollDomainEventRepository;
-import de.justvotes.adapters.pollmanagement.infra.out.persistence.SpringDataPollRepository;
+import de.justvotes.adapters.pollmanagement.infra.in.transaction.TransactionalVoteManagement;
+import de.justvotes.adapters.pollmanagement.infra.out.persistence.*;
 import de.justvotes.adapters.pollmanagement.infra.out.templatecatalog.TemplateCatalogSnapshotAdapter;
 import de.justvotes.pollmanagement.core.PollManagement;
+import de.justvotes.pollmanagement.core.VoteManagement;
 import de.justvotes.pollmanagement.core.ports.in.ManagePolls;
+import de.justvotes.pollmanagement.core.ports.in.ManageVotes;
 import de.justvotes.pollmanagement.core.ports.in.ViewPolls;
-import de.justvotes.pollmanagement.core.ports.out.PollRepository;
-import de.justvotes.pollmanagement.core.ports.out.PollEventPublisher;
-import de.justvotes.pollmanagement.core.ports.out.TemplateGroupSnapshotProvider;
+import de.justvotes.pollmanagement.core.ports.in.ViewVotes;
+import de.justvotes.pollmanagement.core.ports.out.*;
 import de.justvotes.templatecatalog.core.ports.in.ViewTemplateCatalog;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
@@ -37,6 +37,11 @@ class PollManagementConfiguration {
     }
 
     @Bean
+    PollAuditRepository pollAuditRepository(SpringDataPollDomainEventRepository events) {
+        return new JpaPollAuditAdapter(events);
+    }
+
+    @Bean
     PollManagement pollManagement(PollRepository polls, TemplateGroupSnapshotProvider groups, PollEventPublisher events) {
         return new PollManagement(polls, groups, events);
     }
@@ -52,12 +57,32 @@ class PollManagementConfiguration {
     }
 
     @Bean
+    VoteManagement voteManagement(PollRepository polls, PollAuditRepository audit, PollEventPublisher events) {
+        return new VoteManagement(polls, audit, events);
+    }
+
+    @Bean
+    ManageVotes voteCommands(VoteManagement management) {
+        return new TransactionalVoteManagement(management, management);
+    }
+
+    @Bean
+    ViewVotes voteQueries(VoteManagement management) {
+        return new TransactionalVoteManagement(management, management);
+    }
+
+    @Bean
     PollController pollController(@Qualifier("pollCommands") ManagePolls commands, @Qualifier("pollQueries") ViewPolls queries) {
         return new PollController(commands, queries);
     }
 
     @Bean
-    PublicPollController publicPollController(@Qualifier("pollQueries") ViewPolls queries) {
-        return new PublicPollController(queries);
+    PublicPollController publicPollController(@Qualifier("pollQueries") ViewPolls queries, @Qualifier("voteCommands") ManageVotes votes, @Qualifier("voteQueries") ViewVotes voteQueries) {
+        return new PublicPollController(queries, votes, voteQueries);
+    }
+
+    @Bean
+    IdentityController identityController(@Qualifier("voteCommands") ManageVotes votes) {
+        return new IdentityController(votes);
     }
 }

@@ -1,7 +1,8 @@
 package de.justvotes.pollmanagement.core;
 
+import de.justvotes.pollmanagement.core.event.PollDomainEvent;
 import de.justvotes.pollmanagement.core.model.Poll;
-import de.justvotes.pollmanagement.core.model.PollPublished;
+import de.justvotes.pollmanagement.core.event.PollPublished;
 import de.justvotes.pollmanagement.core.model.TemplateGroupSnapshot;
 import de.justvotes.pollmanagement.core.ports.out.PollRepository;
 import org.junit.jupiter.api.Test;
@@ -45,7 +46,7 @@ class PollManagementTest {
 
     @Test
     void publishesADraftAsAnActivePublicPollAndEmitsAPublishedDomainEvent() {
-        var publishedEvents = new java.util.ArrayList<PollPublished>();
+        var publishedEvents = new java.util.ArrayList<PollDomainEvent>();
         var management = new PollManagement(new InMemoryPollRepository(),
                 groupId -> new TemplateGroupSnapshot(groupId, "Gremium", List.of("Ja")), publishedEvents::add);
         Poll draft = management.createDraft("Mitgliederwahl", Poll.TemplateGroupId.of(7), "systemadmin");

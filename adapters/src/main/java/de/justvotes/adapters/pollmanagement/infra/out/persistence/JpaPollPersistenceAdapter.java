@@ -31,9 +31,11 @@ public final class JpaPollPersistenceAdapter implements PollRepository {
             entity.addTemplateSnapshotOptions(poll.templateSnapshotOptions().stream().map(Poll.Option::text).toList());
         }
 
-        entity.clearOptions();
-        polls.flush();
-        entity.addOptions(poll.options().stream().map(Poll.Option::text).toList());
+        if (entity.options().isEmpty()) {
+            entity.addOptions(poll.options().stream().map(Poll.Option::text).toList());
+        }
+
+        entity.synchronizeVotes(poll.votes());
         polls.save(entity);
         return poll;
     }
@@ -68,6 +70,8 @@ public final class JpaPollPersistenceAdapter implements PollRepository {
                 entity.options().stream()
                         .sorted(java.util.Comparator.comparingInt(PollOptionEntity::number))
                         .map(PollOptionEntity::text)
-                        .toList());
+                        .toList(),
+                entity.votes().stream().map(vote -> new de.justvotes.pollmanagement.core.model.Vote(
+                        de.justvotes.pollmanagement.core.model.Identity.of(vote.userId()), vote.option().number())).toList());
     }
 }

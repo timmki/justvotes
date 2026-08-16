@@ -2,7 +2,7 @@ package de.justvotes.pollmanagement.core;
 
 import de.justvotes.pollmanagement.core.exception.PollNotFoundException;
 import de.justvotes.pollmanagement.core.model.Poll;
-import de.justvotes.pollmanagement.core.model.PollPublished;
+import de.justvotes.pollmanagement.core.event.PollPublished;
 import de.justvotes.pollmanagement.core.ports.in.ManagePolls;
 import de.justvotes.pollmanagement.core.ports.in.ViewPolls;
 import de.justvotes.pollmanagement.core.ports.out.PollEventPublisher;
