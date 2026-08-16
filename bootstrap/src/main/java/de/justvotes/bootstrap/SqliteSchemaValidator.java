@@ -26,7 +26,7 @@ import java.util.regex.Pattern;
 @Component
 class SqliteSchemaValidator implements ApplicationRunner {
     private static final Pattern CREATE_OBJECT = Pattern.compile("CREATE (?:TABLE|INDEX) \\\"([^\\\"]+)\\\"");
-    private static final Pattern ADD_COLUMN = Pattern.compile("ALTER TABLE \\\"([^\\\"]+)\\\" ADD COLUMN (.+)", Pattern.DOTALL);
+    private static final Pattern ADD_COLUMN = Pattern.compile("ALTER TABLE\\s+\\\"([^\\\"]+)\\\"\\s+ADD COLUMN\\s+(.+)", Pattern.DOTALL);
     private static final List<String> MIGRATIONS = List.of(
             "/db/migration/V1__initial_schema.sql",
             "/db/migration/V2__enforce_global_catalog_name_rules.sql",
@@ -91,8 +91,8 @@ class SqliteSchemaValidator implements ApplicationRunner {
             try (Connection connection = dataSource.getConnection()) {
                 Map<String, String> actualSchema = actualSchema(connection);
                 if (!actualSchema.equals(expectedSchema)) {
-                    throw new SQLException("Schema deviation: expected " + expectedSchema.keySet()
-                            + " but found " + actualSchema.keySet());
+                    throw new SQLException("Schema deviation: expected " + expectedSchema
+                            + " but found " + actualSchema);
                 }
             }
             return null;

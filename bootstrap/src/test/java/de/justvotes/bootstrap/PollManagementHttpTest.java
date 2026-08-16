@@ -47,7 +47,7 @@ class PollManagementHttpTest {
         assertEquals(204, admin.put(catalogUrl + "/groups/" + group + "/templates/" + alpha).getStatusCode().value());
 
         ResponseEntity<String> created = admin.post(pollsUrl, "{\"title\":\"Vorstand\",\"templateGroupId\":" + group + "}");
-        assertEquals(201, created.getStatusCode().value());
+        assertEquals(201, created.getStatusCode().value(), created.getBody());
         assertTrue(created.getBody().contains("\"visibility\":\"private\""));
         assertTrue(created.getBody().contains("\"state\":\"draft\""));
         assertTrue(created.getBody().indexOf("alpha") < created.getBody().indexOf("zeta"));
@@ -60,6 +60,38 @@ class PollManagementHttpTest {
         assertTrue(edited.getBody().contains("zeta"));
         assertEquals(400, admin.put(pollsUrl + "/" + pollId + "/options", "{\"optionTexts\":[\" Ja \",\"ja\"]}").getStatusCode().value());
         assertTrue(admin.get(pollsUrl).getBody().contains(pollId));
+    }
+
+    @Test
+    void exposesOnlyPublishedPollsAndMakesPrivatizedPollsImmediatelyUnavailable() {
+        String catalogUrl = "http://localhost:" + port + "/api/v1/admin/template-catalog";
+        String pollsUrl = "http://localhost:" + port + "/api/v1/admin/polls";
+        String publicPollsUrl = "http://localhost:" + port + "/api/v1/polls";
+        AuthenticatedAdmin admin = login();
+        long template = createdId(admin.post(catalogUrl + "/templates", "{\"name\":\"Ja\"}"));
+        long group = createdId(admin.post(catalogUrl + "/groups", "{\"name\":\"Öffentliche Wahl\",\"description\":\"\"}"));
+        assertEquals(204, admin.put(catalogUrl + "/groups/" + group + "/templates/" + template).getStatusCode().value());
+        ResponseEntity<String> created = admin.post(pollsUrl, "{\"title\":\"Vorstand\",\"templateGroupId\":" + group + "}");
+        assertEquals(201, created.getStatusCode().value(), created.getBody());
+        String pollId = stringField(created, "id");
+        TestRestTemplate visitor = new TestRestTemplate();
+
+        ResponseEntity<String> privatePoll = visitor.getForEntity(publicPollsUrl + "/" + pollId, String.class);
+        assertEquals(404, privatePoll.getStatusCode().value(), privatePoll.getBody());
+        assertEquals("no-store", privatePoll.getHeaders().getCacheControl());
+
+        ResponseEntity<String> published = admin.put(pollsUrl + "/" + pollId + "/publication");
+        assertEquals(200, published.getStatusCode().value(), published.getBody());
+        assertTrue(published.getBody().contains("\"visibility\":\"public\""));
+        assertTrue(published.getBody().contains("\"state\":\"active\""));
+        assertTrue(visitor.getForEntity(publicPollsUrl, String.class).getBody().contains(pollId));
+        assertEquals(200, visitor.getForEntity(publicPollsUrl + "/" + pollId, String.class).getStatusCode().value());
+
+        assertEquals(200, admin.delete(pollsUrl + "/" + pollId + "/publication").getStatusCode().value());
+        ResponseEntity<String> privatizedPoll = visitor.getForEntity(publicPollsUrl + "/" + pollId, String.class);
+        assertEquals(404, privatizedPoll.getStatusCode().value());
+        assertEquals("no-store", privatizedPoll.getHeaders().getCacheControl());
+        assertTrue(!visitor.getForEntity(publicPollsUrl, String.class).getBody().contains(pollId));
     }
 
     private static long createdId(ResponseEntity<String> response) {
@@ -114,6 +146,10 @@ class PollManagementHttpTest {
 
         ResponseEntity<String> put(String url, String body) {
             return client.exchange(RequestEntity.put(url).contentType(MediaType.APPLICATION_JSON).header(HttpHeaders.COOKIE, cookies).header("X-XSRF-TOKEN", csrfToken).body(body), String.class);
+        }
+
+        ResponseEntity<String> delete(String url) {
+            return client.exchange(RequestEntity.delete(url).header(HttpHeaders.COOKIE, cookies).header("X-XSRF-TOKEN", csrfToken).build(), String.class);
         }
     }
 }

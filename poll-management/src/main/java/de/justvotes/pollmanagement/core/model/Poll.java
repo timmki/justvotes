@@ -6,10 +6,10 @@ public final class Poll {
     private final PollId id;
     private final String title;
     private final String createdBy;
-    private final Visibility visibility;
     private final TemplateGroup templateGroup;
     private final List<Option> templateSnapshotOptions;
-    private final State state;
+    private Visibility visibility;
+    private State state;
     private List<Option> options;
 
     private Poll() {
@@ -103,7 +103,24 @@ public final class Poll {
         return this;
     }
 
-    public enum Visibility {PRIVATE}
+    public PollPublished publish(String actorId) {
+        if (state != State.DRAFT) throw new IllegalStateException("Only a draft can be published.");
+        visibility = Visibility.PUBLIC;
+        state = State.ACTIVE;
+        return new PollPublished(id, requiredText(actorId, "A publication actor must not be blank."));
+    }
+
+    public Poll makePrivate() {
+        if (visibility != Visibility.PUBLIC) throw new IllegalStateException("Only a public poll can be made private.");
+        visibility = Visibility.PRIVATE;
+        return this;
+    }
+
+    public boolean isPubliclyVisible() {
+        return visibility == Visibility.PUBLIC && state == State.ACTIVE;
+    }
+
+    public enum Visibility {PRIVATE, PUBLIC}
 
     public enum State {DRAFT, ACTIVE, EXPIRED, ARCHIVED, DELETED}
 

@@ -32,6 +32,16 @@ public final class PollController {
         return PollResponse.from(commands.replaceDraftOptions(Poll.PollId.of(pollId), request.optionTexts()));
     }
 
+    @PutMapping("/{pollId}/publication")
+    public PollResponse publish(@PathVariable("pollId") String pollId, Principal admin) {
+        return PollResponse.from(commands.publish(Poll.PollId.of(pollId), admin.getName()));
+    }
+
+    @DeleteMapping("/{pollId}/publication")
+    public PollResponse makePrivate(@PathVariable("pollId") String pollId) {
+        return PollResponse.from(commands.makePrivate(Poll.PollId.of(pollId)));
+    }
+
     @GetMapping
     public List<PollResponse> drafts(Principal admin) {
         return queries.draftsCreatedBy(admin.getName()).stream().map(PollResponse::from).toList();

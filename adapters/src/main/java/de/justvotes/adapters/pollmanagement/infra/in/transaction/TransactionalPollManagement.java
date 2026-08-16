@@ -29,8 +29,32 @@ public class TransactionalPollManagement implements ManagePolls, ViewPolls {
     }
 
     @Override
+    @Transactional
+    public Poll publish(Poll.PollId pollId, String systemAdmin) {
+        return commands.publish(pollId, systemAdmin);
+    }
+
+    @Override
+    @Transactional
+    public Poll makePrivate(Poll.PollId pollId) {
+        return commands.makePrivate(pollId);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public List<Poll> draftsCreatedBy(String systemAdmin) {
         return queries.draftsCreatedBy(systemAdmin);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Poll> publicPolls() {
+        return queries.publicPolls();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Poll publicPoll(Poll.PollId pollId) {
+        return queries.publicPoll(pollId);
     }
 }

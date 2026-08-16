@@ -1,14 +1,18 @@
 package de.justvotes.bootstrap.config;
 
 import de.justvotes.adapters.pollmanagement.infra.in.http.PollController;
+import de.justvotes.adapters.pollmanagement.infra.in.http.PublicPollController;
 import de.justvotes.adapters.pollmanagement.infra.in.transaction.TransactionalPollManagement;
 import de.justvotes.adapters.pollmanagement.infra.out.persistence.JpaPollPersistenceAdapter;
+import de.justvotes.adapters.pollmanagement.infra.out.persistence.JpaPollEventPublisher;
+import de.justvotes.adapters.pollmanagement.infra.out.persistence.SpringDataPollDomainEventRepository;
 import de.justvotes.adapters.pollmanagement.infra.out.persistence.SpringDataPollRepository;
 import de.justvotes.adapters.pollmanagement.infra.out.templatecatalog.TemplateCatalogSnapshotAdapter;
 import de.justvotes.pollmanagement.core.PollManagement;
 import de.justvotes.pollmanagement.core.ports.in.ManagePolls;
 import de.justvotes.pollmanagement.core.ports.in.ViewPolls;
 import de.justvotes.pollmanagement.core.ports.out.PollRepository;
+import de.justvotes.pollmanagement.core.ports.out.PollEventPublisher;
 import de.justvotes.pollmanagement.core.ports.out.TemplateGroupSnapshotProvider;
 import de.justvotes.templatecatalog.core.ports.in.ViewTemplateCatalog;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -28,8 +32,13 @@ class PollManagementConfiguration {
     }
 
     @Bean
-    PollManagement pollManagement(PollRepository polls, TemplateGroupSnapshotProvider groups) {
-        return new PollManagement(polls, groups);
+    PollEventPublisher pollEventPublisher(SpringDataPollDomainEventRepository events) {
+        return new JpaPollEventPublisher(events);
+    }
+
+    @Bean
+    PollManagement pollManagement(PollRepository polls, TemplateGroupSnapshotProvider groups, PollEventPublisher events) {
+        return new PollManagement(polls, groups, events);
     }
 
     @Bean
@@ -45,5 +54,10 @@ class PollManagementConfiguration {
     @Bean
     PollController pollController(@Qualifier("pollCommands") ManagePolls commands, @Qualifier("pollQueries") ViewPolls queries) {
         return new PollController(commands, queries);
+    }
+
+    @Bean
+    PublicPollController publicPollController(@Qualifier("pollQueries") ViewPolls queries) {
+        return new PublicPollController(queries);
     }
 }

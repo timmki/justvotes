@@ -77,6 +77,11 @@ public class PollEntity {
         options.clear();
     }
 
+    void updateVisibilityAndState(String visibility, String state) {
+        this.visibility = visibility;
+        this.state = state;
+    }
+
     void addOptions(List<String> texts) {
         for (int index = 0; index < texts.size(); index++)
             options.add(new PollOptionEntity(this, index + 1, texts.get(index)));

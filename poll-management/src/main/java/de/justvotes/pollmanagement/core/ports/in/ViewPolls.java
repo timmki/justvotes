@@ -6,4 +6,8 @@ import java.util.List;
 
 public interface ViewPolls {
     List<Poll> draftsCreatedBy(String systemAdmin);
+
+    List<Poll> publicPolls();
+
+    Poll publicPoll(Poll.PollId pollId);
 }

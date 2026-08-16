@@ -25,14 +25,17 @@ public final class JpaPollPersistenceAdapter implements PollRepository {
                         poll.templateGroup().id().value(),
                         poll.templateGroup().name()));
 
-        Optional.ofNullable(entity.templateSnapshotOptions())
-                .map(list -> list.stream().map(PollTemplateSnapshotOptionEntity::text).toList())
-                .ifPresent(entity::addTemplateSnapshotOptions);
+        entity.updateVisibilityAndState(poll.visibility().name().toLowerCase(), poll.state().name().toLowerCase());
+
+        if (entity.templateSnapshotOptions().isEmpty()) {
+            entity.addTemplateSnapshotOptions(poll.templateSnapshotOptions().stream().map(Poll.Option::text).toList());
+        }
 
         entity.clearOptions();
         polls.flush();
         entity.addOptions(poll.options().stream().map(Poll.Option::text).toList());
-        return poll(polls.save(entity));
+        polls.save(entity);
+        return poll;
     }
 
     @Override
@@ -43,6 +46,11 @@ public final class JpaPollPersistenceAdapter implements PollRepository {
     @Override
     public List<Poll> findAllByCreator(String creator) {
         return polls.findAllByCreatedBy(creator).stream().map(this::poll).toList();
+    }
+
+    @Override
+    public List<Poll> findAllByVisibility(Poll.Visibility visibility) {
+        return polls.findAllByVisibility(visibility.name().toLowerCase()).stream().map(this::poll).toList();
     }
 
     private Poll poll(PollEntity entity) {
