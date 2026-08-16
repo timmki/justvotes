@@ -55,6 +55,14 @@ public final class JpaPollPersistenceAdapter implements PollRepository {
         return polls.findAllByVisibility(visibility.name().toLowerCase()).stream().map(this::poll).toList();
     }
 
+    @Override
+    public List<Poll> findAllPublicActive() {
+        return polls.findAllByVisibilityAndState(
+                Poll.Visibility.PUBLIC.name().toLowerCase(),
+                Poll.State.ACTIVE.name().toLowerCase()
+        ).stream().map(this::poll).toList();
+    }
+
     private Poll poll(PollEntity entity) {
         return Poll.reconstitue(
                 Poll.PollId.of(entity.id()),

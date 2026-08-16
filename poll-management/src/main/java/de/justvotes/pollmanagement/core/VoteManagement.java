@@ -33,9 +33,8 @@ public final class VoteManagement implements ManageVotes, ViewVotes {
         if (oldIdentity == null || oldIdentity.equals(newIdentity)) {
             return;
         }
-        polls.findAllByVisibility(Poll.Visibility.PUBLIC)
+        polls.findAllPublicActive()
                 .stream()
-                .filter(Poll::isPubliclyVisible)
                 .forEach(poll -> poll.removeVoteForIdentity(oldIdentity)
                         .ifPresent(vote -> {
                             events.publish(new VoteRemovedForIdentityChange(

@@ -13,4 +13,6 @@ public interface PollRepository {
     List<Poll> findAllByCreator(String creator);
 
     List<Poll> findAllByVisibility(Poll.Visibility visibility);
+
+    List<Poll> findAllPublicActive();
 }

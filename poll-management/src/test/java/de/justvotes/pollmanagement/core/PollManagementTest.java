@@ -81,5 +81,10 @@ class PollManagementTest {
         public List<Poll> findAllByVisibility(Poll.Visibility visibility) {
             return poll == null || poll.visibility() != visibility ? List.of() : List.of(poll);
         }
+
+        @Override
+        public List<Poll> findAllPublicActive() {
+            return poll != null && poll.isPubliclyVisible() ? List.of(poll) : List.of();
+        }
     }
 }

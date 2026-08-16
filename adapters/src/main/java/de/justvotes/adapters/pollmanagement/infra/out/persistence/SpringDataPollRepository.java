@@ -8,4 +8,6 @@ public interface SpringDataPollRepository extends JpaRepository<PollEntity, Stri
     List<PollEntity> findAllByCreatedBy(String createdBy);
 
     List<PollEntity> findAllByVisibility(String visibility);
+
+    List<PollEntity> findAllByVisibilityAndState(String visibility, String state);
 }
