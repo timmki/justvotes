@@ -11,11 +11,11 @@ public final class Poll {
     private final String createdBy;
     private final TemplateGroup templateGroup;
     private final List<Option> templateSnapshotOptions;
+    private final List<Vote> votes;
     private Visibility visibility;
     private State state;
     private Instant endsAt;
     private List<Option> options;
-    private final List<Vote> votes;
 
     private Poll() {
         this.id = null;
@@ -59,19 +59,23 @@ public final class Poll {
     }
 
     private static List<Option> options(List<String> optionTexts) {
-        if (optionTexts == null || optionTexts.isEmpty())
+        if (optionTexts == null || optionTexts.isEmpty()) {
             throw new IllegalArgumentException("A poll must have at least one option.");
+        }
         Set<String> normalizedTexts = new LinkedHashSet<>();
         List<String> texts = optionTexts.stream().map(text -> requiredText(text, "An option text must not be blank.")).toList();
         for (String text : texts) {
-            if (!normalizedTexts.add(normalize(text)))
+            if (!normalizedTexts.add(normalize(text))) {
                 throw new IllegalArgumentException("Poll option texts must be unique.");
+            }
         }
         return java.util.stream.IntStream.range(0, texts.size()).mapToObj(index -> new Option(index + 1, texts.get(index))).toList();
     }
 
     private static String requiredText(String text, String message) {
-        if (text == null || text.trim().isEmpty()) throw new IllegalArgumentException(message);
+        if (text == null || text.trim().isEmpty()) {
+            throw new IllegalArgumentException(message);
+        }
         return text.trim();
     }
 
@@ -165,59 +169,81 @@ public final class Poll {
     }
 
     public PollPublished publish(String actorId, Instant endsAt) {
-        if (endsAt == null) throw new IllegalArgumentException("A published poll must have an expiry.");
+        if (endsAt == null) {
+            throw new IllegalArgumentException("A published poll must have an expiry.");
+        }
         PollPublished event = publish(actorId);
         this.endsAt = endsAt;
         return event;
     }
 
     public boolean expireIfDue(Instant now) {
-        if (state != State.ACTIVE || endsAt == null || now.isBefore(endsAt)) return false;
+        if (state != State.ACTIVE || endsAt == null || now.isBefore(endsAt)) {
+            return false;
+        }
         state = State.EXPIRED;
         return true;
     }
 
     public Poll archive() {
-        if (state != State.ACTIVE && state != State.EXPIRED) throw new IllegalStateException("Only an active or expired poll can be archived.");
+        if (state != State.ACTIVE && state != State.EXPIRED) {
+            throw new IllegalStateException("Only an active or expired poll can be archived.");
+        }
         state = State.ARCHIVED;
         return this;
     }
 
     public Poll restoreFromArchive() {
-        if (state != State.ARCHIVED) throw new IllegalStateException("Only an archived poll can be restored.");
+        if (state != State.ARCHIVED) {
+            throw new IllegalStateException("Only an archived poll can be restored.");
+        }
         state = State.EXPIRED;
         return this;
     }
 
     public Poll changeExpiry(Instant newEndsAt) {
-        if (state != State.EXPIRED) throw new IllegalStateException("Only an expired poll expiry can be changed.");
-        if (newEndsAt == null) throw new IllegalArgumentException("A poll expiry must not be null.");
+        if (state != State.EXPIRED) {
+            throw new IllegalStateException("Only an expired poll expiry can be changed.");
+        }
+        if (newEndsAt == null) {
+            throw new IllegalArgumentException("A poll expiry must not be null.");
+        }
         endsAt = newEndsAt;
         return this;
     }
 
     public Poll reopen(Instant now) {
-        if (state != State.EXPIRED) throw new IllegalStateException("Only an expired poll can be reopened.");
-        if (endsAt == null || !endsAt.isAfter(now)) throw new IllegalStateException("A poll can only be reopened with a future expiry.");
+        if (state != State.EXPIRED) {
+            throw new IllegalStateException("Only an expired poll can be reopened.");
+        }
+        if (endsAt == null || !endsAt.isAfter(now)) {
+            throw new IllegalStateException("A poll can only be reopened with a future expiry.");
+        }
         visibility = Visibility.PUBLIC;
         state = State.ACTIVE;
         return this;
     }
 
     public Poll softDelete() {
-        if (state != State.ACTIVE && state != State.EXPIRED && state != State.ARCHIVED) throw new IllegalStateException("Only an active, expired or archived poll can be deleted.");
+        if (state != State.ACTIVE && state != State.EXPIRED && state != State.ARCHIVED) {
+            throw new IllegalStateException("Only an active, expired or archived poll can be deleted.");
+        }
         state = State.DELETED;
         return this;
     }
 
     public Poll restore() {
-        if (state != State.DELETED) throw new IllegalStateException("Only a deleted poll can be restored.");
+        if (state != State.DELETED) {
+            throw new IllegalStateException("Only a deleted poll can be restored.");
+        }
         state = State.ARCHIVED;
         return this;
     }
 
     public void requireDeleted() {
-        if (state != State.DELETED) throw new IllegalStateException("Only a deleted poll can be permanently deleted.");
+        if (state != State.DELETED) {
+            throw new IllegalStateException("Only a deleted poll can be permanently deleted.");
+        }
     }
 
     public Poll makePrivate() {
@@ -242,7 +268,9 @@ public final class Poll {
 
     public record PollId(String value) {
         public PollId {
-            if (value == null || value.isBlank()) throw new IllegalArgumentException("A poll ID must not be blank.");
+            if (value == null || value.isBlank()) {
+                throw new IllegalArgumentException("A poll ID must not be blank.");
+            }
         }
 
         public static PollId of(String value) {

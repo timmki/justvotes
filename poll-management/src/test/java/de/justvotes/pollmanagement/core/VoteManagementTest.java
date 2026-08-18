@@ -18,6 +18,19 @@ class VoteManagementTest {
     private static final Identity OLD_IDENTITY = Identity.of("alice");
     private static final Identity NEW_IDENTITY = Identity.of("bob");
 
+    private static Poll activePollWithVote(Identity identity) {
+        Poll poll = Poll.reconstitue(
+                Poll.PollId.newId(), "Aktuelle Wahl", "systemadmin", Poll.Visibility.PUBLIC, Poll.State.ACTIVE,
+                group(), List.of("Ja"), List.of("Ja"), List.of()
+        );
+        poll.castOrReplace(identity, 1);
+        return poll;
+    }
+
+    private static Poll.TemplateGroup group() {
+        return Poll.TemplateGroup.of(Poll.TemplateGroupId.of(1), "Wahl");
+    }
+
     @Test
     void removesVotesFromOpenPollsAndRecordsTheOriginalIdentity() {
         Poll firstOpenPoll = activePollWithVote(OLD_IDENTITY);
@@ -54,19 +67,6 @@ class VoteManagementTest {
         assertEquals(List.of(new Vote(OLD_IDENTITY, 1)), openPoll.votes());
         assertEquals(List.of(), events);
         assertEquals(List.of(), polls.saved());
-    }
-
-    private static Poll activePollWithVote(Identity identity) {
-        Poll poll = Poll.reconstitue(
-                Poll.PollId.newId(), "Aktuelle Wahl", "systemadmin", Poll.Visibility.PUBLIC, Poll.State.ACTIVE,
-                group(), List.of("Ja"), List.of("Ja"), List.of()
-        );
-        poll.castOrReplace(identity, 1);
-        return poll;
-    }
-
-    private static Poll.TemplateGroup group() {
-        return Poll.TemplateGroup.of(Poll.TemplateGroupId.of(1), "Wahl");
     }
 
     private static final class InMemoryPollRepository implements PollRepository {

@@ -1,6 +1,5 @@
 package de.justvotes.pollmanagement.core;
 
-import de.justvotes.pollmanagement.core.event.PollDomainEvent;
 import de.justvotes.pollmanagement.core.event.VoteCast;
 import de.justvotes.pollmanagement.core.event.VoteRemovedForIdentityChange;
 import de.justvotes.pollmanagement.core.event.VoteReplaced;
@@ -14,7 +13,6 @@ import de.justvotes.pollmanagement.core.ports.out.PollRepository;
 import io.vavr.control.Try;
 
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 
 public final class VoteManagement implements ManageVotes, ViewVotes {
@@ -59,7 +57,7 @@ public final class VoteManagement implements ManageVotes, ViewVotes {
         return Try.success(poll)
                 .andThen(p -> {
                     String selection = optionText(p, outcome.vote());
-                    events.publish( switch (outcome.status()) {
+                    events.publish(switch (outcome.status()) {
                         case CREATED -> new VoteCast(p.id(), outcome.vote(), selection);
                         case REPLACED -> new VoteReplaced(p.id(), outcome.vote(), selection);
                         default -> null;
@@ -95,7 +93,9 @@ public final class VoteManagement implements ManageVotes, ViewVotes {
 
     private Poll publiclyReadable(Poll.PollId pollId) {
         Poll poll = polls.findById(pollId).orElseThrow(() -> new PollNotFoundException(pollId));
-        if (!poll.isPubliclyReadable()) throw new PollNotFoundException(pollId);
+        if (!poll.isPubliclyReadable()) {
+            throw new PollNotFoundException(pollId);
+        }
         return poll;
     }
 

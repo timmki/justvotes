@@ -1,9 +1,8 @@
 package de.justvotes.pollmanagement.core;
 
+import de.justvotes.pollmanagement.core.event.PollLifecycleChanged;
 import de.justvotes.pollmanagement.core.exception.PollNotFoundException;
 import de.justvotes.pollmanagement.core.model.Poll;
-import de.justvotes.pollmanagement.core.event.PollPublished;
-import de.justvotes.pollmanagement.core.event.PollLifecycleChanged;
 import de.justvotes.pollmanagement.core.ports.in.ManagePolls;
 import de.justvotes.pollmanagement.core.ports.in.ViewPolls;
 import de.justvotes.pollmanagement.core.ports.out.PollEventPublisher;
@@ -11,8 +10,8 @@ import de.justvotes.pollmanagement.core.ports.out.PollRepository;
 import de.justvotes.pollmanagement.core.ports.out.TemplateGroupSnapshotProvider;
 import io.vavr.control.Try;
 
-import java.util.List;
 import java.time.Instant;
+import java.util.List;
 
 public final class PollManagement implements ManagePolls, ViewPolls {
     private final PollRepository polls;
@@ -62,10 +61,25 @@ public final class PollManagement implements ManagePolls, ViewPolls {
                 .peek(polls::save).count();
     }
 
-    @Override public Poll archive(Poll.PollId id, String actor) { return transition(id, actor, PollLifecycleChanged.Type.PollArchived, Poll::archive); }
-    @Override public Poll restoreFromArchive(Poll.PollId id, String actor) { return transition(id, actor, PollLifecycleChanged.Type.PollRestoredFromArchive, Poll::restoreFromArchive); }
-    @Override public Poll softDelete(Poll.PollId id, String actor) { return transition(id, actor, PollLifecycleChanged.Type.PollSoftDeleted, Poll::softDelete); }
-    @Override public Poll restore(Poll.PollId id, String actor) { return transition(id, actor, PollLifecycleChanged.Type.PollRestored, Poll::restore); }
+    @Override
+    public Poll archive(Poll.PollId id, String actor) {
+        return transition(id, actor, PollLifecycleChanged.Type.PollArchived, Poll::archive);
+    }
+
+    @Override
+    public Poll restoreFromArchive(Poll.PollId id, String actor) {
+        return transition(id, actor, PollLifecycleChanged.Type.PollRestoredFromArchive, Poll::restoreFromArchive);
+    }
+
+    @Override
+    public Poll softDelete(Poll.PollId id, String actor) {
+        return transition(id, actor, PollLifecycleChanged.Type.PollSoftDeleted, Poll::softDelete);
+    }
+
+    @Override
+    public Poll restore(Poll.PollId id, String actor) {
+        return transition(id, actor, PollLifecycleChanged.Type.PollRestored, Poll::restore);
+    }
 
     @Override
     public Poll changeExpiry(Poll.PollId pollId, Instant endsAt, String actor) {
@@ -76,11 +90,16 @@ public final class PollManagement implements ManagePolls, ViewPolls {
         return polls.save(poll);
     }
 
-    @Override public Poll reopen(Poll.PollId id, Instant now, String actor) { return transition(id, actor, PollLifecycleChanged.Type.PollReopened, poll -> poll.reopen(now)); }
+    @Override
+    public Poll reopen(Poll.PollId id, Instant now, String actor) {
+        return transition(id, actor, PollLifecycleChanged.Type.PollReopened, poll -> poll.reopen(now));
+    }
 
     @Override
     public void permanentlyDelete(Poll.PollId pollId, boolean confirmed, boolean confirmationRepeated) {
-        if (!confirmed || !confirmationRepeated) throw new IllegalArgumentException("Permanent deletion requires two confirmations.");
+        if (!confirmed || !confirmationRepeated) {
+            throw new IllegalArgumentException("Permanent deletion requires two confirmations.");
+        }
         Poll poll = poll(pollId);
         poll.requireDeleted();
         polls.delete(poll);
@@ -99,11 +118,16 @@ public final class PollManagement implements ManagePolls, ViewPolls {
     @Override
     public Poll publicPoll(Poll.PollId pollId) {
         Poll poll = poll(pollId);
-        if (!poll.isPubliclyReadable()) throw new PollNotFoundException(pollId);
+        if (!poll.isPubliclyReadable()) {
+            throw new PollNotFoundException(pollId);
+        }
         return poll;
     }
 
-    @Override public List<Poll> pollsCreatedBy(String systemAdmin) { return polls.findAllByCreator(systemAdmin); }
+    @Override
+    public List<Poll> pollsCreatedBy(String systemAdmin) {
+        return polls.findAllByCreator(systemAdmin);
+    }
 
     private Poll transition(Poll.PollId id, String actor, PollLifecycleChanged.Type eventType, java.util.function.Function<Poll, Poll> action) {
         Poll poll = action.apply(poll(id));

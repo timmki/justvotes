@@ -2,8 +2,8 @@ package de.justvotes.pollmanagement.core.ports.in;
 
 import de.justvotes.pollmanagement.core.model.Poll;
 
-import java.util.List;
 import java.time.Instant;
+import java.util.List;
 
 public interface ManagePolls {
     Poll createDraft(String title, Poll.TemplateGroupId templateGroupId, String systemAdmin);
