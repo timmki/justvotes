@@ -9,17 +9,17 @@
     <dependencies>
         <dependency>
             <groupId>de.justvotes</groupId>
+            <artifactId>api-contract</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>de.justvotes</groupId>
             <artifactId>poll-management</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>de.justvotes</groupId>
             <artifactId>template-catalog</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>de.justvotes</groupId>
-            <artifactId>operator-access</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
@@ -41,6 +41,11 @@
         <dependency>
             <groupId>jakarta.persistence</groupId>
             <artifactId>jakarta.persistence-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 </project>

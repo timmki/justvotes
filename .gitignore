@@ -1,4 +1,5 @@
 .mvn/repository/
+.m2/
 */target/
 *.db
 .idea

@@ -6,8 +6,8 @@ import java.util.Set;
 
 public final class OptionTemplate {
     private final OptionTemplateId id;
-    private String name;
     private final Set<OptionTemplateGroup.OptionTemplateGroupId> groupReferences;
+    private String name;
 
     public OptionTemplate(String name) {
         this(OptionTemplateId.newId(), name, Set.of());
@@ -37,7 +37,8 @@ public final class OptionTemplate {
     }
 
     private String validateName(String name) {
-        if (name == null || name.trim().isEmpty()) throw new IllegalArgumentException("An OptionTemplate name must not be blank.");
+        if (name == null || name.trim().isEmpty())
+            throw new IllegalArgumentException("An OptionTemplate name must not be blank.");
         return name.trim();
     }
 

@@ -1,22 +1,19 @@
 package de.justvotes.adapters.templatecatalog.infra.in.http;
 
-import de.justvotes.templatecatalog.core.exception.CatalogItemNotFoundException;
-import de.justvotes.templatecatalog.core.exception.CatalogNameAlreadyExistsException;
+import de.justvotes.adapters.shared.infra.in.http.OpaqueIdCodec;
+import de.justvotes.api.v1.server.TemplatesApi;
 import de.justvotes.templatecatalog.core.model.OptionTemplate;
 import de.justvotes.templatecatalog.core.model.OptionTemplateGroup;
 import de.justvotes.templatecatalog.core.ports.in.ManageTemplateCatalog;
 import de.justvotes.templatecatalog.core.ports.in.ViewTemplateCatalog;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/v1/admin/template-catalog")
-public final class TemplateCatalogController {
+public class TemplateCatalogController implements TemplatesApi {
     private final ManageTemplateCatalog commands;
     private final ViewTemplateCatalog queries;
 
@@ -25,98 +22,72 @@ public final class TemplateCatalogController {
         this.queries = queries;
     }
 
-    @GetMapping("/templates")
-    public List<TemplateResponse> templates() {
-        return queries.templates().stream().map(TemplateResponse::from).toList();
+    private static de.justvotes.api.v1.model.Template template(OptionTemplate template) {
+        return new de.justvotes.api.v1.model.Template(OpaqueIdCodec.encode("t", template.id().value()), template.name());
     }
 
-    @PostMapping("/templates")
-    public ResponseEntity<TemplateResponse> createTemplate(@RequestBody NameRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(TemplateResponse.from(commands.createTemplate(request.name())));
+    private static de.justvotes.api.v1.model.TemplateGroup group(OptionTemplateGroup group) {
+        return new de.justvotes.api.v1.model.TemplateGroup(OpaqueIdCodec.encode("g", group.id().value()), group.name(), group.description());
     }
 
-    @PatchMapping("/templates/{id}")
-    public TemplateResponse renameTemplate(@PathVariable("id") long id, @RequestBody NameRequest request) {
-        return TemplateResponse.from(commands.renameTemplate(id, request.name()));
+    @Override
+    public ResponseEntity<List<de.justvotes.api.v1.model.Template>> templates() {
+        return ResponseEntity.ok(queries.templates().stream().map(TemplateCatalogController::template).toList());
     }
 
-    @DeleteMapping("/templates/{id}")
-    public ResponseEntity<Void> deleteTemplate(@PathVariable("id") long id) {
-        commands.deleteTemplate(id);
+    @Override
+    public ResponseEntity<de.justvotes.api.v1.model.Template> createTemplate(de.justvotes.api.v1.model.Name request) {
+        var created = template(commands.createTemplate(request.getName()));
+        return ResponseEntity.status(HttpStatus.CREATED).header("Location", "/api/v1/admin/template-catalog/templates/" + created.getId()).body(created);
+    }
+
+    @Override
+    public ResponseEntity<de.justvotes.api.v1.model.Template> renameTemplate(String id, de.justvotes.api.v1.model.Name request) {
+        return ResponseEntity.ok(template(commands.renameTemplate(OpaqueIdCodec.decode("t", id), request.getName())));
+    }
+
+    @Override
+    public ResponseEntity<Void> deleteTemplate(String id) {
+        commands.deleteTemplate(OpaqueIdCodec.decode("t", id));
         return ResponseEntity.noContent().build();
     }
 
-    @GetMapping("/groups")
-    public List<GroupResponse> groups() {
-        return queries.groups().stream().map(GroupResponse::from).toList();
+    @Override
+    public ResponseEntity<List<de.justvotes.api.v1.model.TemplateGroup>> groups() {
+        return ResponseEntity.ok(queries.groups().stream().map(TemplateCatalogController::group).toList());
     }
 
-    @PostMapping("/groups")
-    public ResponseEntity<GroupResponse> createGroup(@RequestBody GroupRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(GroupResponse.from(commands.createGroup(request.name(), request.description())));
+    @Override
+    public ResponseEntity<de.justvotes.api.v1.model.TemplateGroup> createGroup(de.justvotes.api.v1.model.GroupInput request) {
+        var created = group(commands.createGroup(request.getName(), request.getDescription()));
+        return ResponseEntity.status(HttpStatus.CREATED).header("Location", "/api/v1/admin/template-catalog/groups/" + created.getId()).body(created);
     }
 
-    @PatchMapping("/groups/{id}")
-    public GroupResponse renameGroup(@PathVariable("id") long id, @RequestBody NameRequest request) {
-        return GroupResponse.from(commands.renameGroup(id, request.name()));
+    @Override
+    public ResponseEntity<de.justvotes.api.v1.model.TemplateGroup> renameGroup(String id, de.justvotes.api.v1.model.Name request) {
+        return ResponseEntity.ok(group(commands.renameGroup(OpaqueIdCodec.decode("g", id), request.getName())));
     }
 
-    @DeleteMapping("/groups/{id}")
-    public ResponseEntity<Void> deleteGroup(@PathVariable("id") long id) {
-        commands.deleteGroup(id);
+    @Override
+    public ResponseEntity<Void> deleteGroup(String id) {
+        commands.deleteGroup(OpaqueIdCodec.decode("g", id));
         return ResponseEntity.noContent().build();
     }
 
-    @PutMapping("/groups/{groupId}/templates/{templateId}")
-    public ResponseEntity<Void> assign(@PathVariable("groupId") long groupId, @PathVariable("templateId") long templateId) {
-        commands.assignTemplateToGroup(templateId, groupId);
+    @Override
+    public ResponseEntity<Void> assignTemplate(String groupId, String templateId) {
+        commands.assignTemplateToGroup(OpaqueIdCodec.decode("t", templateId), OpaqueIdCodec.decode("g", groupId));
         return ResponseEntity.noContent().build();
     }
 
-    @DeleteMapping("/groups/{groupId}/templates/{templateId}")
-    public ResponseEntity<Void> remove(@PathVariable("groupId") long groupId, @PathVariable("templateId") long templateId) {
-        commands.removeTemplateFromGroup(templateId, groupId);
+    @Override
+    public ResponseEntity<Void> removeTemplate(String groupId, String templateId) {
+        commands.removeTemplateFromGroup(OpaqueIdCodec.decode("t", templateId), OpaqueIdCodec.decode("g", groupId));
         return ResponseEntity.noContent().build();
     }
 
-    @GetMapping("/groups/{groupId}/templates")
-    public List<TemplateResponse> templatesInGroup(@PathVariable("groupId") long groupId) {
-        return queries.templatesInGroup(groupId).stream().map(TemplateResponse::from).toList();
-    }
-
-    @ExceptionHandler({CatalogNameAlreadyExistsException.class, DataIntegrityViolationException.class})
-    ResponseEntity<ProblemDetail> invalidCatalogChange(RuntimeException exception) {
-        return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, exception.getMessage()));
-    }
-
-    @ExceptionHandler(IllegalArgumentException.class)
-    ResponseEntity<ProblemDetail> invalidCatalogInput(IllegalArgumentException exception) {
-        return ResponseEntity.badRequest()
-                .body(ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.getMessage()));
-    }
-
-    @ExceptionHandler(CatalogItemNotFoundException.class)
-    ResponseEntity<ProblemDetail> missingCatalogItem(CatalogItemNotFoundException exception) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, exception.getMessage()));
-    }
-
-    public record NameRequest(String name) {
-    }
-
-    public record GroupRequest(String name, String description) {
-    }
-
-    public record TemplateResponse(long id, String name) {
-        static TemplateResponse from(OptionTemplate template) {
-            return new TemplateResponse(template.id().value(), template.name());
-        }
-    }
-
-    public record GroupResponse(long id, String name, String description) {
-        static GroupResponse from(OptionTemplateGroup group) {
-            return new GroupResponse(group.id().value(), group.name(), group.description());
-        }
+    @Override
+    public ResponseEntity<List<de.justvotes.api.v1.model.Template>> templatesInGroup(String groupId) {
+        return ResponseEntity.ok(queries.templatesInGroup(OpaqueIdCodec.decode("g", groupId)).stream().map(TemplateCatalogController::template).toList());
     }
 }

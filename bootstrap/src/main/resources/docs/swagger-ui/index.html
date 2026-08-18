@@ -1,0 +1,22 @@
+<!doctype html>
+<html>
+<head><title>JustVotes API</title>
+    <link href="swagger-ui.css" rel="stylesheet">
+</head>
+<body>
+<div id="swagger-ui"></div>
+<script src="swagger-ui-bundle.js"></script>
+<script>let csrf = {};
+fetch('/api/v1/csrf', {credentials: 'same-origin'}).then(r => r.json()).then(t => csrf = {[t.headerName]: t.token});
+SwaggerUIBundle({
+    url: '/api-docs/openapi-v1.yaml',
+    dom_id: '#swagger-ui',
+    persistAuthorization: true,
+    requestInterceptor: r => {
+        r.credentials = 'same-origin';
+        Object.assign(r.headers, csrf);
+        return r
+    }
+})</script>
+</body>
+</html>

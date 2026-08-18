@@ -16,14 +16,13 @@ import java.nio.file.Path;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class PollManagementHttpTest {
     private static final Path DATABASE_PATH = Path.of("target", "poll-management-" + UUID.randomUUID() + ".db");
     private static final Pattern CSRF_TOKEN = Pattern.compile("\\\"token\\\":\\\"([^\\\"]+)\\\"");
-    private static final Pattern ID = Pattern.compile("\\\"id\\\":(\\d+)");
+    private static final Pattern ID = Pattern.compile("\\\"id\\\":\\\"([^\\\"]+)\\\"");
 
     @LocalServerPort
     int port;
@@ -35,15 +34,15 @@ class PollManagementHttpTest {
         registry.add("ADMIN_PASSWORD_HASH", () -> new BCryptPasswordEncoder().encode("password"));
     }
 
-    private static long createdId(ResponseEntity<String> response) {
+    private static String createdId(ResponseEntity<String> response) {
         assertEquals(201, response.getStatusCode().value());
         return id(response);
     }
 
-    private static long id(ResponseEntity<String> response) {
+    private static String id(ResponseEntity<String> response) {
         var matcher = ID.matcher(response.getBody());
         assertTrue(matcher.find());
-        return Long.parseLong(matcher.group(1));
+        return matcher.group(1);
     }
 
     private static String stringField(ResponseEntity<String> response, String name) {
@@ -62,13 +61,13 @@ class PollManagementHttpTest {
         String catalogUrl = "http://localhost:" + port + "/api/v1/admin/template-catalog";
         String pollsUrl = "http://localhost:" + port + "/api/v1/admin/polls";
         AuthenticatedAdmin admin = login();
-        long zeta = createdId(admin.post(catalogUrl + "/templates", "{\"name\":\"Zeta\"}"));
-        long alpha = createdId(admin.post(catalogUrl + "/templates", "{\"name\":\"Alpha\"}"));
-        long group = createdId(admin.post(catalogUrl + "/groups", "{\"name\":\"Wahl\",\"description\":\"\"}"));
+        String zeta = createdId(admin.post(catalogUrl + "/templates", "{\"name\":\"Zeta\"}"));
+        String alpha = createdId(admin.post(catalogUrl + "/templates", "{\"name\":\"Alpha\"}"));
+        String group = createdId(admin.post(catalogUrl + "/groups", "{\"name\":\"Wahl\",\"description\":\"\"}"));
         assertEquals(204, admin.put(catalogUrl + "/groups/" + group + "/templates/" + zeta).getStatusCode().value());
         assertEquals(204, admin.put(catalogUrl + "/groups/" + group + "/templates/" + alpha).getStatusCode().value());
 
-        ResponseEntity<String> created = admin.post(pollsUrl, "{\"title\":\"Vorstand\",\"templateGroupId\":" + group + "}");
+        ResponseEntity<String> created = admin.post(pollsUrl, "{\"title\":\"Vorstand\",\"templateGroupId\":\"" + group + "\"}");
         assertEquals(201, created.getStatusCode().value(), created.getBody());
         assertTrue(created.getBody().contains("\"visibility\":\"private\""));
         assertTrue(created.getBody().contains("\"state\":\"draft\""));
@@ -90,17 +89,17 @@ class PollManagementHttpTest {
         String pollsUrl = "http://localhost:" + port + "/api/v1/admin/polls";
         String publicPollsUrl = "http://localhost:" + port + "/api/v1/polls";
         AuthenticatedAdmin admin = login();
-        long template = createdId(admin.post(catalogUrl + "/templates", "{\"name\":\"Sichtbarkeit\"}"));
-        long group = createdId(admin.post(catalogUrl + "/groups", "{\"name\":\"Öffentliche Wahl\",\"description\":\"\"}"));
+        String template = createdId(admin.post(catalogUrl + "/templates", "{\"name\":\"Sichtbarkeit\"}"));
+        String group = createdId(admin.post(catalogUrl + "/groups", "{\"name\":\"Öffentliche Wahl\",\"description\":\"\"}"));
         assertEquals(204, admin.put(catalogUrl + "/groups/" + group + "/templates/" + template).getStatusCode().value());
-        ResponseEntity<String> created = admin.post(pollsUrl, "{\"title\":\"Vorstand\",\"templateGroupId\":" + group + "}");
+        ResponseEntity<String> created = admin.post(pollsUrl, "{\"title\":\"Vorstand\",\"templateGroupId\":\"" + group + "\"}");
         assertEquals(201, created.getStatusCode().value(), created.getBody());
         String pollId = stringField(created, "id");
         TestRestTemplate visitor = new TestRestTemplate();
 
         ResponseEntity<String> privatePoll = visitor.getForEntity(publicPollsUrl + "/" + pollId, String.class);
         assertEquals(404, privatePoll.getStatusCode().value(), privatePoll.getBody());
-        assertEquals("no-store", privatePoll.getHeaders().getCacheControl());
+        assertTrue(privatePoll.getHeaders().getCacheControl().contains("no-store"));
 
         ResponseEntity<String> published = admin.put(pollsUrl + "/" + pollId + "/publication", "{\"endsAt\":\"2099-01-01T00:00:00Z\"}");
         assertEquals(200, published.getStatusCode().value(), published.getBody());
@@ -112,8 +111,8 @@ class PollManagementHttpTest {
         assertEquals(200, admin.delete(pollsUrl + "/" + pollId + "/publication").getStatusCode().value());
         ResponseEntity<String> privatizedPoll = visitor.getForEntity(publicPollsUrl + "/" + pollId, String.class);
         assertEquals(404, privatizedPoll.getStatusCode().value());
-        assertEquals("no-store", privatizedPoll.getHeaders().getCacheControl());
-        assertTrue(!visitor.getForEntity(publicPollsUrl, String.class).getBody().contains(pollId));
+        assertTrue(privatizedPoll.getHeaders().getCacheControl().contains("no-store"));
+        assertFalse(visitor.getForEntity(publicPollsUrl, String.class).getBody().contains(pollId));
     }
 
     @Test
@@ -122,12 +121,12 @@ class PollManagementHttpTest {
         String pollsUrl = "http://localhost:" + port + "/api/v1/admin/polls";
         String publicPollsUrl = "http://localhost:" + port + "/api/v1/polls";
         AuthenticatedAdmin admin = login();
-        long yes = createdId(admin.post(catalogUrl + "/templates", "{\"name\":\"Ja\"}"));
-        long no = createdId(admin.post(catalogUrl + "/templates", "{\"name\":\"Nein\"}"));
-        long group = createdId(admin.post(catalogUrl + "/groups", "{\"name\":\"Abstimmung\",\"description\":\"\"}"));
+        String yes = createdId(admin.post(catalogUrl + "/templates", "{\"name\":\"Ja\"}"));
+        String no = createdId(admin.post(catalogUrl + "/templates", "{\"name\":\"Nein\"}"));
+        String group = createdId(admin.post(catalogUrl + "/groups", "{\"name\":\"Abstimmung\",\"description\":\"\"}"));
         admin.put(catalogUrl + "/groups/" + group + "/templates/" + yes);
         admin.put(catalogUrl + "/groups/" + group + "/templates/" + no);
-        String pollId = stringField(admin.post(pollsUrl, "{\"title\":\"Vorstand\",\"templateGroupId\":" + group + "}"), "id");
+        String pollId = stringField(admin.post(pollsUrl, "{\"title\":\"Vorstand\",\"templateGroupId\":\"" + group + "\"}"), "id");
         admin.put(pollsUrl + "/" + pollId + "/publication", "{\"endsAt\":\"2099-01-01T00:00:00Z\"}");
 
         PublicVisitor visitor = publicVisitor();

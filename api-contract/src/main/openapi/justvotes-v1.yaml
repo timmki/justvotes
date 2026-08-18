@@ -1,0 +1,985 @@
+openapi: 3.0.3
+info:
+  title: JustVotes API
+  version: 1.0.0
+  description: The authoritative HTTP contract for JustVotes. Poll audit entries are intentionally public and detailed so every participant can verify voting activity; they contain the public identity and selected option.
+servers:
+  - url: /api/v1
+tags:
+  - name: Session
+  - name: Identity
+  - name: Templates
+  - name: Polls
+  - name: Public polls
+paths:
+  /csrf:
+    get:
+      tags:
+        - Session
+      operationId: csrf
+      responses:
+        '200':
+          description: CSRF token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CsrfToken'
+  /admin/login:
+    post:
+      tags:
+        - Session
+      operationId: login
+      requestBody:
+        $ref: '#/components/requestBodies/Login'
+      responses:
+        '204':
+          description: Logged in
+        '401':
+          $ref: '#/components/responses/Problem'
+  /admin/logout:
+    post:
+      tags:
+        - Session
+      operationId: logout
+      security:
+        - adminSession: [ ]
+          csrf: [ ]
+      responses:
+        '204':
+          description: Logged out
+        '401':
+          $ref: '#/components/responses/Problem'
+  /admin/session:
+    get:
+      tags:
+        - Session
+      operationId: session
+      security:
+        - adminSession: [ ]
+      responses:
+        '204':
+          description: Active session
+        '401':
+          $ref: '#/components/responses/Problem'
+  /identity:
+    post:
+      tags:
+        - Identity
+      operationId: changeIdentity
+      security:
+        - csrf: [ ]
+      requestBody:
+        $ref: '#/components/requestBodies/Identity'
+      responses:
+        '204':
+          description: Identity changed
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+        '400':
+          $ref: '#/components/responses/Problem'
+  /admin/template-catalog/templates:
+    get:
+      tags:
+        - Templates
+      operationId: templates
+      security:
+        - adminSession: [ ]
+      responses:
+        '200':
+          description: Templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Template'
+    post:
+      tags:
+        - Templates
+      operationId: createTemplate
+      security:
+        - adminSession: [ ]
+          csrf: [ ]
+      requestBody:
+        $ref: '#/components/requestBodies/Name'
+      responses:
+        '201':
+          description: Created
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri-reference
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Template'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+  '/admin/template-catalog/templates/{templateId}':
+    parameters:
+      - $ref: '#/components/parameters/TemplateId'
+    patch:
+      tags:
+        - Templates
+      operationId: renameTemplate
+      security:
+        - adminSession: [ ]
+          csrf: [ ]
+      requestBody:
+        $ref: '#/components/requestBodies/Name'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Template'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+    delete:
+      tags:
+        - Templates
+      operationId: deleteTemplate
+      security:
+        - adminSession: [ ]
+          csrf: [ ]
+      responses:
+        '204':
+          description: Deleted
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+  /admin/template-catalog/groups:
+    get:
+      tags:
+        - Templates
+      operationId: groups
+      security:
+        - adminSession: [ ]
+      responses:
+        '200':
+          description: Groups
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TemplateGroup'
+    post:
+      tags:
+        - Templates
+      operationId: createGroup
+      security:
+        - adminSession: [ ]
+          csrf: [ ]
+      requestBody:
+        $ref: '#/components/requestBodies/Group'
+      responses:
+        '201':
+          description: Created
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri-reference
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TemplateGroup'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+  '/admin/template-catalog/groups/{groupId}':
+    parameters:
+      - $ref: '#/components/parameters/GroupId'
+    patch:
+      tags:
+        - Templates
+      operationId: renameGroup
+      security:
+        - adminSession: [ ]
+          csrf: [ ]
+      requestBody:
+        $ref: '#/components/requestBodies/Name'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TemplateGroup'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+    delete:
+      tags:
+        - Templates
+      operationId: deleteGroup
+      security:
+        - adminSession: [ ]
+          csrf: [ ]
+      responses:
+        '204':
+          description: Deleted
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+  '/admin/template-catalog/groups/{groupId}/templates':
+    parameters:
+      - $ref: '#/components/parameters/GroupId'
+    get:
+      tags:
+        - Templates
+      operationId: templatesInGroup
+      security:
+        - adminSession: [ ]
+      responses:
+        '200':
+          description: Templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Template'
+        '404':
+          $ref: '#/components/responses/Problem'
+  '/admin/template-catalog/groups/{groupId}/templates/{templateId}':
+    parameters:
+      - $ref: '#/components/parameters/GroupId'
+      - $ref: '#/components/parameters/TemplateId'
+    put:
+      tags:
+        - Templates
+      operationId: assignTemplate
+      security:
+        - adminSession: [ ]
+          csrf: [ ]
+      responses:
+        '204':
+          description: Assigned
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+    delete:
+      tags:
+        - Templates
+      operationId: removeTemplate
+      security:
+        - adminSession: [ ]
+          csrf: [ ]
+      responses:
+        '204':
+          description: Removed
+        '404':
+          $ref: '#/components/responses/Problem'
+  /admin/polls:
+    get:
+      tags:
+        - Polls
+      operationId: adminPolls
+      security:
+        - adminSession: [ ]
+      responses:
+        '200':
+          description: Polls
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Poll'
+    post:
+      tags:
+        - Polls
+      operationId: createPoll
+      security:
+        - adminSession: [ ]
+          csrf: [ ]
+      requestBody:
+        $ref: '#/components/requestBodies/CreatePoll'
+      responses:
+        '201':
+          description: Created
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri-reference
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Poll'
+        '400':
+          $ref: '#/components/responses/Problem'
+  '/admin/polls/{pollId}/options':
+    parameters:
+      - $ref: '#/components/parameters/PollId'
+    put:
+      tags:
+        - Polls
+      operationId: replacePollOptions
+      security:
+        - adminSession: [ ]
+          csrf: [ ]
+      requestBody:
+        $ref: '#/components/requestBodies/Options'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Poll'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+  '/admin/polls/{pollId}/archive':
+    parameters:
+      - $ref: '#/components/parameters/PollId'
+    put:
+      tags:
+        - Polls
+      operationId: archivePoll
+      security:
+        - adminSession: [ ]
+          csrf: [ ]
+      responses:
+        '200':
+          description: Transitioned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Poll'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+  '/admin/polls/{pollId}/restore-from-archive':
+    parameters:
+      - $ref: '#/components/parameters/PollId'
+    put:
+      tags:
+        - Polls
+      operationId: restorePollFromArchive
+      security:
+        - adminSession: [ ]
+          csrf: [ ]
+      responses:
+        '200':
+          description: Restored from archive
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Poll'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+  '/admin/polls/{pollId}/reopen':
+    parameters:
+      - $ref: '#/components/parameters/PollId'
+    put:
+      tags:
+        - Polls
+      operationId: reopenPoll
+      security:
+        - adminSession: [ ]
+          csrf: [ ]
+      responses:
+        '200':
+          description: Reopened
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Poll'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+  '/admin/polls/{pollId}/restore':
+    parameters:
+      - $ref: '#/components/parameters/PollId'
+    put:
+      tags:
+        - Polls
+      operationId: restorePoll
+      security:
+        - adminSession: [ ]
+          csrf: [ ]
+      responses:
+        '200':
+          description: Restored
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Poll'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+  '/admin/polls/{pollId}/publication':
+    parameters:
+      - $ref: '#/components/parameters/PollId'
+    put:
+      tags:
+        - Polls
+      operationId: publishPoll
+      security:
+        - adminSession: [ ]
+          csrf: [ ]
+      requestBody:
+        $ref: '#/components/requestBodies/Expiry'
+      responses:
+        '200':
+          description: Published
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Poll'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+    delete:
+      tags:
+        - Polls
+      operationId: makePollPrivate
+      security:
+        - adminSession: [ ]
+          csrf: [ ]
+      responses:
+        '200':
+          description: Made private
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Poll'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+  '/admin/polls/{pollId}/expiry':
+    parameters:
+      - $ref: '#/components/parameters/PollId'
+    put:
+      tags:
+        - Polls
+      operationId: changePollExpiry
+      security:
+        - adminSession: [ ]
+          csrf: [ ]
+      requestBody:
+        $ref: '#/components/requestBodies/Expiry'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Poll'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+  '/admin/polls/{pollId}':
+    parameters:
+      - $ref: '#/components/parameters/PollId'
+    delete:
+      tags:
+        - Polls
+      operationId: deletePoll
+      security:
+        - adminSession: [ ]
+          csrf: [ ]
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Poll'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+  '/admin/polls/{pollId}/permanent-deletion':
+    parameters:
+      - $ref: '#/components/parameters/PollId'
+    post:
+      tags:
+        - Polls
+      operationId: permanentlyDeletePoll
+      security:
+        - adminSession: [ ]
+          csrf: [ ]
+      requestBody:
+        $ref: '#/components/requestBodies/DeleteConfirmation'
+      responses:
+        '204':
+          description: Permanently deleted
+        '400':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+  /polls:
+    get:
+      tags:
+        - Public polls
+      operationId: publicPolls
+      responses:
+        '200':
+          description: Public polls
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Poll'
+  '/polls/{pollId}':
+    parameters:
+      - $ref: '#/components/parameters/PollId'
+    get:
+      tags:
+        - Public polls
+      operationId: publicPoll
+      responses:
+        '200':
+          description: Poll
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Poll'
+        '404':
+          $ref: '#/components/responses/Problem'
+  '/polls/{pollId}/votes':
+    parameters:
+      - $ref: '#/components/parameters/PollId'
+    post:
+      tags:
+        - Public polls
+      operationId: castVote
+      security:
+        - voterIdentity: [ ]
+          csrf: [ ]
+      requestBody:
+        $ref: '#/components/requestBodies/Vote'
+      responses:
+        '200':
+          description: Vote recorded
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vote'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+  '/polls/{pollId}/audit':
+    parameters:
+      - $ref: '#/components/parameters/PollId'
+    get:
+      tags:
+        - Public polls
+      operationId: pollAudit
+      responses:
+        '200':
+          description: Audit entries
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AuditEntry'
+        '404':
+          $ref: '#/components/responses/Problem'
+components:
+  securitySchemes:
+    adminSession:
+      type: apiKey
+      in: cookie
+      name: JSESSIONID
+    voterIdentity:
+      type: apiKey
+      in: cookie
+      name: userID
+    csrf:
+      type: apiKey
+      in: header
+      name: X-XSRF-TOKEN
+  parameters:
+    PollId:
+      name: pollId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/PollId'
+    GroupId:
+      name: groupId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/GroupId'
+    TemplateId:
+      name: templateId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/TemplateId'
+  requestBodies:
+    Login:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Login'
+    Identity:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Identity'
+    Name:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Name'
+    Group:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GroupInput'
+    CreatePoll:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CreatePoll'
+    Options:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Options'
+    Expiry:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Expiry'
+    Vote:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/VoteInput'
+    DeleteConfirmation:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DeleteConfirmation'
+  responses:
+    Problem:
+      description: Problem response
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    PollId:
+      type: string
+      pattern: '^p_v1_[A-Za-z0-9_-]+$'
+    GroupId:
+      type: string
+      pattern: '^g_v1_[A-Za-z0-9_-]+$'
+    TemplateId:
+      type: string
+      pattern: '^t_v1_[A-Za-z0-9_-]+$'
+    CsrfToken:
+      type: object
+      additionalProperties: false
+      required:
+        - token
+        - headerName
+      properties:
+        token:
+          type: string
+        headerName:
+          type: string
+    Login:
+      type: object
+      additionalProperties: false
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+          minLength: 1
+        password:
+          type: string
+          minLength: 1
+    Identity:
+      type: object
+      additionalProperties: false
+      required:
+        - userID
+      properties:
+        userID:
+          type: string
+          pattern: '^\s*[A-Za-z0-9_-]{3,32}\s*$'
+    Name:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+          pattern: '.*\S.*'
+    GroupInput:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - description
+      properties:
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          maxLength: 1_000
+    CreatePoll:
+      type: object
+      additionalProperties: false
+      required:
+        - title
+        - templateGroupId
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+          pattern: '.*\S.*'
+        templateGroupId:
+          $ref: '#/components/schemas/GroupId'
+    Options:
+      type: object
+      additionalProperties: false
+      required:
+        - optionTexts
+      properties:
+        optionTexts:
+          type: array
+          minItems: 2
+          maxItems: 20
+          items:
+            type: string
+            minLength: 1
+            maxLength: 120
+            pattern: '.*\S.*'
+    Expiry:
+      type: object
+      additionalProperties: false
+      required:
+        - endsAt
+      properties:
+        endsAt:
+          type: string
+          format: date-time
+          description: UTC timestamp with millisecond precision, for example 2026-08-18T12:00:00.000Z.
+    VoteInput:
+      type: object
+      additionalProperties: false
+      required:
+        - optionNumber
+      properties:
+        optionNumber:
+          type: integer
+          minimum: 1
+    DeleteConfirmation:
+      type: object
+      additionalProperties: false
+      required:
+        - confirmation
+      properties:
+        confirmation:
+          type: string
+          enum:
+            - DELETE
+    Template:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - name
+      properties:
+        id:
+          $ref: '#/components/schemas/TemplateId'
+        name:
+          type: string
+    TemplateGroup:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - name
+        - description
+      properties:
+        id:
+          $ref: '#/components/schemas/GroupId'
+        name:
+          type: string
+        description:
+          type: string
+    Poll:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - title
+        - visibility
+        - state
+        - templateGroup
+        - templateSnapshotOptions
+        - options
+      properties:
+        id:
+          $ref: '#/components/schemas/PollId'
+        title:
+          type: string
+        visibility:
+          type: string
+        state:
+          type: string
+        endsAt:
+          type: string
+          format: date-time
+          nullable: true
+        templateGroup:
+          $ref: '#/components/schemas/TemplateGroup'
+        templateSnapshotOptions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Option'
+        options:
+          type: array
+          items:
+            $ref: '#/components/schemas/Option'
+    Option:
+      type: object
+      additionalProperties: false
+      required:
+        - number
+        - text
+      properties:
+        number:
+          type: integer
+          minimum: 1
+        text:
+          type: string
+    Vote:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+        - optionNumber
+      properties:
+        status:
+          type: string
+        optionNumber:
+          type: integer
+    AuditEntry:
+      type: object
+      additionalProperties: false
+      required:
+        - actor
+        - occurredAt
+        - event
+      properties:
+        actor:
+          type: string
+        occurredAt:
+          type: string
+          format: date-time
+        event:
+          type: string
+        selection:
+          type: string
+          nullable: true
+    Problem:
+      type: object
+      additionalProperties: true
+      required:
+        - type
+        - title
+        - status
+        - code
+      properties:
+        type:
+          type: string
+          format: uri-reference
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri-reference
+        code:
+          type: string

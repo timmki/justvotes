@@ -6,9 +6,9 @@ import java.util.Set;
 
 public final class OptionTemplateGroup {
     private final OptionTemplateGroupId id;
+    private final Set<OptionTemplate.OptionTemplateId> templateReferences;
     private String name;
     private String description;
-    private final Set<OptionTemplate.OptionTemplateId> templateReferences;
 
     public OptionTemplateGroup(String name, String description) {
         this(OptionTemplateGroupId.newId(), name, description, Set.of());
@@ -19,6 +19,10 @@ public final class OptionTemplateGroup {
         this.name = validateName(name);
         this.description = description == null ? "" : description.trim();
         this.templateReferences = new LinkedHashSet<>(templateReferences);
+    }
+
+    private static OptionTemplate.OptionTemplateId templateReference(long templateId) {
+        return OptionTemplate.OptionTemplateId.of(templateId);
     }
 
     public OptionTemplateGroupId id() {
@@ -57,12 +61,9 @@ public final class OptionTemplateGroup {
         return this;
     }
 
-    private static OptionTemplate.OptionTemplateId templateReference(long templateId) {
-        return OptionTemplate.OptionTemplateId.of(templateId);
-    }
-
     private String validateName(String name) {
-        if (name == null || name.trim().isEmpty()) throw new IllegalArgumentException("An OptionTemplateGroup name must not be blank.");
+        if (name == null || name.trim().isEmpty())
+            throw new IllegalArgumentException("An OptionTemplateGroup name must not be blank.");
         return name.trim();
     }
 

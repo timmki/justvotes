@@ -2,12 +2,7 @@ package de.justvotes.adapters.pollmanagement.infra.out.persistence;
 
 import jakarta.persistence.*;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 @Entity
 @Table(name = "Poll")
@@ -87,11 +82,15 @@ public class PollEntity {
     List<PollTemplateSnapshotOptionEntity> templateSnapshotOptions() {
         return templateSnapshotOptions;
     }
-    List<VoteEntity> votes() { return votes; }
+
+    List<VoteEntity> votes() {
+        return votes;
+    }
 
     void clearOptions() {
         options.clear();
     }
+
     void updateLifecycle(String visibility, String state, java.time.Instant endsAt) {
         this.visibility = visibility;
         this.state = state;
@@ -107,6 +106,7 @@ public class PollEntity {
         for (int index = 0; index < texts.size(); index++)
             templateSnapshotOptions.add(new PollTemplateSnapshotOptionEntity(this, index + 1, texts.get(index)));
     }
+
     void synchronizeVotes(List<de.justvotes.pollmanagement.core.model.Vote> desiredVotes) {
         Map<String, VoteEntity> existingVotes = new HashMap<>();
         for (var vote : votes) {

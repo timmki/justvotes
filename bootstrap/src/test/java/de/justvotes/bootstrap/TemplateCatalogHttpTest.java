@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class TemplateCatalogHttpTest {
     private static final Path DATABASE_PATH = Path.of("target", "template-catalog-" + UUID.randomUUID() + ".db");
     private static final Pattern CSRF_TOKEN = Pattern.compile("\\\"token\\\":\\\"([^\\\"]+)\\\"");
-    private static final Pattern ID = Pattern.compile("\\\"id\\\":(\\d+)");
+    private static final Pattern ID = Pattern.compile("\\\"id\\\":\\\"([^\\\"]+)\\\"");
 
     @LocalServerPort
     int port;
@@ -35,15 +35,15 @@ class TemplateCatalogHttpTest {
         registry.add("ADMIN_PASSWORD_HASH", () -> new BCryptPasswordEncoder().encode("password"));
     }
 
-    private static long createdId(ResponseEntity<String> response) {
+    private static String createdId(ResponseEntity<String> response) {
         assertEquals(201, response.getStatusCode().value());
         return id(response);
     }
 
-    private static long id(ResponseEntity<String> response) {
+    private static String id(ResponseEntity<String> response) {
         var matcher = ID.matcher(response.getBody());
         assertTrue(matcher.find());
-        return Long.parseLong(matcher.group(1));
+        return matcher.group(1);
     }
 
     private static String cookieHeader(HttpHeaders headers) {
@@ -58,13 +58,13 @@ class TemplateCatalogHttpTest {
         assertEquals(401, anonymous.getForEntity(baseUrl + "/templates", String.class).getStatusCode().value());
 
         AuthenticatedAdmin admin = login();
-        long templateId = createdId(admin.post(baseUrl + "/templates", "{\"name\":\"  Vorstand  \"}"));
+        String templateId = createdId(admin.post(baseUrl + "/templates", "{\"name\":\"  Vorstand  \"}"));
         assertEquals(409, admin.post(baseUrl + "/groups", "{\"name\":\" vorstand \",\"description\":\"\"}").getStatusCode().value());
         ResponseEntity<String> rename = admin.patch(baseUrl + "/templates/" + templateId, "{\"name\":\" Beirat \"}");
         assertEquals(200, rename.getStatusCode().value());
         assertEquals(templateId, id(rename));
-        long firstGroupId = createdId(admin.post(baseUrl + "/groups", "{\"name\":\"Gremium A\",\"description\":\"\"}"));
-        long secondGroupId = createdId(admin.post(baseUrl + "/groups", "{\"name\":\"Gremium B\",\"description\":\"\"}"));
+        String firstGroupId = createdId(admin.post(baseUrl + "/groups", "{\"name\":\"Gremium A\",\"description\":\"\"}"));
+        String secondGroupId = createdId(admin.post(baseUrl + "/groups", "{\"name\":\"Gremium B\",\"description\":\"\"}"));
         assertEquals(409, admin.patch(baseUrl + "/groups/" + firstGroupId, "{\"name\":\" gremium b \"}").getStatusCode().value());
 
         ResponseEntity<String> firstAssignment = admin.put(baseUrl + "/groups/" + firstGroupId + "/templates/" + templateId);

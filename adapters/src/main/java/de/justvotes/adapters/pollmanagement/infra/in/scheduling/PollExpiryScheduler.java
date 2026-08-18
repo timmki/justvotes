@@ -6,8 +6,12 @@ import org.springframework.scheduling.annotation.Scheduled;
 public final class PollExpiryScheduler {
     private final ManagePolls polls;
 
-    public PollExpiryScheduler(ManagePolls polls) { this.polls = polls; }
+    public PollExpiryScheduler(ManagePolls polls) {
+        this.polls = polls;
+    }
 
     @Scheduled(fixedDelayString = "${justvotes.poll-expiry-check-delay:60000}")
-    public void expireDuePolls() { polls.expireDuePolls(java.time.Instant.now()); }
+    public void expireDuePolls() {
+        polls.expireDuePolls(java.time.Instant.now());
+    }
 }

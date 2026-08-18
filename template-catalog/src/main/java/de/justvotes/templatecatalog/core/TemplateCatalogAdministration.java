@@ -51,8 +51,8 @@ public class TemplateCatalogAdministration implements ManageTemplateCatalog, Vie
                 .map(this::template)
                 .andThen(template -> this.groups.findAllReferencing(OptionTemplate.OptionTemplateId.of(templateId))
                         .forEach(group -> {
-                                group.removeTemplate(OptionTemplate.OptionTemplateId.of(templateId));
-                                groups.save(group);
+                            group.removeTemplate(OptionTemplate.OptionTemplateId.of(templateId));
+                            groups.save(group);
                         }))
                 .andThen(templates::delete)
                 .get();
