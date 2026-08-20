@@ -3,3 +3,8 @@
 */target/
 *.db
 .idea
+
+**.project
+**.settings
+**.classpath
+**.factorypath
