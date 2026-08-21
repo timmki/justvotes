@@ -40,7 +40,18 @@ management:
       probes:
         enabled: true
 server:
-  forward-headers-strategy: framework
+  # Process the trusted proxy protocol at the Tomcat connector level. This is
+  # early enough for Tomcat itself to create a Secure session cookie; a
+  # DispatcherServlet filter can be too late because the container may append
+  # JSESSIONID while committing the response.
+  forward-headers-strategy: native
+  servlet:
+    session:
+      cookie:
+        name: JSESSIONID
+        path: /
+        http-only: true
+        same-site: lax
 logging:
   config: classpath:logback-spring.xml
 justvotes:

@@ -43,20 +43,20 @@ class CsrfSessionHttpTest {
 
         assertThat(bootstrap.getStatusCode().value()).isEqualTo(200);
         assertThat(bootstrap.getBody()).contains("\"headerName\":\"X-XSRF-TOKEN\"");
-        assertThat(bootstrap.getHeaders().get(HttpHeaders.SET_COOKIE)).anyMatch(cookie -> cookie.startsWith("XSRF-TOKEN="));
+        assertCookie(bootstrap, "XSRF-TOKEN", false, false);
         assertStatus(client.exchange(post(baseUrl + "/admin/login", null, null, credentials()), String.class), 403);
         assertStatus(client.exchange(post(baseUrl + "/admin/login", csrfCookie, "wrong", credentials()), String.class), 403);
 
         ResponseEntity<String> login = client.exchange(post(baseUrl + "/admin/login", csrfCookie, token, credentials()), String.class);
         assertStatus(login, 204);
-        assertThat(login.getHeaders().get(HttpHeaders.SET_COOKIE)).anyMatch(cookie -> cookie.startsWith("JSESSIONID="));
+        assertCookie(login, "JSESSIONID", true, false);
         String authenticatedCookies = csrfCookie + "; " + cookies(login);
 
         assertStatus(client.exchange(post(baseUrl + "/identity", authenticatedCookies, null, "{\"userID\":\"alice\"}"), String.class), 403);
         assertStatus(client.exchange(post(baseUrl + "/identity", authenticatedCookies, "wrong", "{\"userID\":\"alice\"}"), String.class), 403);
         ResponseEntity<String> identity = client.exchange(post(baseUrl + "/identity", authenticatedCookies, token, "{\"userID\":\"alice\"}"), String.class);
         assertStatus(identity, 204);
-        assertThat(identity.getHeaders().get(HttpHeaders.SET_COOKIE)).anyMatch(cookie -> cookie.startsWith("userID=alice;"));
+        assertCookie(identity, "userID", true, false);
 
         assertStatus(client.exchange(post(baseUrl + "/admin/template-catalog/templates", authenticatedCookies, null, "{\"name\":\"CSRF\"}"), String.class), 403);
         assertStatus(client.exchange(post(baseUrl + "/admin/template-catalog/templates", authenticatedCookies, "wrong", "{\"name\":\"CSRF\"}"), String.class), 403);
@@ -66,6 +66,36 @@ class CsrfSessionHttpTest {
         assertStatus(client.exchange(post(baseUrl + "/admin/logout", authenticatedCookies, "wrong", null), String.class), 403);
         assertStatus(client.exchange(post(baseUrl + "/admin/logout", authenticatedCookies, token, null), String.class), 204);
         assertStatus(client.exchange(RequestEntity.get(baseUrl + "/admin/session").header(HttpHeaders.COOKIE, authenticatedCookies).build(), String.class), 401);
+    }
+
+    @Test
+    void marksAllCookiesSecureWhenForwardedExternalProtocolIsHttps() {
+        TestRestTemplate client = new TestRestTemplate();
+        String baseUrl = "http://localhost:" + port + "/api/v1";
+        RequestEntity<Void> forwardedGet = RequestEntity.get(baseUrl + "/csrf")
+                .header("X-Forwarded-Proto", "https").build();
+        ResponseEntity<String> bootstrap = client.exchange(forwardedGet, String.class);
+        String token = token(bootstrap);
+        String csrfCookie = cookies(bootstrap);
+        assertCookie(bootstrap, "XSRF-TOKEN", false, true);
+
+        RequestEntity<String> loginRequest = RequestEntity.post(baseUrl + "/admin/login")
+                .header("X-Forwarded-Proto", "https")
+                .header(HttpHeaders.COOKIE, csrfCookie)
+                .header("X-XSRF-TOKEN", token)
+                .contentType(MediaType.APPLICATION_JSON).body(credentials());
+        ResponseEntity<String> login = client.exchange(loginRequest, String.class);
+        assertStatus(login, 204);
+        assertCookie(login, "JSESSIONID", true, true);
+
+        RequestEntity<String> identityRequest = RequestEntity.post(baseUrl + "/identity")
+                .header("X-Forwarded-Proto", "https")
+                .header(HttpHeaders.COOKIE, csrfCookie + "; " + cookies(login))
+                .header("X-XSRF-TOKEN", token)
+                .contentType(MediaType.APPLICATION_JSON).body("{\"userID\":\"Alice\"}");
+        ResponseEntity<String> identity = client.exchange(identityRequest, String.class);
+        assertStatus(identity, 204);
+        assertCookie(identity, "userID", true, true);
     }
 
     private static RequestEntity<String> post(String url, String cookies, String csrfToken, String body) {
@@ -79,5 +109,13 @@ class CsrfSessionHttpTest {
     private static String credentials() { return "{\"username\":\"systemadmin\",\"password\":\"password\"}"; }
     private static String token(ResponseEntity<String> response) { var matcher = TOKEN.matcher(response.getBody()); assertThat(matcher.find()).isTrue(); return matcher.group(1); }
     private static String cookies(ResponseEntity<String> response) { return response.getHeaders().get(HttpHeaders.SET_COOKIE).stream().map(value -> value.substring(0, value.indexOf(';'))).reduce((left, right) -> left + "; " + right).orElseThrow(); }
+    private static void assertCookie(ResponseEntity<String> response, String name, boolean httpOnly, boolean secure) {
+        String cookie = response.getHeaders().get(HttpHeaders.SET_COOKIE).stream()
+                .filter(value -> value.startsWith(name + "=")).findFirst().orElseThrow();
+        assertThat(cookie).contains("Path=/", "SameSite=Lax");
+        if (httpOnly) assertThat(cookie).contains("HttpOnly"); else assertThat(cookie).doesNotContain("HttpOnly");
+        if (secure) assertThat(cookie).contains("Secure"); else assertThat(cookie).doesNotContain("Secure");
+        if (name.equals("userID")) assertThat(cookie).contains("Max-Age=315360000");
+    }
     private static void assertStatus(ResponseEntity<String> response, int expected) { assertThat(response.getStatusCode().value()).isEqualTo(expected); if (expected >= 400) assertThat(response.getHeaders().getContentType()).hasToString("application/problem+json"); }
 }

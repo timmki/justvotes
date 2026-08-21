@@ -34,7 +34,10 @@ Die Anwendung liefert ihre statischen Dateien unter derselben Origin aus. Betrie
 
 SQLite nutzt WAL, einen `busy_timeout` von fünf Sekunden und einen begrenzten
 Verbindungspool. Logs werden als JSON auf Standardausgabe ausgegeben. Forwarded
-Headers werden durch Spring verarbeitet.
+Headers werden auf Tomcat-Ebene verarbeitet, damit auch vom Container gesetzte
+Session-Cookies das externe HTTPS-Schema sehen. Der TLS-Proxy muss dafür
+`X-Forwarded-Proto` setzen; direkte, nicht vertrauenswürdige Forwarded-Header
+dürfen nicht zugelassen werden.
 
 ## Systemadmin-Sitzung
 
