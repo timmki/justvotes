@@ -2,7 +2,17 @@ openapi: 3.0.3
 info:
   title: JustVotes API
   version: 1.0.0
-  description: The authoritative HTTP contract for JustVotes. Poll audit entries are intentionally public and detailed so every participant can verify voting activity; they contain the public identity and selected option.
+  description: |
+    The authoritative HTTP contract for JustVotes. Poll audit entries are intentionally public and detailed so every participant can verify voting activity; they contain the public identity and selected option.
+
+    ## Session and CSRF flow
+
+    1. `GET /csrf` first. It returns `{"token":"...","headerName":"X-XSRF-TOKEN"}` and sets the readable `XSRF-TOKEN` cookie. Keep that cookie and send the JSON token in the returned header name for every unsafe request below.
+    2. `POST /admin/login` with that CSRF cookie/header pair and credentials. A successful response sets the server-side `JSESSIONID` session cookie. Keep `JSESSIONID` and `XSRF-TOKEN`; no bearer token or other client authentication is used.
+    3. Send both cookies plus the CSRF header for an admin mutation (for example `POST /admin/template-catalog/templates`) or a public mutation (`POST /identity`, then `POST /polls/{pollId}/votes`). `POST /identity` additionally sets the `userID` cookie used when voting.
+    4. `POST /admin/logout` with both cookies and the CSRF header invalidates the server-side session.
+
+    Unsafe requests with a missing or incorrect CSRF token receive `403` Problem Details. Admin requests without a valid `JSESSIONID` receive `401` Problem Details. A client can obtain a fresh token by calling `/csrf` again.
 servers:
   - url: /api/v1
 tags:
@@ -19,7 +29,12 @@ paths:
       operationId: csrf
       responses:
         '200':
-          description: CSRF token
+          description: CSRF bootstrap token. The response sets the readable `XSRF-TOKEN` cookie; send the JSON `token` in the JSON `headerName` on subsequent unsafe requests.
+          headers:
+            Set-Cookie:
+              description: XSRF-TOKEN CSRF cookie.
+              schema:
+                type: string
           content:
             application/json:
               schema:
@@ -29,12 +44,22 @@ paths:
       tags:
         - Session
       operationId: login
+      security:
+        - csrf: [ ]
+          csrfCookie: [ ]
       requestBody:
         $ref: '#/components/requestBodies/Login'
       responses:
         '204':
-          description: Logged in
+          description: Logged in; sets the server-side session cookie.
+          headers:
+            Set-Cookie:
+              description: JSESSIONID session cookie.
+              schema:
+                type: string
         '401':
+          $ref: '#/components/responses/Problem'
+        '403':
           $ref: '#/components/responses/Problem'
   /admin/logout:
     post:
@@ -44,10 +69,13 @@ paths:
       security:
         - adminSession: [ ]
           csrf: [ ]
+          csrfCookie: [ ]
       responses:
         '204':
           description: Logged out
         '401':
+          $ref: '#/components/responses/Problem'
+        '403':
           $ref: '#/components/responses/Problem'
   /admin/session:
     get:
@@ -68,16 +96,19 @@ paths:
       operationId: changeIdentity
       security:
         - csrf: [ ]
+          csrfCookie: [ ]
       requestBody:
         $ref: '#/components/requestBodies/Identity'
       responses:
         '204':
-          description: Identity changed
+          description: Identity changed; sets the `userID` cookie used for voting.
           headers:
             Set-Cookie:
               schema:
                 type: string
         '400':
+          $ref: '#/components/responses/Problem'
+        '403':
           $ref: '#/components/responses/Problem'
   /admin/template-catalog/templates:
     get:
@@ -87,6 +118,8 @@ paths:
       security:
         - adminSession: [ ]
       responses:
+        '401':
+          $ref: '#/components/responses/Problem'
         '200':
           description: Templates
           content:
@@ -102,9 +135,14 @@ paths:
       security:
         - adminSession: [ ]
           csrf: [ ]
+          csrfCookie: [ ]
       requestBody:
         $ref: '#/components/requestBodies/Name'
       responses:
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
         '201':
           description: Created
           headers:
@@ -130,9 +168,14 @@ paths:
       security:
         - adminSession: [ ]
           csrf: [ ]
+          csrfCookie: [ ]
       requestBody:
         $ref: '#/components/requestBodies/Name'
       responses:
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
         '200':
           description: Updated
           content:
@@ -152,7 +195,12 @@ paths:
       security:
         - adminSession: [ ]
           csrf: [ ]
+          csrfCookie: [ ]
       responses:
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
         '204':
           description: Deleted
         '404':
@@ -167,6 +215,8 @@ paths:
       security:
         - adminSession: [ ]
       responses:
+        '401':
+          $ref: '#/components/responses/Problem'
         '200':
           description: Groups
           content:
@@ -182,9 +232,14 @@ paths:
       security:
         - adminSession: [ ]
           csrf: [ ]
+          csrfCookie: [ ]
       requestBody:
         $ref: '#/components/requestBodies/Group'
       responses:
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
         '201':
           description: Created
           headers:
@@ -210,9 +265,14 @@ paths:
       security:
         - adminSession: [ ]
           csrf: [ ]
+          csrfCookie: [ ]
       requestBody:
         $ref: '#/components/requestBodies/Name'
       responses:
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
         '200':
           description: Updated
           content:
@@ -232,7 +292,12 @@ paths:
       security:
         - adminSession: [ ]
           csrf: [ ]
+          csrfCookie: [ ]
       responses:
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
         '204':
           description: Deleted
         '404':
@@ -249,6 +314,8 @@ paths:
       security:
         - adminSession: [ ]
       responses:
+        '401':
+          $ref: '#/components/responses/Problem'
         '200':
           description: Templates
           content:
@@ -270,7 +337,12 @@ paths:
       security:
         - adminSession: [ ]
           csrf: [ ]
+          csrfCookie: [ ]
       responses:
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
         '204':
           description: Assigned
         '404':
@@ -284,7 +356,12 @@ paths:
       security:
         - adminSession: [ ]
           csrf: [ ]
+          csrfCookie: [ ]
       responses:
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
         '204':
           description: Removed
         '404':
@@ -297,6 +374,8 @@ paths:
       security:
         - adminSession: [ ]
       responses:
+        '401':
+          $ref: '#/components/responses/Problem'
         '200':
           description: Polls
           content:
@@ -312,9 +391,14 @@ paths:
       security:
         - adminSession: [ ]
           csrf: [ ]
+          csrfCookie: [ ]
       requestBody:
         $ref: '#/components/requestBodies/CreatePoll'
       responses:
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
         '201':
           description: Created
           headers:
@@ -338,9 +422,14 @@ paths:
       security:
         - adminSession: [ ]
           csrf: [ ]
+          csrfCookie: [ ]
       requestBody:
         $ref: '#/components/requestBodies/Options'
       responses:
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
         '200':
           description: Updated
           content:
@@ -363,7 +452,12 @@ paths:
       security:
         - adminSession: [ ]
           csrf: [ ]
+          csrfCookie: [ ]
       responses:
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
         '200':
           description: Transitioned
           content:
@@ -384,7 +478,12 @@ paths:
       security:
         - adminSession: [ ]
           csrf: [ ]
+          csrfCookie: [ ]
       responses:
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
         '200':
           description: Restored from archive
           content:
@@ -405,7 +504,12 @@ paths:
       security:
         - adminSession: [ ]
           csrf: [ ]
+          csrfCookie: [ ]
       responses:
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
         '200':
           description: Reopened
           content:
@@ -426,7 +530,12 @@ paths:
       security:
         - adminSession: [ ]
           csrf: [ ]
+          csrfCookie: [ ]
       responses:
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
         '200':
           description: Restored
           content:
@@ -447,9 +556,14 @@ paths:
       security:
         - adminSession: [ ]
           csrf: [ ]
+          csrfCookie: [ ]
       requestBody:
         $ref: '#/components/requestBodies/Expiry'
       responses:
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
         '200':
           description: Published
           content:
@@ -469,7 +583,12 @@ paths:
       security:
         - adminSession: [ ]
           csrf: [ ]
+          csrfCookie: [ ]
       responses:
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
         '200':
           description: Made private
           content:
@@ -490,9 +609,14 @@ paths:
       security:
         - adminSession: [ ]
           csrf: [ ]
+          csrfCookie: [ ]
       requestBody:
         $ref: '#/components/requestBodies/Expiry'
       responses:
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
         '200':
           description: Updated
           content:
@@ -515,7 +639,12 @@ paths:
       security:
         - adminSession: [ ]
           csrf: [ ]
+          csrfCookie: [ ]
       responses:
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
         '200':
           description: Deleted
           content:
@@ -536,9 +665,14 @@ paths:
       security:
         - adminSession: [ ]
           csrf: [ ]
+          csrfCookie: [ ]
       requestBody:
         $ref: '#/components/requestBodies/DeleteConfirmation'
       responses:
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
         '204':
           description: Permanently deleted
         '400':
@@ -597,9 +731,12 @@ paths:
       security:
         - voterIdentity: [ ]
           csrf: [ ]
+          csrfCookie: [ ]
       requestBody:
         $ref: '#/components/requestBodies/Vote'
       responses:
+        '403':
+          $ref: '#/components/responses/Problem'
         '200':
           description: Vote recorded
           headers:
@@ -654,6 +791,12 @@ components:
       type: apiKey
       in: header
       name: X-XSRF-TOKEN
+      description: Send the token returned by `GET /csrf` in this header together with its `XSRF-TOKEN` cookie.
+    csrfCookie:
+      type: apiKey
+      in: cookie
+      name: XSRF-TOKEN
+      description: Send this cookie with the matching CSRF header token returned by `GET /csrf`.
   parameters:
     PollId:
       name: pollId
