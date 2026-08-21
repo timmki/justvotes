@@ -9,6 +9,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplicat
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.MediaType;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -74,7 +75,9 @@ class AdminSessionController implements SessionApi {
         problem.setInstance(java.net.URI.create(request.getRequestURI()));
         problem.setType(java.net.URI.create("https://justvotes.de/problems/invalid-credentials"));
         problem.setProperty("code", "invalid-credentials");
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(problem);
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .contentType(MediaType.APPLICATION_PROBLEM_JSON)
+                .body(problem);
     }
 
 }

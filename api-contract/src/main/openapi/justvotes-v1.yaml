@@ -25,6 +25,17 @@ tags:
   - name: Templates
   - name: Polls
   - name: Public polls
+x-status-matrix:
+  description: Central inventory used to reconcile operation responses and HTTP tests.
+  statuses:
+    '400': malformed JSON, bean validation, or invalid opaque identifier
+    '401': missing or invalid administrator session, or invalid login credentials
+    '403': missing/invalid CSRF token or insufficient permission
+    '404': missing resource or unknown route
+    '405': unsupported HTTP method
+    '409': illegal poll transition, duplicate name, or conflicting state
+    '415': unsupported request media type
+  responseSchema: '#/components/schemas/Problem'
 paths:
   /csrf:
     get:
@@ -62,9 +73,13 @@ paths:
               schema:
                 type: string
         '401':
-          $ref: '#/components/responses/Problem'
+          $ref: '#/components/responses/Unauthorized'
         '403':
-          $ref: '#/components/responses/Problem'
+          $ref: '#/components/responses/Forbidden'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
   /admin/logout:
     post:
       tags:
@@ -78,9 +93,9 @@ paths:
         '204':
           description: Logged out
         '401':
-          $ref: '#/components/responses/Problem'
+          $ref: '#/components/responses/Unauthorized'
         '403':
-          $ref: '#/components/responses/Problem'
+          $ref: '#/components/responses/Forbidden'
   /admin/session:
     get:
       tags:
@@ -879,7 +894,49 @@ components:
             $ref: '#/components/schemas/DeleteConfirmation'
   responses:
     Problem:
-      description: Problem response
+      description: Problem Details (RFC 9457). `code` is stable and suitable for machine handling; `detail` is diagnostic text.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    BadRequest:
+      description: Request is syntactically or semantically invalid.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Unauthorized:
+      description: Authentication is required.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Forbidden:
+      description: The authenticated caller is not allowed to perform this operation.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    NotFound:
+      description: Resource does not exist (including invalid or opaque identifiers).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    MethodNotAllowed:
+      description: HTTP method is not supported by this operation.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Conflict:
+      description: Domain state prevents this operation (for example an illegal poll lifecycle transition).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    UnsupportedMediaType:
+      description: Request representation is not supported.
       content:
         application/problem+json:
           schema:

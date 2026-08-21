@@ -1,5 +1,7 @@
 package de.justvotes.bootstrap;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
@@ -20,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class AdminAuthenticationTest {
+    private static final ObjectMapper JSON = new ObjectMapper();
     private static final Path DATABASE_PATH = Path.of("target", "admin-authentication-" + UUID.randomUUID() + ".db");
     private static final Pattern CSRF_TOKEN = Pattern.compile("\\\"token\\\":\\\"([^\\\"]+)\\\"");
 
@@ -40,17 +43,26 @@ class AdminAuthenticationTest {
                 .orElseThrow();
     }
 
-    @Test
-    void deniesUnauthenticatedRequestsToAdministrativeEndpointsWithProblemDetails() {
-        ResponseEntity<String> response = new TestRestTemplate().getForEntity(
-                "http://localhost:" + port + "/api/v1/admin/session", String.class);
-
-        assertThat(response.getStatusCode().value()).isEqualTo(401);
+    private static void assertProblem(ResponseEntity<String> response, int status, String code) throws Exception {
+        assertThat(response.getStatusCode().value()).isEqualTo(status);
         assertThat(response.getHeaders().getContentType()).hasToString("application/problem+json");
+        JsonNode body = JSON.readTree(response.getBody());
+        assertThat(body.path("type").asText()).isNotBlank();
+        assertThat(body.path("title").asText()).isNotBlank();
+        assertThat(body.path("status").asInt()).isEqualTo(status);
+        assertThat(body.path("code").asText()).isEqualTo(code);
     }
 
     @Test
-    void createsAndInvalidatesAnAdministratorSessionOnlyWithCsrfProtection() {
+    void deniesUnauthenticatedRequestsToAdministrativeEndpointsWithProblemDetails() throws Exception {
+        ResponseEntity<String> response = new TestRestTemplate().getForEntity(
+                "http://localhost:" + port + "/api/v1/admin/session", String.class);
+
+        assertProblem(response, 401, "authentication-required");
+    }
+
+    @Test
+    void createsAndInvalidatesAnAdministratorSessionOnlyWithCsrfProtection() throws Exception {
         TestRestTemplate client = new TestRestTemplate();
         String baseUrl = "http://localhost:" + port;
         ResponseEntity<String> csrf = client.getForEntity(baseUrl + "/api/v1/csrf", String.class);
@@ -64,29 +76,25 @@ class AdminAuthenticationTest {
                 .header(HttpHeaders.COOKIE, cookies)
                 .header("X-XSRF-TOKEN", csrfToken)
                 .body("not-json"), String.class);
-        assertThat(malformedLogin.getStatusCode().value()).isEqualTo(400);
-        assertThat(malformedLogin.getHeaders().getContentType()).hasToString("application/problem+json");
+        assertProblem(malformedLogin, 400, "invalid-request");
 
         ResponseEntity<String> unsupportedLogin = client.exchange(RequestEntity.post(baseUrl + "/api/v1/admin/login")
                 .contentType(MediaType.TEXT_PLAIN)
                 .header(HttpHeaders.COOKIE, cookies)
                 .header("X-XSRF-TOKEN", csrfToken)
                 .body("username=systemadmin"), String.class);
-        assertThat(unsupportedLogin.getStatusCode().value()).isEqualTo(415);
-        assertThat(unsupportedLogin.getHeaders().getContentType()).hasToString("application/problem+json");
+        assertProblem(unsupportedLogin, 415, "unsupported-media-type");
 
         ResponseEntity<String> csrfRejectedLogin = client.postForEntity(baseUrl + "/api/v1/admin/login",
                 "{\"username\":\"systemadmin\",\"password\":\"password\"}", String.class);
-        assertThat(csrfRejectedLogin.getStatusCode().value()).isEqualTo(403);
-        assertThat(csrfRejectedLogin.getHeaders().getContentType()).hasToString("application/problem+json");
+        assertProblem(csrfRejectedLogin, 403, "access-denied");
 
         ResponseEntity<String> rejectedCredentials = client.exchange(RequestEntity.post(baseUrl + "/api/v1/admin/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .header(HttpHeaders.COOKIE, cookies)
                 .header("X-XSRF-TOKEN", csrfToken)
                 .body("{\"username\":\"systemadmin\",\"password\":\"incorrect\"}"), String.class);
-        assertThat(rejectedCredentials.getStatusCode().value()).isEqualTo(401);
-        assertThat(rejectedCredentials.getHeaders().getContentType()).hasToString("application/problem+json");
+        assertProblem(rejectedCredentials, 401, "invalid-credentials");
 
         ResponseEntity<String> login = client.exchange(RequestEntity.post(baseUrl + "/api/v1/admin/login")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -112,6 +120,6 @@ class AdminAuthenticationTest {
 
         ResponseEntity<String> afterLogout = client.exchange(RequestEntity.get(baseUrl + "/api/v1/admin/session")
                 .header(HttpHeaders.COOKIE, cookies).build(), String.class);
-        assertThat(afterLogout.getStatusCode().value()).isEqualTo(401);
+        assertProblem(afterLogout, 401, "authentication-required");
     }
 }

@@ -45,8 +45,9 @@ class SecurityConfiguration {
                                    HttpStatus status, String detail) throws IOException {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);
         problem.setInstance(java.net.URI.create(request.getRequestURI()));
-        problem.setType(java.net.URI.create("https://justvotes.de/problems/" + status.value()));
-        problem.setProperty("code", status == HttpStatus.UNAUTHORIZED ? "authentication-required" : "access-denied");
+        String code = status == HttpStatus.UNAUTHORIZED ? "authentication-required" : "access-denied";
+        problem.setType(java.net.URI.create("https://justvotes.de/problems/" + code));
+        problem.setProperty("code", code);
         response.setStatus(status.value());
         response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
         objectMapper.writeValue(response.getOutputStream(), problem);
