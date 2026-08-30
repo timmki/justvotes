@@ -28,3 +28,31 @@ test('has no critical shell accessibility violations', async ({ page }) => {
     expect(results.violations.filter(({ impact }) => impact === 'critical')).toEqual([]);
   }
 });
+
+test('changes the identity once after confirming the warning', async ({ page }) => {
+  let identity: string | null = null;
+  const requests: { method: string; url: string }[] = [];
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request();
+    requests.push({ method: request.method(), url: request.url() });
+    if (request.url().endsWith('/csrf')) return route.fulfill({ json: { token: 'csrf-token', headerName: 'X-XSRF-TOKEN' } });
+    if (request.url().endsWith('/identity') && request.method() === 'GET') return route.fulfill({ json: { userID: identity } });
+    if (request.url().endsWith('/identity') && request.method() === 'POST') {
+      identity = request.postDataJSON().userID;
+      return route.fulfill({ status: 204 });
+    }
+    return route.fulfill({ json: [] });
+  });
+
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Identität bearbeiten' }).click();
+  await page.getByLabel('Neue Identität').fill('Alice_1');
+  await page.getByRole('button', { name: 'Speichern' }).click();
+
+  await expect(page.getByRole('dialog')).toContainText('Stimmen der bisherigen Identität');
+  await page.getByRole('button', { name: 'Änderung bestätigen' }).click();
+  await expect(page.getByTitle('alice_1')).toBeVisible();
+
+  expect(requests.filter(({ method, url }) => method === 'POST' && url.endsWith('/identity'))).toHaveLength(1);
+  expect(requests.filter(({ method, url }) => method === 'DELETE' && url.includes('/votes'))).toHaveLength(0);
+});

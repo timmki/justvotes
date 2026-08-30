@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../shared/i18n/I18nProvider';
 import { apiClient, sessionCoordinator } from '../shared/api/client';
+import { queryClient } from '../shared/api/queryClient';
 import { App, AppErrorBoundary, RouteState, ToastProvider, useToast } from './App';
 
 afterEach(() => {
@@ -13,9 +14,11 @@ afterEach(() => {
   document.documentElement.removeAttribute('data-theme');
   document.documentElement.removeAttribute('lang');
   vi.restoreAllMocks();
+  queryClient.clear();
 });
 
 beforeEach(() => {
+  vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({ userID: null });
   const values = new Map<string, string>();
   Object.defineProperty(window, 'localStorage', {
     configurable: true,
