@@ -8,6 +8,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PollTest {
     private static final Identity ALICE = Identity.of("alice");
@@ -30,6 +31,17 @@ class PollTest {
 
         assertThrows(PollNotActiveException.class, () -> poll.removeVoteForIdentity(ALICE));
         assertEquals(List.of(new Vote(ALICE, 1, VOTE_TIME)), poll.votes());
+    }
+
+    @Test
+    void removesOnlyTheVoteWithTheRequestedTechnicalId() {
+        Vote alice = new Vote(41L, ALICE, 1, VOTE_TIME);
+        Vote bob = new Vote(42L, BOB, 2, VOTE_TIME);
+        Poll poll = poll(Poll.State.EXPIRED, List.of(alice, bob));
+
+        assertEquals(alice, poll.removeVoteById(41L).orElseThrow());
+        assertEquals(List.of(bob), poll.votes());
+        assertTrue(poll.removeVoteById(41L).isEmpty());
     }
 
     private static Poll poll(Poll.State state, List<Vote> votes) {

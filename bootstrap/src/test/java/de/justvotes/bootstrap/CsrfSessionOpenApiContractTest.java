@@ -50,7 +50,7 @@ class CsrfSessionOpenApiContractTest {
         paths.forEach((path, pathItem) -> map(pathItem).forEach((method, value) -> {
             if (!(value instanceof Map)) return;
             Map<String, Object> operation = map(value);
-            String url = baseUrl + path.replace("{pollId}", "p_v1_missing").replace("{groupId}", "g_v1_missing").replace("{templateId}", "t_v1_missing");
+            String url = baseUrl + path.replace("{pollId}", "p_v1_missing").replace("{groupId}", "g_v1_missing").replace("{templateId}", "t_v1_missing").replace("{voteId}", "v_v1_missing");
             if (method.equals("get") && path.startsWith("/admin/")) {
                 assertSecurity(operation, "adminSession");
                 assertResponses(operation, "401");
@@ -141,6 +141,33 @@ class CsrfSessionOpenApiContractTest {
 
         assertThat(poll.get("required").toString()).contains("createdAt", "endsAt", "totalVotes");
         assertThat(map(poll.get("properties"))).containsKeys("createdAt", "totalVotes");
+    }
+
+    @Test
+    void documentsAdministrativeVoteListingAndRemoval() {
+        Map<String, Object> document = map(new Yaml().load(resource("docs/justvotes-v1.yaml")));
+        Map<String, Object> paths = map(document.get("paths"));
+        Map<String, Object> components = map(document.get("components"));
+        Map<String, Object> parameters = map(components.get("parameters"));
+        Map<String, Object> schemas = map(components.get("schemas"));
+
+        Map<String, Object> listing = map(map(paths.get("/admin/votes")).get("get"));
+        assertThat(listing.get("operationId")).isEqualTo("adminVotes");
+        assertSecurity(listing, "adminSession");
+        assertResponses(listing, "200", "400", "401");
+        assertThat((List<?>) listing.get("parameters")).isNotEmpty();
+        assertThat(map(parameters.get("Page")).get("description").toString()).contains("0");
+        assertThat(map(parameters.get("Size")).get("description").toString()).contains("100");
+
+        Map<String, Object> removal = map(map(paths.get("/admin/votes/{voteId}")).get("delete"));
+        assertThat(removal.get("operationId")).isEqualTo("removeAdminVote");
+        assertSecurity(removal, "adminSession", "csrf", "csrfCookie");
+        assertResponses(removal, "204", "400", "401", "403", "404");
+
+        Map<String, Object> reason = map(map(schemas.get("VoteRemoval")).get("properties"));
+        assertThat(map(reason.get("reason"))).containsEntry("maxLength", 1_000);
+        assertThat(map(schemas.get("AdminVote"))).containsKey("properties");
+        assertThat(map(schemas.get("AdminVotePage"))).containsKey("properties");
     }
 
     private static RequestEntity<String> request(String method, String url, String cookies, String csrfToken, String body) {

@@ -25,6 +25,7 @@ tags:
   - name: Templates
   - name: Polls
   - name: Public polls
+  - name: Administration
 x-status-matrix:
   description: Central inventory used to reconcile operation responses and HTTP tests.
   statuses:
@@ -792,6 +793,57 @@ paths:
           $ref: '#/components/responses/Problem'
         '409':
           $ref: '#/components/responses/Problem'
+  /admin/votes:
+    get:
+      tags:
+        - Administration
+      operationId: adminVotes
+      security:
+        - adminSession: [ ]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: Current votes in stable poll, option, identity, and vote ID order.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminVotePage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  '/admin/votes/{voteId}':
+    parameters:
+      - $ref: '#/components/parameters/VoteId'
+    delete:
+      tags:
+        - Administration
+      operationId: removeAdminVote
+      security:
+        - adminSession: [ ]
+          csrf: [ ]
+          csrfCookie: [ ]
+      requestBody:
+        $ref: '#/components/requestBodies/VoteRemoval'
+      responses:
+        '204':
+          description: Vote removed and the removal recorded in the immutable poll audit.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /polls:
     get:
       tags:
@@ -962,6 +1014,31 @@ components:
       required: true
       schema:
         $ref: '#/components/schemas/TemplateId'
+    VoteId:
+      name: voteId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/VoteId'
+    Page:
+      name: page
+      in: query
+      required: false
+      description: Zero-based page number. Defaults to 0.
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+    Size:
+      name: size
+      in: query
+      required: false
+      description: Number of entries per page. Defaults to 50; values from 1 through 100 are accepted.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
   requestBodies:
     Login:
       required: true
@@ -1017,6 +1094,12 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/DeleteConfirmation'
+    VoteRemoval:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/VoteRemoval'
   responses:
     Problem:
       description: Problem Details (RFC 9457). `code` is stable and suitable for machine handling; `detail` is diagnostic text.
@@ -1106,6 +1189,9 @@ components:
     TemplateId:
       type: string
       pattern: '^t_v1_[A-Za-z0-9_-]+$'
+    VoteId:
+      type: string
+      pattern: '^v_v1_[A-Za-z0-9_-]+$'
     CsrfToken:
       type: object
       additionalProperties: false
@@ -1231,6 +1317,74 @@ components:
           type: string
           enum:
             - DELETE
+    VoteRemoval:
+      type: object
+      additionalProperties: false
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 1_000
+          pattern: '.*\S.*'
+          description: Required removal reason. The server trims leading and trailing whitespace before validating it.
+    AdminVotePage:
+      type: object
+      additionalProperties: false
+      required:
+        - votes
+        - page
+        - size
+        - totalElements
+      properties:
+        votes:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminVote'
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        totalElements:
+          type: integer
+          minimum: 0
+    AdminVote:
+      type: object
+      additionalProperties: false
+      required:
+        - voteId
+        - userID
+        - votedAt
+        - poll
+        - option
+      properties:
+        voteId:
+          $ref: '#/components/schemas/VoteId'
+        userID:
+          type: string
+          pattern: '^[a-z0-9_-]{3,32}$'
+        votedAt:
+          type: string
+          format: date-time
+        poll:
+          $ref: '#/components/schemas/AdminVotePoll'
+        option:
+          $ref: '#/components/schemas/Option'
+    AdminVotePoll:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - title
+      properties:
+        id:
+          $ref: '#/components/schemas/PollId'
+        title:
+          type: string
     Template:
       type: object
       additionalProperties: false
@@ -1408,6 +1562,21 @@ components:
           type: string
         selection:
           type: string
+          nullable: true
+        reason:
+          type: string
+          nullable: true
+        userID:
+          type: string
+          nullable: true
+          pattern: '^[a-z0-9_-]{3,32}$'
+        optionNumber:
+          type: integer
+          nullable: true
+          minimum: 1
+        votedAt:
+          type: string
+          format: date-time
           nullable: true
     Problem:
       type: object

@@ -118,6 +118,17 @@ class PollManagementTest {
         }
 
         @Override
+        public de.justvotes.pollmanagement.core.model.AdminVotePage findAdminVotes(int page, int size) {
+            return new de.justvotes.pollmanagement.core.model.AdminVotePage(List.of(), page, size, 0);
+        }
+
+        @Override
+        public Optional<Poll> findByVoteId(long voteId) {
+            return poll == null ? Optional.empty() : poll.votes().stream()
+                    .anyMatch(vote -> vote.id() == voteId) ? Optional.of(poll) : Optional.empty();
+        }
+
+        @Override
         public void delete(Poll poll) {
             if (this.poll == poll) this.poll = null;
         }

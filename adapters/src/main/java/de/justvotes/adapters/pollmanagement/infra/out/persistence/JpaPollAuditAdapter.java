@@ -15,6 +15,8 @@ public final class JpaPollAuditAdapter implements PollAuditRepository {
 
     @Override
     public List<AuditEntry> findByPollId(Poll.PollId pollId) {
-        return events.findAllByPollIdOrderByCreatedAtAscIdAsc(pollId.value()).stream().map(event -> new AuditEntry(event.actorId(), event.createdAt(), event.eventType(), event.metadata())).toList();
+        return events.findAllByPollIdOrderByCreatedAtAscIdAsc(pollId.value()).stream().map(event -> new AuditEntry(
+                event.actorId(), event.createdAt(), event.eventType(), event.metadata(), event.reason(),
+                event.voteUserId(), event.voteOptionNumber(), event.voteVotedAt())).toList();
     }
 }

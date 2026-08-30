@@ -1,6 +1,8 @@
 package de.justvotes.adapters.pollmanagement.infra.out.persistence;
 
 import jakarta.persistence.*;
+import de.justvotes.pollmanagement.core.event.PollDomainEvent;
+import de.justvotes.pollmanagement.core.model.Vote;
 
 import java.time.Instant;
 
@@ -19,6 +21,15 @@ public class PollDomainEventEntity {
     private String metadata;
     @Column(name = "createdAt")
     private String createdAt;
+    @Column(name = "voteId")
+    private Integer voteId;
+    private String reason;
+    @Column(name = "voteUserID")
+    private String voteUserId;
+    @Column(name = "voteOptionNumber")
+    private Integer voteOptionNumber;
+    @Column(name = "voteVotedAt")
+    private String voteVotedAt;
 
     protected PollDomainEventEntity() {
     }
@@ -35,6 +46,18 @@ public class PollDomainEventEntity {
         this.createdAt = createdAt.toString();
     }
 
+    PollDomainEventEntity(PollDomainEvent event) {
+        this(event.pollId().value(), event.eventType(), event.actorId(), event.selection(), event.occurredAt());
+        this.reason = event.reason();
+        Vote vote = event.affectedVote();
+        if (vote != null) {
+            this.voteId = Math.toIntExact(vote.id());
+            this.voteUserId = vote.identity().value();
+            this.voteOptionNumber = vote.optionNumber();
+            this.voteVotedAt = vote.votedAt().toString();
+        }
+    }
+
     String actorId() {
         return actorId;
     }
@@ -49,5 +72,25 @@ public class PollDomainEventEntity {
 
     Instant createdAt() {
         return Instant.parse(createdAt.replace(' ', 'T') + (createdAt.endsWith("Z") ? "" : "Z"));
+    }
+
+    Integer voteId() {
+        return voteId;
+    }
+
+    String reason() {
+        return reason;
+    }
+
+    String voteUserId() {
+        return voteUserId;
+    }
+
+    Integer voteOptionNumber() {
+        return voteOptionNumber;
+    }
+
+    Instant voteVotedAt() {
+        return voteVotedAt == null ? null : Instant.parse(voteVotedAt.replace(' ', 'T') + (voteVotedAt.endsWith("Z") ? "" : "Z"));
     }
 }

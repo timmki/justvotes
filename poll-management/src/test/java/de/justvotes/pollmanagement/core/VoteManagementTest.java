@@ -2,6 +2,8 @@ package de.justvotes.pollmanagement.core;
 
 import de.justvotes.pollmanagement.core.event.PollDomainEvent;
 import de.justvotes.pollmanagement.core.event.VoteRemovedForIdentityChange;
+import de.justvotes.pollmanagement.core.event.VoteRemovedByAdmin;
+import de.justvotes.pollmanagement.core.exception.VoteNotFoundException;
 import de.justvotes.pollmanagement.core.event.VoteWithdrawn;
 import de.justvotes.pollmanagement.core.exception.PollNotActiveException;
 import de.justvotes.pollmanagement.core.exception.PollNotFoundException;
@@ -10,6 +12,8 @@ import de.justvotes.pollmanagement.core.model.Identity;
 import de.justvotes.pollmanagement.core.model.Poll;
 import de.justvotes.pollmanagement.core.model.PollResults;
 import de.justvotes.pollmanagement.core.model.Vote;
+import de.justvotes.pollmanagement.core.model.AdminVote;
+import de.justvotes.pollmanagement.core.model.AdminVotePage;
 import de.justvotes.pollmanagement.core.ports.out.PollRepository;
 import org.junit.jupiter.api.Test;
 
@@ -151,12 +155,63 @@ class VoteManagementTest {
         assertEquals(expired.id(), management.results(expired.id(), null).id());
     }
 
+    @Test
+    void removesTheAddressedCurrentVoteWithAnImmutableAdminAuditEvent() {
+        Poll poll = Poll.reconstitue(
+                Poll.PollId.newId(), "Aktuelle Wahl", "systemadmin", Poll.Visibility.PUBLIC, Poll.State.ACTIVE,
+                group(), List.of("Ja", "Nein"), List.of("Ja", "Nein"),
+                List.of(new Vote(42L, OLD_IDENTITY, 2, VOTE_TIME)));
+        var polls = new InMemoryPollRepository(poll);
+        var events = new ArrayList<PollDomainEvent>();
+        Instant removalTime = Instant.parse("2026-08-30T10:05:00Z");
+        VoteManagement management = new VoteManagement(polls, pollId -> List.of(), events::add, () -> removalTime);
+
+        management.removeAdminVote(42L, "systemadmin", "  Regelverstoß  ");
+
+        assertEquals(List.of(), poll.votes());
+        assertEquals(List.of(new VoteRemovedByAdmin(
+                poll.id(), new Vote(42L, OLD_IDENTITY, 2, VOTE_TIME), "Nein", "systemadmin", "Regelverstoß", removalTime)), events);
+        assertEquals(List.of(poll), polls.saved());
+        assertThrows(VoteNotFoundException.class, () -> management.removeAdminVote(42L, "systemadmin", "Regelverstoß"));
+    }
+
+    @Test
+    void rejectsMissingBlankOrOverlongAdminRemovalReasons() {
+        Poll poll = activePollWithVote(OLD_IDENTITY);
+        VoteManagement management = management(poll);
+
+        assertThrows(IllegalArgumentException.class, () -> management.removeAdminVote(0L, "systemadmin", "Grund"));
+        assertThrows(IllegalArgumentException.class, () -> management.removeAdminVote(1L, "systemadmin", "  "));
+        assertThrows(IllegalArgumentException.class, () -> management.removeAdminVote(1L, "systemadmin", "x".repeat(1_001)));
+        assertThrows(IllegalArgumentException.class, () -> management.removeAdminVote(1L, " ", "Grund"));
+    }
+
+    @Test
+    void listsAdministrativeVotesAndEnforcesDocumentedPagingBounds() {
+        Poll poll = activePollWithVote(OLD_IDENTITY);
+        AdminVote vote = new AdminVote(42L, poll.id(), poll.title(), OLD_IDENTITY, 1, "Ja", VOTE_TIME);
+        AdminVotePage expected = new AdminVotePage(List.of(vote), 1, 2, 3);
+        InMemoryPollRepository polls = new InMemoryPollRepository(poll);
+        polls.adminPage = expected;
+        VoteManagement management = management(polls);
+
+        assertEquals(expected, management.adminVotes(1, 2));
+        assertThrows(IllegalArgumentException.class, () -> management.adminVotes(-1, 2));
+        assertThrows(IllegalArgumentException.class, () -> management.adminVotes(0, 0));
+        assertThrows(IllegalArgumentException.class, () -> management.adminVotes(0, 101));
+    }
+
     private static VoteManagement management(Poll... polls) {
         return management(Instant.now(), polls);
     }
 
     private static VoteManagement management(Poll poll, Instant now) {
         return management(now, poll);
+    }
+
+    private static VoteManagement management(InMemoryPollRepository polls) {
+        return new VoteManagement(polls, pollId -> List.of(), ignored -> {
+        }, Instant::now);
     }
 
     private static VoteManagement management(Instant now, Poll... polls) {
@@ -167,6 +222,7 @@ class VoteManagementTest {
     private static final class InMemoryPollRepository implements PollRepository {
         private final List<Poll> polls;
         private final List<Poll> saved = new ArrayList<>();
+        private AdminVotePage adminPage = new AdminVotePage(List.of(), 0, 50, 0);
 
         private InMemoryPollRepository(Poll... polls) {
             this.polls = List.of(polls);
@@ -206,6 +262,16 @@ class VoteManagementTest {
         @Override
         public List<Poll> findAllActive() {
             return polls.stream().filter(poll -> poll.state() == Poll.State.ACTIVE).toList();
+        }
+
+        @Override
+        public de.justvotes.pollmanagement.core.model.AdminVotePage findAdminVotes(int page, int size) {
+            return adminPage;
+        }
+
+        @Override
+        public Optional<Poll> findByVoteId(long voteId) {
+            return polls.stream().filter(poll -> poll.votes().stream().anyMatch(vote -> vote.id() == voteId)).findFirst();
         }
 
         @Override

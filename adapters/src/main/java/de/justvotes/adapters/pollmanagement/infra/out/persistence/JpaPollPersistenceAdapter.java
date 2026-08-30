@@ -4,6 +4,8 @@ import de.justvotes.pollmanagement.core.model.Poll;
 import de.justvotes.pollmanagement.core.model.Identity;
 import de.justvotes.pollmanagement.core.model.PollSummary;
 import de.justvotes.pollmanagement.core.model.Vote;
+import de.justvotes.pollmanagement.core.model.AdminVote;
+import de.justvotes.pollmanagement.core.model.AdminVotePage;
 import de.justvotes.pollmanagement.core.ports.out.PollRepository;
 
 import java.util.Comparator;
@@ -17,10 +19,13 @@ import java.time.Instant;
 public final class JpaPollPersistenceAdapter implements PollRepository {
     private final SpringDataPollRepository polls;
     private final SpringDataPollDomainEventRepository events;
+    private final SpringDataVoteRepository votes;
 
-    public JpaPollPersistenceAdapter(SpringDataPollRepository polls, SpringDataPollDomainEventRepository events) {
+    public JpaPollPersistenceAdapter(SpringDataPollRepository polls, SpringDataPollDomainEventRepository events,
+                                     SpringDataVoteRepository votes) {
         this.polls = polls;
         this.events = events;
+        this.votes = votes;
     }
 
     @Override
@@ -92,6 +97,28 @@ public final class JpaPollPersistenceAdapter implements PollRepository {
     }
 
     @Override
+    public AdminVotePage findAdminVotes(int page, int size) {
+        var result = votes.findAllForAdministration(org.springframework.data.domain.PageRequest.of(page, size));
+        List<AdminVote> entries = result.getContent().stream().map(row -> new AdminVote(
+                row.getVoteId(),
+                Poll.PollId.of(row.getPollId()),
+                row.getPollTitle(),
+                Identity.of(row.getUserId()),
+                row.getOptionNumber(),
+                row.getOptionText(),
+                PollEntity.parseInstant(row.getVotedAt()))).toList();
+        return new AdminVotePage(entries, page, size, result.getTotalElements());
+    }
+
+    @Override
+    public Optional<Poll> findByVoteId(long voteId) {
+        if (voteId > Integer.MAX_VALUE) {
+            return Optional.empty();
+        }
+        return polls.findByVotesId(Math.toIntExact(voteId)).map(this::poll);
+    }
+
+    @Override
     public void delete(Poll poll) {
         events.deleteAllByPollId(poll.id().value());
         polls.deleteById(poll.id().value());
@@ -116,7 +143,7 @@ public final class JpaPollPersistenceAdapter implements PollRepository {
                         .map(PollOptionEntity::text)
                         .toList(),
                 entity.votes().stream().map(vote -> new Vote(
-                        Identity.of(vote.userId()), vote.option().number(), vote.votedAt())).toList());
+                        vote.id(), Identity.of(vote.userId()), vote.option().number(), vote.votedAt())).toList());
     }
 
     private static final class PollSummaryAccumulator {

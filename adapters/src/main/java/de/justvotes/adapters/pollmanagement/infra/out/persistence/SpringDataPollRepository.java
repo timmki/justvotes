@@ -41,4 +41,6 @@ public interface SpringDataPollRepository extends JpaRepository<PollEntity, Stri
     List<PollEntity> findAllByVisibilityAndState(String visibility, String state);
 
     List<PollEntity> findAllByState(String state);
+
+    java.util.Optional<PollEntity> findByVotesId(Integer voteId);
 }

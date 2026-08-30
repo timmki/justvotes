@@ -3,6 +3,7 @@ package de.justvotes.adapters.shared.infra.in.http;
 import de.justvotes.pollmanagement.core.exception.PollNotFoundException;
 import de.justvotes.pollmanagement.core.exception.PollNotActiveException;
 import de.justvotes.pollmanagement.core.exception.ResultsNotAvailableException;
+import de.justvotes.pollmanagement.core.exception.VoteNotFoundException;
 import de.justvotes.templatecatalog.core.exception.CatalogItemNotFoundException;
 import de.justvotes.templatecatalog.core.exception.CatalogNameAlreadyExistsException;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -23,6 +24,7 @@ import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.core.annotation.Order;
 import org.springframework.core.Ordered;
+import jakarta.validation.ConstraintViolationException;
 
 import java.net.URI;
 
@@ -53,7 +55,7 @@ public final class ApiExceptionHandler {
         return problem(HttpStatus.NOT_FOUND, "resource-not-found", "The requested resource was not found.");
     }
 
-    @ExceptionHandler({MethodArgumentNotValidException.class, MethodValidationException.class, IllegalArgumentException.class})
+    @ExceptionHandler({MethodArgumentNotValidException.class, MethodValidationException.class, ConstraintViolationException.class, IllegalArgumentException.class})
     ResponseEntity<ProblemDetail> invalidInput(Exception exception) {
         return problem(HttpStatus.BAD_REQUEST, "invalid-request", "The request is invalid.");
     }
@@ -70,7 +72,7 @@ public final class ApiExceptionHandler {
                 "The request is invalid.");
     }
 
-    @ExceptionHandler({PollNotFoundException.class, CatalogItemNotFoundException.class})
+    @ExceptionHandler({PollNotFoundException.class, CatalogItemNotFoundException.class, VoteNotFoundException.class})
     ResponseEntity<ProblemDetail> notFound(RuntimeException exception) {
         return problem(HttpStatus.NOT_FOUND, "resource-not-found", "The requested resource was not found.");
     }

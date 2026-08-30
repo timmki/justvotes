@@ -5,12 +5,16 @@ import de.justvotes.pollmanagement.core.event.PollLifecycleChanged;
 import de.justvotes.pollmanagement.core.event.VoteRemovedForIdentityChange;
 import de.justvotes.pollmanagement.core.event.VoteReplaced;
 import de.justvotes.pollmanagement.core.event.VoteWithdrawn;
+import de.justvotes.pollmanagement.core.event.VoteRemovedByAdmin;
+import de.justvotes.pollmanagement.core.exception.VoteNotFoundException;
 import de.justvotes.pollmanagement.core.exception.PollNotFoundException;
 import de.justvotes.pollmanagement.core.exception.PollNotActiveException;
 import de.justvotes.pollmanagement.core.exception.ResultsNotAvailableException;
 import de.justvotes.pollmanagement.core.model.*;
 import de.justvotes.pollmanagement.core.ports.in.ManageVotes;
 import de.justvotes.pollmanagement.core.ports.in.ViewVotes;
+import de.justvotes.pollmanagement.core.ports.in.ManageAdminVotes;
+import de.justvotes.pollmanagement.core.ports.in.ViewAdminVotes;
 import de.justvotes.pollmanagement.core.ports.out.PollAuditRepository;
 import de.justvotes.pollmanagement.core.ports.out.PollEventPublisher;
 import de.justvotes.pollmanagement.core.ports.out.PollRepository;
@@ -20,7 +24,8 @@ import io.vavr.control.Try;
 import java.util.List;
 import java.util.Optional;
 
-public final class VoteManagement implements ManageVotes, ViewVotes {
+public final class VoteManagement implements ManageVotes, ViewVotes, ManageAdminVotes, ViewAdminVotes {
+    private static final int MAX_REASON_LENGTH = 1_000;
     private final PollRepository polls;
     private final PollAuditRepository audit;
     private final PollEventPublisher events;
@@ -95,6 +100,31 @@ public final class VoteManagement implements ManageVotes, ViewVotes {
     }
 
     @Override
+    public void removeAdminVote(long voteId, String adminId, String reason) {
+        if (voteId <= 0) {
+            throw new IllegalArgumentException("A persisted vote ID must be positive.");
+        }
+        String normalizedAdminId = requiredText(adminId, "An administrator ID must not be blank.");
+        String normalizedReason = requiredText(reason, "A vote removal reason must not be blank.");
+        if (normalizedReason.length() > MAX_REASON_LENGTH) {
+            throw new IllegalArgumentException("A vote removal reason is too long.");
+        }
+
+        Poll poll = polls.findByVoteId(voteId).orElseThrow(() -> new VoteNotFoundException(voteId));
+        Vote removed = poll.removeVoteById(voteId).orElseThrow(() -> new VoteNotFoundException(voteId));
+        events.publish(new VoteRemovedByAdmin(poll.id(), removed, optionText(poll, removed), normalizedAdminId, normalizedReason, clock.now()));
+        polls.save(poll);
+    }
+
+    @Override
+    public AdminVotePage adminVotes(int page, int size) {
+        if (page < 0 || size < 1 || size > 100) {
+            throw new IllegalArgumentException("Invalid administrative vote paging.");
+        }
+        return polls.findAdminVotes(page, size);
+    }
+
+    @Override
     public Optional<Vote> currentVote(Poll.PollId pollId, Identity identity) {
         return polls.findById(pollId).flatMap(poll -> poll.votes().stream().filter(vote -> vote.identity().equals(identity)).findFirst());
     }
@@ -153,5 +183,12 @@ public final class VoteManagement implements ManageVotes, ViewVotes {
                 .findFirst()
                 .map(Poll.Option::text)
                 .orElse(null);
+    }
+
+    private static String requiredText(String value, String message) {
+        if (value == null || value.trim().isEmpty()) {
+            throw new IllegalArgumentException(message);
+        }
+        return value.trim();
     }
 }

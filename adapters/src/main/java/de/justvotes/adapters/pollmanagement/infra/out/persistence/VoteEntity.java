@@ -39,6 +39,10 @@ public class VoteEntity {
         return userId;
     }
 
+    long id() {
+        return id;
+    }
+
     Instant votedAt() {
         return Instant.parse(votedAt.replace(' ', 'T') + (votedAt.endsWith("Z") ? "" : "Z"));
     }

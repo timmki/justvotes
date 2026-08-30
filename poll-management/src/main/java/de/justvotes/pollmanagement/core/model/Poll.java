@@ -169,6 +169,15 @@ public final class Poll {
         return current;
     }
 
+    public Optional<Vote> removeVoteById(long voteId) {
+        if (voteId <= 0) {
+            throw new IllegalArgumentException("A persisted vote ID must be positive.");
+        }
+        Optional<Vote> current = votes.stream().filter(vote -> vote.id() == voteId).findFirst();
+        current.ifPresent(votes::remove);
+        return current;
+    }
+
     public Poll replaceOptions(List<String> optionTexts) {
         if (state != State.DRAFT) {
             throw new IllegalStateException("Poll options can only be changed in a draft.");

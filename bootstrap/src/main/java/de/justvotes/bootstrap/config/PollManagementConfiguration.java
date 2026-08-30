@@ -3,17 +3,21 @@ package de.justvotes.bootstrap.config;
 import de.justvotes.adapters.pollmanagement.infra.in.http.IdentityController;
 import de.justvotes.adapters.pollmanagement.infra.in.http.PollController;
 import de.justvotes.adapters.pollmanagement.infra.in.http.PublicPollController;
+import de.justvotes.adapters.pollmanagement.infra.in.http.AdministrativeVoteController;
 import de.justvotes.adapters.pollmanagement.infra.in.scheduling.PollExpiryScheduler;
 import de.justvotes.adapters.pollmanagement.infra.in.transaction.TransactionalPollManagement;
 import de.justvotes.adapters.pollmanagement.infra.in.transaction.TransactionalVoteManagement;
+import de.justvotes.adapters.pollmanagement.infra.in.transaction.TransactionalAdminVoteManagement;
 import de.justvotes.adapters.pollmanagement.infra.out.persistence.*;
 import de.justvotes.adapters.pollmanagement.infra.out.templatecatalog.TemplateCatalogSnapshotAdapter;
 import de.justvotes.pollmanagement.core.PollManagement;
 import de.justvotes.pollmanagement.core.VoteManagement;
 import de.justvotes.pollmanagement.core.ports.in.ManagePolls;
 import de.justvotes.pollmanagement.core.ports.in.ManageVotes;
+import de.justvotes.pollmanagement.core.ports.in.ManageAdminVotes;
 import de.justvotes.pollmanagement.core.ports.in.ViewPolls;
 import de.justvotes.pollmanagement.core.ports.in.ViewVotes;
+import de.justvotes.pollmanagement.core.ports.in.ViewAdminVotes;
 import de.justvotes.pollmanagement.core.ports.out.PollAuditRepository;
 import de.justvotes.pollmanagement.core.ports.out.PollEventPublisher;
 import de.justvotes.pollmanagement.core.ports.out.PollRepository;
@@ -29,8 +33,9 @@ import java.time.Instant;
 @Configuration
 class PollManagementConfiguration {
     @Bean
-    PollRepository pollRepository(SpringDataPollRepository polls, SpringDataPollDomainEventRepository events) {
-        return new JpaPollPersistenceAdapter(polls, events);
+    PollRepository pollRepository(SpringDataPollRepository polls, SpringDataPollDomainEventRepository events,
+                                  SpringDataVoteRepository votes) {
+        return new JpaPollPersistenceAdapter(polls, events, votes);
     }
 
     @Bean
@@ -85,6 +90,16 @@ class PollManagementConfiguration {
     }
 
     @Bean
+    ManageAdminVotes adminVoteCommands(VoteManagement management) {
+        return new TransactionalAdminVoteManagement(management, management);
+    }
+
+    @Bean
+    ViewAdminVotes adminVoteQueries(VoteManagement management) {
+        return new TransactionalAdminVoteManagement(management, management);
+    }
+
+    @Bean
     PollController pollController(@Qualifier("pollCommands") ManagePolls commands, @Qualifier("pollQueries") ViewPolls queries) {
         return new PollController(commands, queries);
     }
@@ -92,6 +107,12 @@ class PollManagementConfiguration {
     @Bean
     PublicPollController publicPollController(@Qualifier("pollQueries") ViewPolls queries, @Qualifier("voteCommands") ManageVotes votes, @Qualifier("voteQueries") ViewVotes voteQueries) {
         return new PublicPollController(queries, votes, voteQueries);
+    }
+
+    @Bean
+    AdministrativeVoteController administrativeVoteController(@Qualifier("adminVoteQueries") ViewAdminVotes queries,
+                                                               @Qualifier("adminVoteCommands") ManageAdminVotes commands) {
+        return new AdministrativeVoteController(queries, commands);
     }
 
     @Bean

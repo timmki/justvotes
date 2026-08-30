@@ -97,7 +97,12 @@ public class PublicPollController implements PublicPollsApi {
     @Override
     public ResponseEntity<List<AuditEntry>> pollAudit(String pollId) {
         return noStore(voteQueries.publicAudit(pollId(pollId)).stream()
-                .map(entry -> new AuditEntry(entry.actor(), OffsetDateTime.ofInstant(entry.occurredAt(), ZoneOffset.UTC), entry.event()).selection(entry.selection())).toList());
+                .map(entry -> new AuditEntry(entry.actor(), OffsetDateTime.ofInstant(entry.occurredAt(), ZoneOffset.UTC), entry.event())
+                        .selection(entry.selection())
+                        .reason(entry.reason())
+                        .userID(entry.voteIdentity())
+                        .optionNumber(entry.optionNumber())
+                        .votedAt(entry.votedAt() == null ? null : OffsetDateTime.ofInstant(entry.votedAt(), ZoneOffset.UTC))).toList());
     }
 
     private static de.justvotes.api.v1.model.PollResults mapResults(PollResults results) {
