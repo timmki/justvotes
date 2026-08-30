@@ -1,6 +1,150 @@
-import { render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import '@testing-library/jest-dom/vitest';
 import { MemoryRouter } from 'react-router-dom';
-import { App } from './App';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { I18nProvider } from '../shared/i18n/I18nProvider';
+import { App, AppErrorBoundary, RouteState, ToastProvider, useToast } from './App';
 
-describe('app shell', () => { it('renders navigation', () => { render(<MemoryRouter><App /></MemoryRouter>); expect(screen.getByRole('link', { name: 'Polls' })).toBeTruthy(); }); });
+afterEach(() => {
+  cleanup();
+  window.localStorage.clear();
+  document.documentElement.removeAttribute('data-theme');
+  document.documentElement.removeAttribute('lang');
+});
+
+beforeEach(() => {
+  const values = new Map<string, string>();
+  Object.defineProperty(window, 'localStorage', {
+    configurable: true,
+    value: {
+      clear: () => values.clear(),
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+    },
+  });
+});
+
+function renderApp(initialEntry = '/') {
+  return render(
+    <MemoryRouter initialEntries={[initialEntry]}>
+      <App />
+    </MemoryRouter>,
+  );
+}
+
+describe('app shell', () => {
+  it('renders the home navigation in German by default', () => {
+    renderApp();
+
+    expect(screen.getByRole('heading', { name: 'JustVotes' })).toBeVisible();
+    expect(screen.getByRole('link', { name: /^Polls/ })).toBeVisible();
+    expect(screen.getByRole('link', { name: /^Admin/ })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'English anzeigen' })).toBeVisible();
+  });
+
+  it('supports every public route and redirects unknown routes to the localized 404 page', () => {
+    const routes = [
+      '/',
+      '/polls',
+      '/poll/example',
+      '/poll/results/example',
+      '/poll/results/example/option/1',
+      '/poll/audit/example',
+      '/admin',
+      '/404',
+    ];
+
+    for (const route of routes) {
+      const { unmount } = renderApp(route);
+      expect(screen.getAllByRole('main').at(-1)).toBeVisible();
+      unmount();
+    }
+
+    renderApp('/not-a-route');
+    expect(screen.getByRole('heading', { name: 'Seite nicht gefunden', level: 2 })).toBeVisible();
+  });
+
+  it('persists language and theme without using identity storage', () => {
+    renderApp();
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'English anzeigen' })[0]);
+    expect(screen.getByRole('button', { name: 'Show German' })).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Enable dark mode' }));
+
+    expect(screen.getByRole('heading', { name: 'Home' })).toBeVisible();
+    expect(window.localStorage.getItem('justvotes-locale')).toBe('en');
+    expect(window.localStorage.getItem('justvotes-theme')).toBe('dark');
+    expect(window.localStorage.getItem('identity')).toBeNull();
+    expect(document.documentElement).toHaveAttribute('data-theme', 'dark');
+  });
+
+  it('renders explicit data states at the shared route seam', () => {
+    render(
+      <I18nProvider>
+        <div>
+          <RouteState status="loading" />
+          <RouteState status="empty" />
+          <RouteState status="error" />
+        </div>
+      </I18nProvider>,
+    );
+
+    expect(screen.getByRole('status')).toHaveTextContent('Wird geladen');
+    expect(screen.getByText('Noch keine Daten vorhanden')).toBeVisible();
+    expect(screen.getByText('Daten konnten nicht geladen werden')).toBeVisible();
+  });
+
+  it('renders loading and error states on data routes', () => {
+    const { unmount } = renderApp('/polls?state=loading');
+    expect(screen.getByRole('status')).toHaveTextContent('Wird geladen');
+    unmount();
+
+    renderApp('/polls?state=error');
+    expect(screen.getByText('Daten konnten nicht geladen werden')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Erneut versuchen' })).toBeVisible();
+  });
+
+  it('shows the global error fallback', () => {
+    const error = new Error('test failure');
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    render(
+      <MemoryRouter>
+        <I18nProvider>
+          <AppErrorBoundary>
+            <ThrowingComponent error={error} />
+          </AppErrorBoundary>
+        </I18nProvider>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('heading', { name: 'Etwas ist schiefgelaufen' })).toBeVisible();
+    vi.restoreAllMocks();
+  });
+
+  it('exposes dismissible status notifications', () => {
+    render(
+      <MemoryRouter>
+        <I18nProvider>
+          <ToastProvider>
+            <ToastHarness />
+          </ToastProvider>
+        </I18nProvider>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Zeige Nachricht' }));
+    expect(screen.getByRole('status')).toHaveTextContent('Gespeichert');
+    fireEvent.click(screen.getByRole('button', { name: 'Schließen' }));
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+});
+
+function ThrowingComponent({ error }: { error: Error }): never {
+  throw error;
+}
+
+function ToastHarness() {
+  const { showToast } = useToast();
+  return <button type="button" onClick={() => showToast('Gespeichert', 'success')}>Zeige Nachricht</button>;
+}
