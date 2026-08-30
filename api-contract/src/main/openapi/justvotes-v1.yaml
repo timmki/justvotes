@@ -119,6 +119,20 @@ paths:
         '401':
           $ref: '#/components/responses/Problem'
   /identity:
+    get:
+      tags:
+        - Identity
+      operationId: currentIdentity
+      responses:
+        '200':
+          description: The normalized identity from the current request cookie, or null when no identity cookie is present.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentIdentity'
     post:
       tags:
         - Identity
@@ -1084,6 +1098,16 @@ components:
         userID:
           type: string
           pattern: '^\s*[A-Za-z0-9_-]{3,32}\s*$'
+    CurrentIdentity:
+      type: object
+      additionalProperties: false
+      required:
+        - userID
+      properties:
+        userID:
+          type: string
+          nullable: true
+          pattern: '^[a-z0-9_-]{3,32}$'
     Name:
       type: object
       additionalProperties: false

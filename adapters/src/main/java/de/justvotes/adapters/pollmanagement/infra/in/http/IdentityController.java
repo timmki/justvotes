@@ -1,6 +1,7 @@
 package de.justvotes.adapters.pollmanagement.infra.in.http;
 
 import de.justvotes.api.v1.server.IdentityApi;
+import de.justvotes.api.v1.model.CurrentIdentity;
 import de.justvotes.pollmanagement.core.model.Identity;
 import de.justvotes.pollmanagement.core.ports.in.ManageVotes;
 import jakarta.servlet.http.HttpServletRequest;
@@ -20,6 +21,14 @@ public class IdentityController implements IdentityApi {
 
     public IdentityController(ManageVotes votes) {
         this.votes = votes;
+    }
+
+    @Override
+    public ResponseEntity<CurrentIdentity> currentIdentity() {
+        HttpServletRequest servletRequest = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest();
+        Identity identity = safeCookieIdentity(servletRequest);
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(new CurrentIdentity(identity == null ? null : identity.value()));
     }
 
     @Override
@@ -46,6 +55,14 @@ public class IdentityController implements IdentityApi {
                 return Identity.of(cookie.getValue());
             }
         return null;
+    }
+
+    private Identity safeCookieIdentity(HttpServletRequest request) {
+        try {
+            return cookieIdentity(request);
+        } catch (IllegalArgumentException exception) {
+            return null;
+        }
     }
 
 }

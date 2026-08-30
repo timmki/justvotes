@@ -98,6 +98,29 @@ class CsrfSessionHttpTest {
         assertCookie(identity, "userID", true, true);
     }
 
+    @Test
+    void readsTheCurrentIdentityFromItsCookieWithoutCsrfOrCookieSideEffects() {
+        TestRestTemplate client = new TestRestTemplate();
+        String baseUrl = "http://localhost:" + port + "/api/v1";
+
+        ResponseEntity<String> missing = client.getForEntity(baseUrl + "/identity", String.class);
+        assertStatus(missing, 200);
+        assertThat(missing.getBody()).isEqualTo("{\"userID\":null}");
+        assertNoCookieSideEffects(missing);
+
+        ResponseEntity<String> present = client.exchange(RequestEntity.get(baseUrl + "/identity?userID=mallory")
+                .header(HttpHeaders.COOKIE, "userID=Alice_1").build(), String.class);
+        assertStatus(present, 200);
+        assertThat(present.getBody()).isEqualTo("{\"userID\":\"alice_1\"}");
+        assertNoCookieSideEffects(present);
+
+        ResponseEntity<String> malformed = client.exchange(RequestEntity.get(baseUrl + "/identity")
+                .header(HttpHeaders.COOKIE, "userID=ab").build(), String.class);
+        assertStatus(malformed, 200);
+        assertThat(malformed.getBody()).isEqualTo("{\"userID\":null}");
+        assertNoCookieSideEffects(malformed);
+    }
+
     private static RequestEntity<String> post(String url, String cookies, String csrfToken, String body) {
         RequestEntity.BodyBuilder request = RequestEntity.post(url);
         if (cookies != null) request.header(HttpHeaders.COOKIE, cookies);
@@ -116,6 +139,10 @@ class CsrfSessionHttpTest {
         if (httpOnly) assertThat(cookie).contains("HttpOnly"); else assertThat(cookie).doesNotContain("HttpOnly");
         if (secure) assertThat(cookie).contains("Secure"); else assertThat(cookie).doesNotContain("Secure");
         if (name.equals("userID")) assertThat(cookie).contains("Max-Age=315360000");
+    }
+    private static void assertNoCookieSideEffects(ResponseEntity<String> response) {
+        assertThat(response.getHeaders().getCacheControl()).contains("no-store");
+        assertThat(response.getHeaders().get(HttpHeaders.SET_COOKIE)).isNullOrEmpty();
     }
     private static void assertStatus(ResponseEntity<String> response, int expected) { assertThat(response.getStatusCode().value()).isEqualTo(expected); if (expected >= 400) assertThat(response.getHeaders().getContentType()).hasToString("application/problem+json"); }
 }

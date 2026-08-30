@@ -104,6 +104,15 @@ class CsrfSessionOpenApiContractTest {
         }));
     }
 
+    @Test
+    void documentsCurrentIdentityAsAnUnauthenticatedParameterlessRead() {
+        Map<String, Object> paths = map(map(new Yaml().load(resource("docs/justvotes-v1.yaml"))).get("paths"));
+        Map<String, Object> currentIdentity = map(map(paths.get("/identity")).get("get"));
+
+        assertThat(currentIdentity).doesNotContainKeys("security", "parameters");
+        assertThat(map(currentIdentity.get("responses"))).containsKey("200");
+    }
+
     private static RequestEntity<String> request(String method, String url, String cookies, String csrfToken, String body) {
         RequestEntity.BodyBuilder request = RequestEntity.method(HttpMethod.valueOf(method.toUpperCase()), url).contentType(MediaType.APPLICATION_JSON);
         if (cookies != null) request.header(HttpHeaders.COOKIE, cookies);
