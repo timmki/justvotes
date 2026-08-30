@@ -56,3 +56,35 @@ test('changes the identity once after confirming the warning', async ({ page }) 
   expect(requests.filter(({ method, url }) => method === 'POST' && url.endsWith('/identity'))).toHaveLength(1);
   expect(requests.filter(({ method, url }) => method === 'DELETE' && url.includes('/votes'))).toHaveLength(0);
 });
+
+test('renders public poll cards from one list request without N+1 detail requests', async ({ page }) => {
+  const requests: string[] = [];
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request();
+    requests.push(request.url());
+    if (request.url().endsWith('/polls') && request.method() === 'GET') {
+      return route.fulfill({ json: [{
+        id: 'opaque-poll-id-123456789',
+        title: 'A long poll title that remains usable on a narrow viewport',
+        visibility: 'public',
+        state: 'active',
+        createdAt: '2025-01-05T14:30:00.000Z',
+        endsAt: null,
+        totalVotes: 0,
+        templateGroup: { id: 'group-1', name: 'Group', description: 'Description' },
+        templateSnapshotOptions: [],
+        options: [],
+      }] });
+    }
+    return route.fulfill({ json: [] });
+  });
+
+  await page.goto('/polls');
+
+  const card = page.getByRole('link', { name: /A long poll title/ });
+  await expect(card).toContainText('0');
+  await expect(card).toContainText('opaque-poll-id-123456789');
+  await expect(card).toContainText('Admin');
+  expect(requests.filter((url) => url.endsWith('/polls'))).toHaveLength(1);
+  expect(requests.some((url) => /\/polls\/[^/]+$/.test(url))).toBe(false);
+});
