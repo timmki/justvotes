@@ -23,8 +23,8 @@ startet nicht ohne diese Werte.
 ```powershell
 docker build -t justvotes .
 docker run --rm -p 8080:8080 -v justvotes-data:/data `
-  -e ADMIN_USERNAME=systemadmin `
-  -e ADMIN_PASSWORD_HASH='<bcrypt-hash>' justvotes
+  -e ADMIN_USERNAME=admin `
+  -e ADMIN_PASSWORD_HASH='$2a$10$GaWgWmWoWlu2cKk9baV3MetvN9fXbR4OpvJb0.Z4d5xYGfJXp9oZW' justvotes
 ```
 
 Die Anwendung liefert ihre statischen Dateien unter derselben Origin aus. Betriebsendpunkte:

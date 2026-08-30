@@ -13,3 +13,4 @@ frontend/dist/
 frontend/src/shared/api/generated/
 frontend/.vite/
 frontend/test-results/
+data/
