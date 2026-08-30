@@ -859,6 +859,27 @@ paths:
           $ref: '#/components/responses/Problem'
         '409':
           $ref: '#/components/responses/Problem'
+  '/polls/{pollId}/results':
+    parameters:
+      - $ref: '#/components/parameters/PollId'
+    get:
+      tags:
+        - Public polls
+      operationId: pollResults
+      responses:
+        '200':
+          description: Current poll results
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PollResults'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
   '/polls/{pollId}/audit':
     parameters:
       - $ref: '#/components/parameters/PollId'
@@ -1272,6 +1293,75 @@ components:
           type: string
         optionNumber:
           type: integer
+    PollResults:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - title
+        - visibility
+        - state
+        - createdAt
+        - endsAt
+        - totalVotes
+        - options
+      properties:
+        id:
+          $ref: '#/components/schemas/PollId'
+        title:
+          type: string
+        visibility:
+          type: string
+        state:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+          nullable: true
+        totalVotes:
+          type: integer
+          minimum: 0
+        options:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResultOption'
+    ResultOption:
+      type: object
+      additionalProperties: false
+      required:
+        - number
+        - text
+        - voteCount
+        - votes
+      properties:
+        number:
+          type: integer
+          minimum: 1
+        text:
+          type: string
+        voteCount:
+          type: integer
+          minimum: 0
+        votes:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResultVote'
+    ResultVote:
+      type: object
+      additionalProperties: false
+      required:
+        - userID
+        - votedAt
+      properties:
+        userID:
+          type: string
+          pattern: '^[a-z0-9_-]{3,32}$'
+        votedAt:
+          type: string
+          format: date-time
     AuditEntry:
       type: object
       additionalProperties: false

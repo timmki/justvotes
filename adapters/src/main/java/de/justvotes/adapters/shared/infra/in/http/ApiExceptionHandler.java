@@ -1,6 +1,7 @@
 package de.justvotes.adapters.shared.infra.in.http;
 
 import de.justvotes.pollmanagement.core.exception.PollNotFoundException;
+import de.justvotes.pollmanagement.core.exception.ResultsNotAvailableException;
 import de.justvotes.templatecatalog.core.exception.CatalogItemNotFoundException;
 import de.justvotes.templatecatalog.core.exception.CatalogNameAlreadyExistsException;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -71,6 +72,11 @@ public final class ApiExceptionHandler {
     @ExceptionHandler({PollNotFoundException.class, CatalogItemNotFoundException.class})
     ResponseEntity<ProblemDetail> notFound(RuntimeException exception) {
         return problem(HttpStatus.NOT_FOUND, "resource-not-found", "The requested resource was not found.");
+    }
+
+    @ExceptionHandler(ResultsNotAvailableException.class)
+    ResponseEntity<ProblemDetail> resultsNotAvailable(ResultsNotAvailableException exception) {
+        return problem(HttpStatus.FORBIDDEN, "results-not-available", "The poll results are not available yet.");
     }
 
     @ExceptionHandler({IllegalStateException.class, CatalogNameAlreadyExistsException.class, DataIntegrityViolationException.class})

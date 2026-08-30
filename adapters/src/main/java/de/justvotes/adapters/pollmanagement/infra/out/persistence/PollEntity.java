@@ -36,12 +36,13 @@ public class PollEntity {
     protected PollEntity() {
     }
 
-    PollEntity(String id, String title, String createdBy, String visibility, String state, String endsAt, long templateGroupId, String templateGroupName, String templateGroupDescription) {
+    PollEntity(String id, String title, String createdBy, String visibility, String state, String createdAt, String endsAt, long templateGroupId, String templateGroupName, String templateGroupDescription) {
         this.id = id;
         this.title = title;
         this.createdBy = createdBy;
         this.visibility = visibility;
         this.state = state;
+        this.createdAt = createdAt;
         this.endsAt = endsAt;
         this.templateGroupId = Math.toIntExact(templateGroupId);
         this.templateGroupName = templateGroupName;
@@ -58,6 +59,10 @@ public class PollEntity {
 
     String createdBy() {
         return createdBy;
+    }
+
+    Instant createdAt() {
+        return Instant.parse(createdAt.replace(' ', 'T') + (createdAt.endsWith("Z") ? "" : "Z"));
     }
 
     String visibility() {
@@ -129,9 +134,9 @@ public class PollEntity {
             PollOptionEntity option = option(desiredVote.optionNumber());
             VoteEntity existingVote = existingVotes.get(identity);
             if (existingVote == null) {
-                votes.add(new VoteEntity(this, option, identity));
+                votes.add(new VoteEntity(this, option, identity, desiredVote.votedAt()));
             } else {
-                existingVote.replaceOption(option);
+                existingVote.replaceOption(option, desiredVote.votedAt());
             }
         }
 

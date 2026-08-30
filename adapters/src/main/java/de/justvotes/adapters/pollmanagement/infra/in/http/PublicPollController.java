@@ -2,11 +2,14 @@ package de.justvotes.adapters.pollmanagement.infra.in.http;
 
 import de.justvotes.adapters.shared.infra.in.http.OpaqueIdCodec;
 import de.justvotes.api.v1.model.AuditEntry;
+import de.justvotes.api.v1.model.ResultOption;
+import de.justvotes.api.v1.model.ResultVote;
 import de.justvotes.api.v1.model.Vote;
 import de.justvotes.api.v1.model.VoteInput;
 import de.justvotes.api.v1.server.PublicPollsApi;
 import de.justvotes.pollmanagement.core.model.Identity;
 import de.justvotes.pollmanagement.core.model.Poll;
+import de.justvotes.pollmanagement.core.model.PollResults;
 import de.justvotes.pollmanagement.core.model.VoteOutcome;
 import de.justvotes.pollmanagement.core.ports.in.ManageVotes;
 import de.justvotes.pollmanagement.core.ports.in.ViewPolls;
@@ -43,15 +46,25 @@ public class PublicPollController implements PublicPollsApi {
     }
 
     private static Identity identity() {
+        Identity identity = currentIdentity();
+        if (identity != null) return identity;
+        throw new IllegalArgumentException("An identity must be set before voting.");
+    }
+
+    private static Identity currentIdentity() {
         HttpServletRequest request = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest();
         if (request.getCookies() != null) {
             for (var cookie : request.getCookies()) {
                 if ("userID".equals(cookie.getName())) {
-                    return Identity.of(cookie.getValue());
+                    try {
+                        return Identity.of(cookie.getValue());
+                    } catch (IllegalArgumentException exception) {
+                        return null;
+                    }
                 }
             }
         }
-        throw new IllegalArgumentException("An identity must be set before voting.");
+        return null;
     }
 
     @Override
@@ -71,8 +84,31 @@ public class PublicPollController implements PublicPollsApi {
     }
 
     @Override
+    public ResponseEntity<de.justvotes.api.v1.model.PollResults> pollResults(String pollId) {
+        return noStore(mapResults(voteQueries.results(pollId(pollId), currentIdentity())));
+    }
+
+    @Override
     public ResponseEntity<List<AuditEntry>> pollAudit(String pollId) {
         return noStore(voteQueries.publicAudit(pollId(pollId)).stream()
                 .map(entry -> new AuditEntry(entry.actor(), OffsetDateTime.ofInstant(entry.occurredAt(), ZoneOffset.UTC), entry.event()).selection(entry.selection())).toList());
+    }
+
+    private static de.justvotes.api.v1.model.PollResults mapResults(PollResults results) {
+        return new de.justvotes.api.v1.model.PollResults(
+                OpaqueIdCodec.encode("p", results.id().value()),
+                results.title(),
+                results.visibility().name().toLowerCase(),
+                results.state().name().toLowerCase(),
+                OffsetDateTime.ofInstant(results.createdAt(), ZoneOffset.UTC),
+                results.endsAt() == null ? null : OffsetDateTime.ofInstant(results.endsAt(), ZoneOffset.UTC),
+                results.totalVotes(),
+                results.options().stream().map(option -> new ResultOption(
+                        option.number(),
+                        option.text(),
+                        option.voteCount(),
+                        option.votes().stream().map(vote -> new ResultVote(
+                                vote.identity().value(),
+                                OffsetDateTime.ofInstant(vote.votedAt(), ZoneOffset.UTC))).toList())).toList());
     }
 }

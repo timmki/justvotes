@@ -208,6 +208,93 @@ class PollManagementHttpTest {
         );
     }
 
+    @Test
+    void exposesCurrentResultsWithCountsAndVoterTimestampsAfterVoteChanges() {
+        String catalogUrl = "http://localhost:" + port + "/api/v1/admin/template-catalog";
+        String pollsUrl = "http://localhost:" + port + "/api/v1/admin/polls";
+        String resultsUrl = "http://localhost:" + port + "/api/v1/polls";
+        AuthenticatedAdmin admin = login();
+        String yes = createdId(admin.post(catalogUrl + "/templates", "{\"name\":\"Ergebnis-Ja\"}"));
+        String no = createdId(admin.post(catalogUrl + "/templates", "{\"name\":\"Ergebnis-Nein\"}"));
+        String group = createdId(admin.post(catalogUrl + "/groups", "{\"name\":\"Ergebnis\",\"description\":\"\"}"));
+        admin.put(catalogUrl + "/groups/" + group + "/templates/" + yes);
+        admin.put(catalogUrl + "/groups/" + group + "/templates/" + no);
+        String pollId = stringField(admin.post(pollsUrl, "{\"title\":\"Ergebnis\",\"templateGroupId\":\"" + group + "\"}"), "id");
+        admin.put(pollsUrl + "/" + pollId + "/publication", "{\"endsAt\":\"2099-01-01T00:00:00Z\"}");
+
+        PublicVisitor alice = publicVisitor();
+        assertEquals(403, alice.get(resultsUrl + "/" + pollId + "/results").getStatusCode().value());
+        ResponseEntity<String> aliceIdentity = alice.post("http://localhost:" + port + "/api/v1/identity", "{\"userID\":\"Alice\"}");
+        assertEquals(204, aliceIdentity.getStatusCode().value());
+        alice = new PublicVisitor(alice.client(), alice.cookies() + "; userID=alice", alice.csrfToken());
+        assertEquals(403, alice.get(resultsUrl + "/" + pollId + "/results").getStatusCode().value());
+
+        assertEquals(200, alice.post(resultsUrl + "/" + pollId + "/votes", "{\"optionNumber\":1}").getStatusCode().value());
+        ResponseEntity<String> firstResults = alice.get(resultsUrl + "/" + pollId + "/results");
+        assertResultResponse(firstResults, 200);
+        assertTrue(firstResults.getBody().contains("\"totalVotes\":1"));
+        assertTrue(firstResults.getBody().contains("\"number\":1,\"text\":\"ergebnis-ja\",\"voteCount\":1"), firstResults.getBody());
+        assertTrue(firstResults.getBody().contains("\"number\":2,\"text\":\"ergebnis-nein\",\"voteCount\":0"));
+        assertTrue(firstResults.getBody().contains("\"userID\":\"alice\""));
+        assertTrue(firstResults.getBody().contains("\"votedAt\":"));
+        assertFalse(firstResults.getBody().contains("currentVote"));
+
+        assertEquals(200, alice.post(resultsUrl + "/" + pollId + "/votes", "{\"optionNumber\":2}").getStatusCode().value());
+        PublicVisitor bob = publicVisitor();
+        ResponseEntity<String> bobIdentity = bob.post("http://localhost:" + port + "/api/v1/identity", "{\"userID\":\"Bob\"}");
+        assertEquals(204, bobIdentity.getStatusCode().value());
+        bob = new PublicVisitor(bob.client(), bob.cookies() + "; userID=bob", bob.csrfToken());
+        assertEquals(200, bob.post(resultsUrl + "/" + pollId + "/votes", "{\"optionNumber\":1}").getStatusCode().value());
+
+        ResponseEntity<String> tiedResults = alice.get(resultsUrl + "/" + pollId + "/results");
+        assertResultResponse(tiedResults, 200);
+        assertTrue(tiedResults.getBody().contains("\"totalVotes\":2"));
+        assertTrue(tiedResults.getBody().contains("\"number\":1,\"text\":\"ergebnis-ja\",\"voteCount\":1"));
+        assertTrue(tiedResults.getBody().contains("\"number\":2,\"text\":\"ergebnis-nein\",\"voteCount\":1"));
+        assertTrue(tiedResults.getBody().contains("\"votes\":[{\"userID\":\"bob\""));
+
+        ResponseEntity<String> changedIdentity = alice.post("http://localhost:" + port + "/api/v1/identity", "{\"userID\":\"Charlie\"}");
+        assertEquals(204, changedIdentity.getStatusCode().value());
+        alice = new PublicVisitor(alice.client(), alice.cookies() + "; userID=charlie", alice.csrfToken());
+        ResponseEntity<String> afterRemoval = bob.get(resultsUrl + "/" + pollId + "/results");
+        assertResultResponse(afterRemoval, 200);
+        assertTrue(afterRemoval.getBody().contains("\"totalVotes\":1"));
+        assertTrue(afterRemoval.getBody().contains("\"number\":1,\"text\":\"ergebnis-ja\",\"voteCount\":1"));
+        assertTrue(afterRemoval.getBody().contains("\"userID\":\"bob\""));
+        assertFalse(afterRemoval.getBody().contains("\"userID\":\"alice\""));
+    }
+
+    @Test
+    void exposesExpiredResultsAndHidesPrivateAndUnknownPolls() {
+        String catalogUrl = "http://localhost:" + port + "/api/v1/admin/template-catalog";
+        String pollsUrl = "http://localhost:" + port + "/api/v1/admin/polls";
+        String resultsUrl = "http://localhost:" + port + "/api/v1/polls";
+        AuthenticatedAdmin admin = login();
+        String template = createdId(admin.post(catalogUrl + "/templates", "{\"name\":\"Ablauf\"}"));
+        String group = createdId(admin.post(catalogUrl + "/groups", "{\"name\":\"Ablaufgruppe\",\"description\":\"\"}"));
+        admin.put(catalogUrl + "/groups/" + group + "/templates/" + template);
+        String expiredPoll = stringField(admin.post(pollsUrl, "{\"title\":\"Abgelaufen\",\"templateGroupId\":\"" + group + "\"}"), "id");
+        admin.put(pollsUrl + "/" + expiredPoll + "/publication", "{\"endsAt\":\"2000-01-01T00:00:00Z\"}");
+        String privatePoll = stringField(admin.post(pollsUrl, "{\"title\":\"Privat\",\"templateGroupId\":\"" + group + "\"}"), "id");
+        PublicVisitor visitor = publicVisitor();
+
+        ResponseEntity<String> expired = visitor.get(resultsUrl + "/" + expiredPoll + "/results");
+        assertResultResponse(expired, 200);
+        assertTrue(expired.getBody().contains("\"state\":\"expired\""));
+        assertTrue(expired.getBody().contains("\"totalVotes\":0"));
+
+        ResponseEntity<String> privateResults = visitor.get(resultsUrl + "/" + privatePoll + "/results");
+        ResponseEntity<String> unknownResults = visitor.get(resultsUrl + "/p_v1_missing/results");
+        assertResultResponse(privateResults, 404);
+        assertResultResponse(unknownResults, 404);
+        assertEquals(privateResults.getBody().replace("/" + privatePoll, "/p_v1_missing"), unknownResults.getBody());
+    }
+
+    private static void assertResultResponse(ResponseEntity<String> response, int status) {
+        assertEquals(status, response.getStatusCode().value(), response.getBody());
+        assertTrue(response.getHeaders().getCacheControl().contains("no-store"));
+    }
+
     private AuthenticatedAdmin login() {
         TestRestTemplate client = new TestRestTemplate();
         String origin = "http://localhost:" + port;

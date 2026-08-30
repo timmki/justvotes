@@ -5,6 +5,7 @@ import de.justvotes.pollmanagement.core.event.PollLifecycleChanged;
 import de.justvotes.pollmanagement.core.event.VoteRemovedForIdentityChange;
 import de.justvotes.pollmanagement.core.event.VoteReplaced;
 import de.justvotes.pollmanagement.core.exception.PollNotFoundException;
+import de.justvotes.pollmanagement.core.exception.ResultsNotAvailableException;
 import de.justvotes.pollmanagement.core.model.*;
 import de.justvotes.pollmanagement.core.ports.in.ManageVotes;
 import de.justvotes.pollmanagement.core.ports.in.ViewVotes;
@@ -52,7 +53,7 @@ public final class VoteManagement implements ManageVotes, ViewVotes {
     @Override
     public VoteOutcome castOrReplace(Poll.PollId pollId, Identity identity, int optionNumber) {
         Poll poll = publiclyVotable(pollId);
-        VoteOutcome outcome = poll.castOrReplace(identity, optionNumber);
+        VoteOutcome outcome = poll.castOrReplace(identity, optionNumber, clock.now());
         if (outcome.status() == VoteOutcome.Status.UNCHANGED) {
             return outcome;
         }
@@ -76,17 +77,22 @@ public final class VoteManagement implements ManageVotes, ViewVotes {
     }
 
     @Override
+    public PollResults results(Poll.PollId pollId, Identity identity) {
+        Poll poll = publiclyReadableResults(pollId);
+        if (poll.state() == Poll.State.ACTIVE && (identity == null || poll.votes().stream().noneMatch(vote -> vote.identity().equals(identity)))) {
+            throw new ResultsNotAvailableException();
+        }
+        return PollResults.from(poll);
+    }
+
+    @Override
     public List<AuditEntry> publicAudit(Poll.PollId pollId) {
         publiclyReadable(pollId);
         return audit.findByPollId(pollId);
     }
 
     private Poll publiclyVotable(Poll.PollId pollId) {
-        Poll poll = polls.findById(pollId).orElseThrow(() -> new PollNotFoundException(pollId));
-        if (poll.expireIfDue(clock.now())) {
-            events.publish(new PollLifecycleChanged(poll.id(), "System", PollLifecycleChanged.Type.PollExpired, null));
-            polls.save(poll);
-        }
+        Poll poll = loadAndExpireIfDue(pollId);
         if (!poll.isPubliclyVisible()) {
             throw new PollNotFoundException(pollId);
         }
@@ -97,6 +103,23 @@ public final class VoteManagement implements ManageVotes, ViewVotes {
         Poll poll = polls.findById(pollId).orElseThrow(() -> new PollNotFoundException(pollId));
         if (!poll.isPubliclyReadable()) {
             throw new PollNotFoundException(pollId);
+        }
+        return poll;
+    }
+
+    private Poll publiclyReadableResults(Poll.PollId pollId) {
+        Poll poll = loadAndExpireIfDue(pollId);
+        if (!poll.isPubliclyReadable()) {
+            throw new PollNotFoundException(pollId);
+        }
+        return poll;
+    }
+
+    private Poll loadAndExpireIfDue(Poll.PollId pollId) {
+        Poll poll = polls.findById(pollId).orElseThrow(() -> new PollNotFoundException(pollId));
+        if (poll.expireIfDue(clock.now())) {
+            events.publish(new PollLifecycleChanged(poll.id(), "System", PollLifecycleChanged.Type.PollExpired, null));
+            polls.save(poll);
         }
         return poll;
     }

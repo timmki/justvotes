@@ -11,6 +11,7 @@ public final class Poll {
     private final PollId id;
     private final String title;
     private final String createdBy;
+    private final Instant createdAt;
     private final TemplateGroup templateGroup;
     private final List<Option> templateSnapshotOptions;
     private final List<Vote> votes;
@@ -23,6 +24,7 @@ public final class Poll {
         this.id = null;
         this.title = null;
         this.createdBy = null;
+        this.createdAt = null;
         this.visibility = null;
         this.state = null;
         this.templateGroup = null;
@@ -31,10 +33,11 @@ public final class Poll {
         this.votes = null;
     }
 
-    private Poll(PollId id, String title, String createdBy, Visibility visibility, State state, Instant endsAt, TemplateGroup templateGroup, List<String> templateSnapshotOptionTexts, List<String> optionTexts, List<Vote> votes) {
+    private Poll(PollId id, String title, String createdBy, Visibility visibility, State state, Instant createdAt, Instant endsAt, TemplateGroup templateGroup, List<String> templateSnapshotOptionTexts, List<String> optionTexts, List<Vote> votes) {
         this.id = id;
         this.title = requiredText(title, "A poll title must not be blank.");
         this.createdBy = requiredText(createdBy, "A poll creator must not be blank.");
+        this.createdAt = Objects.requireNonNull(createdAt, "A poll creation time must not be null.");
         this.visibility = visibility;
         this.state = state;
         this.endsAt = endsAt;
@@ -48,16 +51,20 @@ public final class Poll {
     }
 
     public static Poll reconstitue(PollId id, String title, String createdBy, Visibility visibility, State state, Instant endsAt, TemplateGroup templateGroup, List<String> templateSnapshotOptionTexts, List<String> optionTexts, List<Vote> votes) {
-        return new Poll(id, title, createdBy, visibility, state, endsAt, templateGroup, templateSnapshotOptionTexts, optionTexts, votes);
+        return new Poll(id, title, createdBy, visibility, state, Instant.EPOCH, endsAt, templateGroup, templateSnapshotOptionTexts, optionTexts, votes);
+    }
+
+    public static Poll reconstitue(PollId id, String title, String createdBy, Visibility visibility, State state, Instant createdAt, Instant endsAt, TemplateGroup templateGroup, List<String> templateSnapshotOptionTexts, List<String> optionTexts, List<Vote> votes) {
+        return new Poll(id, title, createdBy, visibility, state, createdAt, endsAt, templateGroup, templateSnapshotOptionTexts, optionTexts, votes);
     }
 
     public static Poll reconstitue(PollId id, String title, String createdBy, Visibility visibility, State state, TemplateGroup templateGroup, List<String> templateSnapshotOptionTexts, List<String> optionTexts, List<Vote> votes) {
-        return reconstitue(id, title, createdBy, visibility, state, null, templateGroup, templateSnapshotOptionTexts, optionTexts, votes);
+        return reconstitue(id, title, createdBy, visibility, state, Instant.EPOCH, null, templateGroup, templateSnapshotOptionTexts, optionTexts, votes);
     }
 
     public static Poll privateDraftFrom(TemplateGroup templateGroup, String title, String createdBy, List<String> templateOptionTexts) {
         List<String> orderedTemplateOptions = templateOptionTexts.stream().sorted(Comparator.comparing(text -> text.toLowerCase(Locale.ROOT))).toList();
-        return new Poll(PollId.newId(), title, createdBy, Visibility.PRIVATE, State.DRAFT, null, templateGroup, orderedTemplateOptions, orderedTemplateOptions, List.of());
+        return new Poll(PollId.newId(), title, createdBy, Visibility.PRIVATE, State.DRAFT, Instant.now(), null, templateGroup, orderedTemplateOptions, orderedTemplateOptions, List.of());
     }
 
     private static List<Option> options(List<String> optionTexts) {
@@ -97,6 +104,10 @@ public final class Poll {
         return createdBy;
     }
 
+    public Instant createdAt() {
+        return createdAt;
+    }
+
     public Visibility visibility() {
         return visibility;
     }
@@ -126,6 +137,10 @@ public final class Poll {
     }
 
     public VoteOutcome castOrReplace(Identity identity, int optionNumber) {
+        return castOrReplace(identity, optionNumber, Instant.now());
+    }
+
+    public VoteOutcome castOrReplace(Identity identity, int optionNumber, Instant votedAt) {
         if (!isPubliclyVisible()) {
             throw new IllegalStateException("Votes can only be cast in public active polls.");
         }
@@ -137,7 +152,7 @@ public final class Poll {
             return new VoteOutcome(VoteOutcome.Status.UNCHANGED, current.get());
         }
 
-        Vote vote = new Vote(identity, optionNumber);
+        Vote vote = new Vote(identity, optionNumber, votedAt);
         votes.removeIf(candidate -> candidate.identity().equals(identity));
         votes.add(vote);
 

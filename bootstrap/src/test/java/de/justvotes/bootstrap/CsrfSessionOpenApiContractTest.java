@@ -113,6 +113,15 @@ class CsrfSessionOpenApiContractTest {
         assertThat(map(currentIdentity.get("responses"))).containsKey("200");
     }
 
+    @Test
+    void documentsPollResultsAsAnUnauthenticatedReadWithVisibilityFailures() {
+        Map<String, Object> paths = map(map(new Yaml().load(resource("docs/justvotes-v1.yaml"))).get("paths"));
+        Map<String, Object> pollResults = map(map(paths.get("/polls/{pollId}/results")).get("get"));
+
+        assertThat(pollResults).doesNotContainKeys("security", "parameters", "requestBody");
+        assertThat(map(pollResults.get("responses"))).containsKeys("200", "403", "404");
+    }
+
     private static RequestEntity<String> request(String method, String url, String cookies, String csrfToken, String body) {
         RequestEntity.BodyBuilder request = RequestEntity.method(HttpMethod.valueOf(method.toUpperCase()), url).contentType(MediaType.APPLICATION_JSON);
         if (cookies != null) request.header(HttpHeaders.COOKIE, cookies);

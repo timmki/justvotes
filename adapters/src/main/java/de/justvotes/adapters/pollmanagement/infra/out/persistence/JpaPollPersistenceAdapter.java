@@ -27,6 +27,7 @@ public final class JpaPollPersistenceAdapter implements PollRepository {
                         poll.createdBy(),
                         poll.visibility().name().toLowerCase(),
                         poll.state().name().toLowerCase(),
+                        poll.createdAt().toString(),
                         poll.endsAt() == null ? null : poll.endsAt().toString(),
                         poll.templateGroup().id().value(),
                         poll.templateGroup().name(),
@@ -88,6 +89,7 @@ public final class JpaPollPersistenceAdapter implements PollRepository {
                 entity.createdBy(),
                 Poll.Visibility.valueOf(entity.visibility().toUpperCase()),
                 Poll.State.valueOf(entity.state().toUpperCase()),
+                entity.createdAt(),
                 entity.endsAt(),
                 Poll.TemplateGroup.of(Poll.TemplateGroupId.of(entity.templateGroupId()), entity.templateGroupName(), entity.templateGroupDescription()),
                 entity.templateSnapshotOptions().stream()
@@ -99,6 +101,6 @@ public final class JpaPollPersistenceAdapter implements PollRepository {
                         .map(PollOptionEntity::text)
                         .toList(),
                 entity.votes().stream().map(vote -> new Vote(
-                        Identity.of(vote.userId()), vote.option().number())).toList());
+                        Identity.of(vote.userId()), vote.option().number(), vote.votedAt())).toList());
     }
 }

@@ -37,6 +37,12 @@ public class TransactionalVoteManagement implements ManageVotes, ViewVotes {
 
     @Override
     @Transactional(readOnly = true)
+    public PollResults results(Poll.PollId pollId, Identity identity) {
+        return queries.results(pollId, identity);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<AuditEntry> publicAudit(Poll.PollId pollId) {
         return queries.publicAudit(pollId);
     }

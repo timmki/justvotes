@@ -2,6 +2,8 @@ package de.justvotes.adapters.pollmanagement.infra.out.persistence;
 
 import jakarta.persistence.*;
 
+import java.time.Instant;
+
 @Entity
 @Table(name = "Vote")
 public class VoteEntity {
@@ -16,14 +18,17 @@ public class VoteEntity {
     private PollEntity poll;
     @Column(name = "userID")
     private String userId;
+    @Column(name = "votedAt")
+    private String votedAt;
 
     protected VoteEntity() {
     }
 
-    VoteEntity(PollEntity poll, PollOptionEntity option, String userId) {
+    VoteEntity(PollEntity poll, PollOptionEntity option, String userId, Instant votedAt) {
         this.poll = poll;
         this.option = option;
         this.userId = userId;
+        this.votedAt = votedAt.toString();
     }
 
     PollOptionEntity option() {
@@ -34,7 +39,12 @@ public class VoteEntity {
         return userId;
     }
 
-    void replaceOption(PollOptionEntity option) {
+    Instant votedAt() {
+        return Instant.parse(votedAt.replace(' ', 'T') + (votedAt.endsWith("Z") ? "" : "Z"));
+    }
+
+    void replaceOption(PollOptionEntity option, Instant votedAt) {
         this.option = option;
+        this.votedAt = votedAt.toString();
     }
 }
