@@ -13,7 +13,7 @@ final class PollResponseMapper {
     }
 
     static de.justvotes.api.v1.model.Poll map(Poll poll) {
-        var group = new TemplateGroup(OpaqueIdCodec.encode("g", poll.templateGroup().id().value()), poll.templateGroup().name(), "");
+        var group = new TemplateGroup(OpaqueIdCodec.encode("g", poll.templateGroup().id().value()), poll.templateGroup().name(), poll.templateGroup().description());
         return new de.justvotes.api.v1.model.Poll(OpaqueIdCodec.encode("p", poll.id().value()), poll.title(), poll.visibility().name().toLowerCase(), poll.state().name().toLowerCase(), group,
                 poll.templateSnapshotOptions().stream().map(PollResponseMapper::option).toList(), poll.options().stream().map(PollResponseMapper::option).toList())
                 .endsAt(poll.endsAt() == null ? null : OffsetDateTime.ofInstant(poll.endsAt(), ZoneOffset.UTC));

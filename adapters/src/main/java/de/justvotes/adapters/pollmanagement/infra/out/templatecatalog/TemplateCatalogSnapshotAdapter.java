@@ -16,6 +16,6 @@ public final class TemplateCatalogSnapshotAdapter implements TemplateGroupSnapsh
     public TemplateGroupSnapshot snapshotOf(Poll.TemplateGroupId templateGroupId) {
         var group = catalog.groups().stream().filter(candidate -> candidate.id().value() == templateGroupId.value()).findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Template group not found: " + templateGroupId.value()));
-        return new TemplateGroupSnapshot(templateGroupId, group.name(), catalog.templatesInGroup(templateGroupId.value()).stream().map(template -> template.name()).toList());
+        return new TemplateGroupSnapshot(templateGroupId, group.name(), group.description(), catalog.templatesInGroup(templateGroupId.value()).stream().map(template -> template.name()).toList());
     }
 }

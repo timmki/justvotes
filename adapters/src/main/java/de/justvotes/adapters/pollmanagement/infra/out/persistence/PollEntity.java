@@ -24,6 +24,8 @@ public class PollEntity {
     private int templateGroupId;
     @Column(name = "templateGroupName")
     private String templateGroupName;
+    @Column(name = "templateGroupDescription")
+    private String templateGroupDescription;
     @OneToMany(mappedBy = "poll", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<PollOptionEntity> options = new ArrayList<>();
     @OneToMany(mappedBy = "poll", cascade = CascadeType.ALL, orphanRemoval = true)
@@ -34,7 +36,7 @@ public class PollEntity {
     protected PollEntity() {
     }
 
-    PollEntity(String id, String title, String createdBy, String visibility, String state, String endsAt, long templateGroupId, String templateGroupName) {
+    PollEntity(String id, String title, String createdBy, String visibility, String state, String endsAt, long templateGroupId, String templateGroupName, String templateGroupDescription) {
         this.id = id;
         this.title = title;
         this.createdBy = createdBy;
@@ -43,6 +45,7 @@ public class PollEntity {
         this.endsAt = endsAt;
         this.templateGroupId = Math.toIntExact(templateGroupId);
         this.templateGroupName = templateGroupName;
+        this.templateGroupDescription = templateGroupDescription;
     }
 
     String id() {
@@ -75,6 +78,10 @@ public class PollEntity {
 
     String templateGroupName() {
         return templateGroupName;
+    }
+
+    String templateGroupDescription() {
+        return templateGroupDescription;
     }
 
     List<PollOptionEntity> options() {

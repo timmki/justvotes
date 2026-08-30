@@ -133,6 +133,31 @@ class PollManagementHttpTest {
     }
 
     @Test
+    void keepsTheTemplateGroupSnapshotAfterTheSourceGroupIsRenamedAndDeleted() {
+        String catalogUrl = "http://localhost:" + port + "/api/v1/admin/template-catalog";
+        String pollsUrl = "http://localhost:" + port + "/api/v1/admin/polls";
+        String publicPollsUrl = "http://localhost:" + port + "/api/v1/polls";
+        AuthenticatedAdmin admin = login();
+        String template = createdId(admin.post(catalogUrl + "/templates", "{\"name\":\"Snapshot-Option\"}"));
+        String group = createdId(admin.post(catalogUrl + "/groups", "{\"name\":\"Ursprungsgruppe\",\"description\":\"Historischer Gruppenhinweis\"}"));
+        assertEquals(204, admin.put(catalogUrl + "/groups/" + group + "/templates/" + template).getStatusCode().value());
+
+        ResponseEntity<String> created = admin.post(pollsUrl, "{\"title\":\"Snapshot-Test\",\"templateGroupId\":\"" + group + "\"}");
+        String pollId = stringField(created, "id");
+        ResponseEntity<String> published = admin.put(pollsUrl + "/" + pollId + "/publication", "{\"endsAt\":\"2099-01-01T00:00:00Z\"}");
+        assertTrue(published.getBody().contains("\"name\":\"ursprungsgruppe\""));
+        assertTrue(published.getBody().contains("\"description\":\"Historischer Gruppenhinweis\""));
+
+        assertEquals(200, admin.patch(catalogUrl + "/groups/" + group, "{\"name\":\"Neue Gruppe\"}").getStatusCode().value());
+        assertEquals(204, admin.delete(catalogUrl + "/groups/" + group).getStatusCode().value());
+
+        ResponseEntity<String> loaded = new TestRestTemplate().getForEntity(publicPollsUrl + "/" + pollId, String.class);
+        assertEquals(200, loaded.getStatusCode().value(), loaded.getBody());
+        assertTrue(loaded.getBody().contains("\"name\":\"ursprungsgruppe\""));
+        assertTrue(loaded.getBody().contains("\"description\":\"Historischer Gruppenhinweis\""));
+    }
+
+    @Test
     void storesNormalizedIdentityAndReportsCreatedReplacedAndUnchangedVotesInThePublicAudit() {
         String catalogUrl = "http://localhost:" + port + "/api/v1/admin/template-catalog";
         String pollsUrl = "http://localhost:" + port + "/api/v1/admin/polls";
@@ -214,6 +239,10 @@ class PollManagementHttpTest {
 
         ResponseEntity<String> post(String url, String body) {
             return client.exchange(RequestEntity.post(url).contentType(MediaType.APPLICATION_JSON).header(HttpHeaders.COOKIE, cookies).header("X-XSRF-TOKEN", csrfToken).body(body), String.class);
+        }
+
+        ResponseEntity<String> patch(String url, String body) {
+            return client.exchange(RequestEntity.patch(url).contentType(MediaType.APPLICATION_JSON).header(HttpHeaders.COOKIE, cookies).header("X-XSRF-TOKEN", csrfToken).body(body), String.class);
         }
 
         ResponseEntity<String> put(String url) {

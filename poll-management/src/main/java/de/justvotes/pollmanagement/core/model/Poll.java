@@ -284,16 +284,17 @@ public final class Poll {
         }
     }
 
-    public record TemplateGroup(TemplateGroupId id, String name) {
+    public record TemplateGroup(TemplateGroupId id, String name, String description) {
         public TemplateGroup {
             if (id == null) {
                 throw new IllegalArgumentException("A poll must have a template group.");
             }
             name = requiredText(name, "A template group name must not be blank.");
+            description = description == null ? "" : description.trim();
         }
 
-        public static TemplateGroup of(TemplateGroupId id, String name) {
-            return new TemplateGroup(id, name);
+        public static TemplateGroup of(TemplateGroupId id, String name, String description) {
+            return new TemplateGroup(id, name, description);
         }
     }
 

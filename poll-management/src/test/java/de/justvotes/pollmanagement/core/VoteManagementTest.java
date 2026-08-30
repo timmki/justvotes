@@ -29,7 +29,7 @@ class VoteManagementTest {
     }
 
     private static Poll.TemplateGroup group() {
-        return Poll.TemplateGroup.of(Poll.TemplateGroupId.of(1), "Wahl");
+        return Poll.TemplateGroup.of(Poll.TemplateGroupId.of(1), "Wahl", "");
     }
 
     @Test

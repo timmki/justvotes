@@ -22,6 +22,7 @@ model Poll {
   endsAt     DateTime?
   templateGroupID   Int      @default(0)
   templateGroupName String   @default("")
+  templateGroupDescription String @default("")
 
   options    Option[]
   templateSnapshotOptions PollTemplateSnapshotOption[]

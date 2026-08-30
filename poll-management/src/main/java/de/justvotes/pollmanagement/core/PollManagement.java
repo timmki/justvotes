@@ -28,7 +28,7 @@ public final class PollManagement implements ManagePolls, ViewPolls {
     @Override
     public Poll createDraft(String title, Poll.TemplateGroupId templateGroupId, String systemAdmin) {
         return Try.of(() -> templateGroups.snapshotOf(templateGroupId))
-                .map(snapshot -> Poll.privateDraftFrom(new Poll.TemplateGroup(snapshot.id(), snapshot.name()), title, systemAdmin, snapshot.optionTexts()))
+                .map(snapshot -> Poll.privateDraftFrom(new Poll.TemplateGroup(snapshot.id(), snapshot.name(), snapshot.description()), title, systemAdmin, snapshot.optionTexts()))
                 .map(polls::save)
                 .get();
     }
