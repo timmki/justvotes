@@ -1,7 +1,9 @@
 package de.justvotes.adapters.pollmanagement.infra.out.persistence;
 
+import de.justvotes.pollmanagement.core.model.Vote;
 import jakarta.persistence.*;
 
+import java.time.Instant;
 import java.util.*;
 
 @Entity
@@ -63,8 +65,8 @@ public class PollEntity {
         return state;
     }
 
-    java.time.Instant endsAt() {
-        return endsAt == null ? null : java.time.Instant.parse(endsAt);
+    Instant endsAt() {
+        return endsAt == null ? null : Instant.parse(endsAt);
     }
 
     long templateGroupId() {
@@ -91,7 +93,7 @@ public class PollEntity {
         options.clear();
     }
 
-    void updateLifecycle(String visibility, String state, java.time.Instant endsAt) {
+    void updateLifecycle(String visibility, String state, Instant endsAt) {
         this.visibility = visibility;
         this.state = state;
         this.endsAt = endsAt == null ? null : endsAt.toString();
@@ -107,7 +109,7 @@ public class PollEntity {
             templateSnapshotOptions.add(new PollTemplateSnapshotOptionEntity(this, index + 1, texts.get(index)));
     }
 
-    void synchronizeVotes(List<de.justvotes.pollmanagement.core.model.Vote> desiredVotes) {
+    void synchronizeVotes(List<Vote> desiredVotes) {
         Map<String, VoteEntity> existingVotes = new HashMap<>();
         for (var vote : votes) {
             existingVotes.put(vote.userId(), vote);

@@ -3,7 +3,9 @@ package de.justvotes.pollmanagement.core.model;
 import de.justvotes.pollmanagement.core.event.PollPublished;
 
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.*;
+import java.util.stream.IntStream;
 
 public final class Poll {
     private final PollId id;
@@ -54,7 +56,7 @@ public final class Poll {
     }
 
     public static Poll privateDraftFrom(TemplateGroup templateGroup, String title, String createdBy, List<String> templateOptionTexts) {
-        List<String> orderedTemplateOptions = templateOptionTexts.stream().sorted(java.util.Comparator.comparing(text -> text.toLowerCase(Locale.ROOT))).toList();
+        List<String> orderedTemplateOptions = templateOptionTexts.stream().sorted(Comparator.comparing(text -> text.toLowerCase(Locale.ROOT))).toList();
         return new Poll(PollId.newId(), title, createdBy, Visibility.PRIVATE, State.DRAFT, null, templateGroup, orderedTemplateOptions, orderedTemplateOptions, List.of());
     }
 
@@ -69,7 +71,7 @@ public final class Poll {
                 throw new IllegalArgumentException("Poll option texts must be unique.");
             }
         }
-        return java.util.stream.IntStream.range(0, texts.size()).mapToObj(index -> new Option(index + 1, texts.get(index))).toList();
+        return IntStream.range(0, texts.size()).mapToObj(index -> new Option(index + 1, texts.get(index))).toList();
     }
 
     private static String requiredText(String text, String message) {

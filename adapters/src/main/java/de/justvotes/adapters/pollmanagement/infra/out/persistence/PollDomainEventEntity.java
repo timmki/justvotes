@@ -2,6 +2,8 @@ package de.justvotes.adapters.pollmanagement.infra.out.persistence;
 
 import jakarta.persistence.*;
 
+import java.time.Instant;
+
 @Entity
 @Table(name = "PollDomainEvent")
 public class PollDomainEventEntity {
@@ -26,7 +28,7 @@ public class PollDomainEventEntity {
         this.eventType = eventType;
         this.actorId = actorId;
         this.metadata = metadata;
-        this.createdAt = java.time.Instant.now().toString();
+        this.createdAt = Instant.now().toString();
     }
 
     String actorId() {
@@ -41,7 +43,7 @@ public class PollDomainEventEntity {
         return metadata;
     }
 
-    java.time.Instant createdAt() {
-        return java.time.Instant.parse(createdAt.replace(' ', 'T') + (createdAt.endsWith("Z") ? "" : "Z"));
+    Instant createdAt() {
+        return Instant.parse(createdAt.replace(' ', 'T') + (createdAt.endsWith("Z") ? "" : "Z"));
     }
 }

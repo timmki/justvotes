@@ -26,6 +26,7 @@ import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRepository;
 
 import java.io.IOException;
+import java.net.URI;
 
 @Configuration
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
@@ -44,9 +45,9 @@ class SecurityConfiguration {
     static void writeProblemDetail(HttpServletRequest request, HttpServletResponse response, ObjectMapper objectMapper,
                                    HttpStatus status, String detail) throws IOException {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);
-        problem.setInstance(java.net.URI.create(request.getRequestURI()));
+        problem.setInstance(URI.create(request.getRequestURI()));
         String code = status == HttpStatus.UNAUTHORIZED ? "authentication-required" : "access-denied";
-        problem.setType(java.net.URI.create("https://justvotes.de/problems/" + code));
+        problem.setType(URI.create("https://justvotes.de/problems/" + code));
         problem.setProperty("code", code);
         response.setStatus(status.value());
         response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);

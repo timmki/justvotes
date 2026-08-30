@@ -8,6 +8,7 @@ import de.justvotes.pollmanagement.core.model.Vote;
 import de.justvotes.pollmanagement.core.ports.out.PollRepository;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -41,7 +42,7 @@ class VoteManagementTest {
         );
         var polls = new InMemoryPollRepository(firstOpenPoll, secondOpenPoll, closedPoll);
         var events = new ArrayList<PollDomainEvent>();
-        VoteManagement management = new VoteManagement(polls, pollId -> List.of(), events::add, java.time.Instant::now);
+        VoteManagement management = new VoteManagement(polls, pollId -> List.of(), events::add, Instant::now);
 
         management.changeIdentity(OLD_IDENTITY, NEW_IDENTITY);
 
@@ -60,7 +61,7 @@ class VoteManagementTest {
         Poll openPoll = activePollWithVote(OLD_IDENTITY);
         var polls = new InMemoryPollRepository(openPoll);
         var events = new ArrayList<PollDomainEvent>();
-        VoteManagement management = new VoteManagement(polls, pollId -> List.of(), events::add, java.time.Instant::now);
+        VoteManagement management = new VoteManagement(polls, pollId -> List.of(), events::add, Instant::now);
 
         management.changeIdentity(OLD_IDENTITY, OLD_IDENTITY);
 

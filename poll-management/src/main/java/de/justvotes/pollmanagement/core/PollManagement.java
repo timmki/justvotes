@@ -12,6 +12,7 @@ import io.vavr.control.Try;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.function.Function;
 
 public final class PollManagement implements ManagePolls, ViewPolls {
     private final PollRepository polls;
@@ -129,7 +130,7 @@ public final class PollManagement implements ManagePolls, ViewPolls {
         return polls.findAllByCreator(systemAdmin);
     }
 
-    private Poll transition(Poll.PollId id, String actor, PollLifecycleChanged.Type eventType, java.util.function.Function<Poll, Poll> action) {
+    private Poll transition(Poll.PollId id, String actor, PollLifecycleChanged.Type eventType, Function<Poll, Poll> action) {
         Poll poll = action.apply(poll(id));
         events.publish(new PollLifecycleChanged(poll.id(), actor, eventType, null));
         return polls.save(poll);

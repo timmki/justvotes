@@ -1,6 +1,7 @@
 package de.justvotes.pollmanagement.core;
 
 import de.justvotes.pollmanagement.core.event.VoteCast;
+import de.justvotes.pollmanagement.core.event.PollLifecycleChanged;
 import de.justvotes.pollmanagement.core.event.VoteRemovedForIdentityChange;
 import de.justvotes.pollmanagement.core.event.VoteReplaced;
 import de.justvotes.pollmanagement.core.exception.PollNotFoundException;
@@ -10,6 +11,7 @@ import de.justvotes.pollmanagement.core.ports.in.ViewVotes;
 import de.justvotes.pollmanagement.core.ports.out.PollAuditRepository;
 import de.justvotes.pollmanagement.core.ports.out.PollEventPublisher;
 import de.justvotes.pollmanagement.core.ports.out.PollRepository;
+import de.justvotes.pollmanagement.core.ports.out.UtcClock;
 import io.vavr.control.Try;
 
 import java.util.List;
@@ -19,10 +21,10 @@ public final class VoteManagement implements ManageVotes, ViewVotes {
     private final PollRepository polls;
     private final PollAuditRepository audit;
     private final PollEventPublisher events;
-    private final de.justvotes.pollmanagement.core.ports.out.UtcClock clock;
+    private final UtcClock clock;
 
     public VoteManagement(PollRepository polls, PollAuditRepository audit, PollEventPublisher events,
-                          de.justvotes.pollmanagement.core.ports.out.UtcClock clock) {
+                           UtcClock clock) {
         this.polls = polls;
         this.audit = audit;
         this.events = events;
@@ -82,7 +84,7 @@ public final class VoteManagement implements ManageVotes, ViewVotes {
     private Poll publiclyVotable(Poll.PollId pollId) {
         Poll poll = polls.findById(pollId).orElseThrow(() -> new PollNotFoundException(pollId));
         if (poll.expireIfDue(clock.now())) {
-            events.publish(new de.justvotes.pollmanagement.core.event.PollLifecycleChanged(poll.id(), "System", de.justvotes.pollmanagement.core.event.PollLifecycleChanged.Type.PollExpired, null));
+            events.publish(new PollLifecycleChanged(poll.id(), "System", PollLifecycleChanged.Type.PollExpired, null));
             polls.save(poll);
         }
         if (!poll.isPubliclyVisible()) {

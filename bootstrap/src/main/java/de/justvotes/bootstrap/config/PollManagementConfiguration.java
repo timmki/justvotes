@@ -18,10 +18,13 @@ import de.justvotes.pollmanagement.core.ports.out.PollAuditRepository;
 import de.justvotes.pollmanagement.core.ports.out.PollEventPublisher;
 import de.justvotes.pollmanagement.core.ports.out.PollRepository;
 import de.justvotes.pollmanagement.core.ports.out.TemplateGroupSnapshotProvider;
+import de.justvotes.pollmanagement.core.ports.out.UtcClock;
 import de.justvotes.templatecatalog.core.ports.in.ViewTemplateCatalog;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import java.time.Instant;
 
 @Configuration
 class PollManagementConfiguration {
@@ -61,13 +64,13 @@ class PollManagementConfiguration {
     }
 
     @Bean
-    de.justvotes.pollmanagement.core.ports.out.UtcClock utcClock() {
-        return java.time.Instant::now;
+    UtcClock utcClock() {
+        return Instant::now;
     }
 
     @Bean
     VoteManagement voteManagement(PollRepository polls, PollAuditRepository audit, PollEventPublisher events,
-                                  de.justvotes.pollmanagement.core.ports.out.UtcClock clock) {
+                                  UtcClock clock) {
         return new VoteManagement(polls, audit, events, clock);
     }
 

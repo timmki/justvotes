@@ -13,7 +13,10 @@ import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.List;
 
@@ -31,12 +34,12 @@ public class PollController implements PollsApi {
         return Poll.PollId.of(OpaqueIdCodec.decodeString("p", value));
     }
 
-    private static java.time.Instant instant(OffsetDateTime value) {
+    private static Instant instant(OffsetDateTime value) {
         return value.toInstant();
     }
 
     private static String admin() {
-        var principal = ((org.springframework.web.context.request.ServletRequestAttributes) org.springframework.web.context.request.RequestContextHolder.currentRequestAttributes()).getRequest().getUserPrincipal();
+        var principal = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest().getUserPrincipal();
         if (principal == null) {
             throw new IllegalStateException("An administrator session is required.");
         }
@@ -99,7 +102,7 @@ public class PollController implements PollsApi {
 
     @Override
     public ResponseEntity<de.justvotes.api.v1.model.Poll> reopenPoll(String pollId) {
-        return noStore(PollResponseMapper.map(commands.reopen(pollId(pollId), java.time.Instant.now(), admin())));
+        return noStore(PollResponseMapper.map(commands.reopen(pollId(pollId), Instant.now(), admin())));
     }
 
     @Override

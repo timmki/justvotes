@@ -8,6 +8,7 @@ import de.justvotes.pollmanagement.core.ports.out.PollRepository;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -47,12 +48,12 @@ class PollManagementTest {
 
     @Test
     void publishesADraftAsAnActivePublicPollAndEmitsAPublishedDomainEvent() {
-        var publishedEvents = new java.util.ArrayList<PollDomainEvent>();
+        var publishedEvents = new ArrayList<PollDomainEvent>();
         var management = new PollManagement(new InMemoryPollRepository(),
                 groupId -> new TemplateGroupSnapshot(groupId, "Gremium", List.of("Ja")), publishedEvents::add);
         Poll draft = management.createDraft("Mitgliederwahl", Poll.TemplateGroupId.of(7), "systemadmin");
 
-        Poll published = management.publish(draft.id(), "systemadmin", java.time.Instant.parse("2099-01-01T00:00:00Z"));
+        Poll published = management.publish(draft.id(), "systemadmin", Instant.parse("2099-01-01T00:00:00Z"));
 
         assertEquals(Poll.Visibility.PUBLIC, published.visibility());
         assertEquals(Poll.State.ACTIVE, published.state());
@@ -61,7 +62,7 @@ class PollManagementTest {
 
     @Test
     void expiresDuePollsIdempotentlyAndArchivesThenRestoresThemAsExpired() {
-        var events = new java.util.ArrayList<PollDomainEvent>();
+        var events = new ArrayList<PollDomainEvent>();
         var repository = new InMemoryPollRepository();
         var management = new PollManagement(repository, groupId -> new TemplateGroupSnapshot(groupId, "Gremium", List.of("Ja")), events::add);
         Poll draft = management.createDraft("Mitgliederwahl", Poll.TemplateGroupId.of(7), "systemadmin");

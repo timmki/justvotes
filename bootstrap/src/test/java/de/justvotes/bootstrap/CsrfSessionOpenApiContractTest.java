@@ -5,6 +5,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
@@ -104,7 +105,7 @@ class CsrfSessionOpenApiContractTest {
     }
 
     private static RequestEntity<String> request(String method, String url, String cookies, String csrfToken, String body) {
-        RequestEntity.BodyBuilder request = RequestEntity.method(org.springframework.http.HttpMethod.valueOf(method.toUpperCase()), url).contentType(MediaType.APPLICATION_JSON);
+        RequestEntity.BodyBuilder request = RequestEntity.method(HttpMethod.valueOf(method.toUpperCase()), url).contentType(MediaType.APPLICATION_JSON);
         if (cookies != null) request.header(HttpHeaders.COOKIE, cookies);
         if (csrfToken != null) request.header("X-XSRF-TOKEN", csrfToken);
         return request.body(body);

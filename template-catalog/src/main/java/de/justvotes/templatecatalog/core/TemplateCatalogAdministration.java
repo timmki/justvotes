@@ -12,6 +12,7 @@ import io.vavr.API;
 import io.vavr.control.Try;
 
 import java.util.List;
+import java.util.Locale;
 
 public class TemplateCatalogAdministration implements ManageTemplateCatalog, ViewTemplateCatalog {
     private final OptionTemplateRepository templates;
@@ -23,7 +24,7 @@ public class TemplateCatalogAdministration implements ManageTemplateCatalog, Vie
     }
 
     private static String normalizedName(String name) {
-        return name.trim().toLowerCase(java.util.Locale.ROOT);
+        return name.trim().toLowerCase(Locale.ROOT);
     }
 
     @Override

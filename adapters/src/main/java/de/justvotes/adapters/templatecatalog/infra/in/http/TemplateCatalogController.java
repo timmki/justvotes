@@ -1,6 +1,10 @@
 package de.justvotes.adapters.templatecatalog.infra.in.http;
 
 import de.justvotes.adapters.shared.infra.in.http.OpaqueIdCodec;
+import de.justvotes.api.v1.model.GroupInput;
+import de.justvotes.api.v1.model.Name;
+import de.justvotes.api.v1.model.Template;
+import de.justvotes.api.v1.model.TemplateGroup;
 import de.justvotes.api.v1.server.TemplatesApi;
 import de.justvotes.templatecatalog.core.model.OptionTemplate;
 import de.justvotes.templatecatalog.core.model.OptionTemplateGroup;
@@ -23,12 +27,12 @@ public class TemplateCatalogController implements TemplatesApi {
         this.queries = queries;
     }
 
-    private static de.justvotes.api.v1.model.Template template(OptionTemplate template) {
-        return new de.justvotes.api.v1.model.Template(OpaqueIdCodec.encode("t", template.id().value()), template.name());
+    private static Template template(OptionTemplate template) {
+        return new Template(OpaqueIdCodec.encode("t", template.id().value()), template.name());
     }
 
-    private static de.justvotes.api.v1.model.TemplateGroup group(OptionTemplateGroup group) {
-        return new de.justvotes.api.v1.model.TemplateGroup(OpaqueIdCodec.encode("g", group.id().value()), group.name(), group.description());
+    private static TemplateGroup group(OptionTemplateGroup group) {
+        return new TemplateGroup(OpaqueIdCodec.encode("g", group.id().value()), group.name(), group.description());
     }
 
     private static <T> ResponseEntity<T> noStore(T body) {
@@ -44,18 +48,18 @@ public class TemplateCatalogController implements TemplatesApi {
     }
 
     @Override
-    public ResponseEntity<List<de.justvotes.api.v1.model.Template>> templates() {
+    public ResponseEntity<List<Template>> templates() {
         return noStore(queries.templates().stream().map(TemplateCatalogController::template).toList());
     }
 
     @Override
-    public ResponseEntity<de.justvotes.api.v1.model.Template> createTemplate(de.justvotes.api.v1.model.Name request) {
+    public ResponseEntity<Template> createTemplate(Name request) {
         var created = template(commands.createTemplate(request.getName()));
         return created(created, "/api/v1/admin/template-catalog/templates/" + created.getId());
     }
 
     @Override
-    public ResponseEntity<de.justvotes.api.v1.model.Template> renameTemplate(String id, de.justvotes.api.v1.model.Name request) {
+    public ResponseEntity<Template> renameTemplate(String id, Name request) {
         return noStore(template(commands.renameTemplate(OpaqueIdCodec.decode("t", id), request.getName())));
     }
 
@@ -66,18 +70,18 @@ public class TemplateCatalogController implements TemplatesApi {
     }
 
     @Override
-    public ResponseEntity<List<de.justvotes.api.v1.model.TemplateGroup>> groups() {
+    public ResponseEntity<List<TemplateGroup>> groups() {
         return noStore(queries.groups().stream().map(TemplateCatalogController::group).toList());
     }
 
     @Override
-    public ResponseEntity<de.justvotes.api.v1.model.TemplateGroup> createGroup(de.justvotes.api.v1.model.GroupInput request) {
+    public ResponseEntity<TemplateGroup> createGroup(GroupInput request) {
         var created = group(commands.createGroup(request.getName(), request.getDescription()));
         return created(created, "/api/v1/admin/template-catalog/groups/" + created.getId());
     }
 
     @Override
-    public ResponseEntity<de.justvotes.api.v1.model.TemplateGroup> renameGroup(String id, de.justvotes.api.v1.model.Name request) {
+    public ResponseEntity<TemplateGroup> renameGroup(String id, Name request) {
         return noStore(group(commands.renameGroup(OpaqueIdCodec.decode("g", id), request.getName())));
     }
 
@@ -100,7 +104,7 @@ public class TemplateCatalogController implements TemplatesApi {
     }
 
     @Override
-    public ResponseEntity<List<de.justvotes.api.v1.model.Template>> templatesInGroup(String groupId) {
+    public ResponseEntity<List<Template>> templatesInGroup(String groupId) {
         return noStore(queries.templatesInGroup(OpaqueIdCodec.decode("g", groupId)).stream().map(TemplateCatalogController::template).toList());
     }
 }

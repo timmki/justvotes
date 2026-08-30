@@ -15,8 +15,11 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 
 @RestController
@@ -40,7 +43,7 @@ public class PublicPollController implements PublicPollsApi {
     }
 
     private static Identity identity() {
-        HttpServletRequest request = ((org.springframework.web.context.request.ServletRequestAttributes) org.springframework.web.context.request.RequestContextHolder.currentRequestAttributes()).getRequest();
+        HttpServletRequest request = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest();
         if (request.getCookies() != null) {
             for (var cookie : request.getCookies()) {
                 if ("userID".equals(cookie.getName())) {
@@ -70,6 +73,6 @@ public class PublicPollController implements PublicPollsApi {
     @Override
     public ResponseEntity<List<AuditEntry>> pollAudit(String pollId) {
         return noStore(voteQueries.publicAudit(pollId(pollId)).stream()
-                .map(entry -> new AuditEntry(entry.actor(), OffsetDateTime.ofInstant(entry.occurredAt(), java.time.ZoneOffset.UTC), entry.event()).selection(entry.selection())).toList());
+                .map(entry -> new AuditEntry(entry.actor(), OffsetDateTime.ofInstant(entry.occurredAt(), ZoneOffset.UTC), entry.event()).selection(entry.selection())).toList());
     }
 }

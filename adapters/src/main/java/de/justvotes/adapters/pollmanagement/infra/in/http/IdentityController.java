@@ -4,11 +4,14 @@ import de.justvotes.api.v1.server.IdentityApi;
 import de.justvotes.pollmanagement.core.model.Identity;
 import de.justvotes.pollmanagement.core.ports.in.ManageVotes;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+
+import java.time.Duration;
 
 @RestController
 public class IdentityController implements IdentityApi {
@@ -24,10 +27,10 @@ public class IdentityController implements IdentityApi {
         HttpServletRequest servletRequest = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest();
         Identity identity = Identity.of(request.getUserID());
         votes.changeIdentity(cookieIdentity(servletRequest), identity);
-        return ResponseEntity.noContent().cacheControl(org.springframework.http.CacheControl.noStore())
+        return ResponseEntity.noContent().cacheControl(CacheControl.noStore())
                 .header("Set-Cookie", ResponseCookie.from(COOKIE, identity.value())
                 .path("/")
-                .maxAge(java.time.Duration.ofDays(3650))
+                .maxAge(Duration.ofDays(3650))
                 .sameSite("Lax")
                 .httpOnly(true)
                 .secure(servletRequest.isSecure())

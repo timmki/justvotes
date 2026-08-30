@@ -23,6 +23,8 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import java.net.URI;
+
 @RestController
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 class AdminSessionController implements SessionApi {
@@ -73,8 +75,8 @@ class AdminSessionController implements SessionApi {
     @ExceptionHandler(BadCredentialsException.class)
     ResponseEntity<ProblemDetail> invalidCredentials(BadCredentialsException exception, HttpServletRequest request) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, "Invalid administrator credentials.");
-        problem.setInstance(java.net.URI.create(request.getRequestURI()));
-        problem.setType(java.net.URI.create("https://justvotes.de/problems/invalid-credentials"));
+        problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setType(URI.create("https://justvotes.de/problems/invalid-credentials"));
         problem.setProperty("code", "invalid-credentials");
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .contentType(MediaType.APPLICATION_PROBLEM_JSON)

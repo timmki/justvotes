@@ -1,8 +1,11 @@
 package de.justvotes.adapters.pollmanagement.infra.out.persistence;
 
 import de.justvotes.pollmanagement.core.model.Poll;
+import de.justvotes.pollmanagement.core.model.Identity;
+import de.justvotes.pollmanagement.core.model.Vote;
 import de.justvotes.pollmanagement.core.ports.out.PollRepository;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
@@ -87,14 +90,14 @@ public final class JpaPollPersistenceAdapter implements PollRepository {
                 entity.endsAt(),
                 Poll.TemplateGroup.of(Poll.TemplateGroupId.of(entity.templateGroupId()), entity.templateGroupName()),
                 entity.templateSnapshotOptions().stream()
-                        .sorted(java.util.Comparator.comparingInt(PollTemplateSnapshotOptionEntity::number))
+                        .sorted(Comparator.comparingInt(PollTemplateSnapshotOptionEntity::number))
                         .map(PollTemplateSnapshotOptionEntity::text)
                         .toList(),
                 entity.options().stream()
-                        .sorted(java.util.Comparator.comparingInt(PollOptionEntity::number))
+                        .sorted(Comparator.comparingInt(PollOptionEntity::number))
                         .map(PollOptionEntity::text)
                         .toList(),
-                entity.votes().stream().map(vote -> new de.justvotes.pollmanagement.core.model.Vote(
-                        de.justvotes.pollmanagement.core.model.Identity.of(vote.userId()), vote.option().number())).toList());
+                entity.votes().stream().map(vote -> new Vote(
+                        Identity.of(vote.userId()), vote.option().number())).toList());
     }
 }
