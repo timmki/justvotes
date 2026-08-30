@@ -170,6 +170,49 @@ class CsrfSessionOpenApiContractTest {
         assertThat(map(schemas.get("AdminVotePage"))).containsKey("properties");
     }
 
+    @Test
+    void documentsClosedStateValuesAndExhaustiveAuditEvents() {
+        Map<String, Object> document = map(new Yaml().load(resource("docs/justvotes-v1.yaml")));
+        Map<String, Object> schemas = map(map(document.get("components")).get("schemas"));
+
+        assertThat(enumValues(schemas, "PollVisibility")).containsExactly("private", "public");
+        assertThat(enumValues(schemas, "PollState")).containsExactly("draft", "active", "expired", "archived", "deleted");
+        assertThat(enumValues(schemas, "VoteStatus")).containsExactly("created", "replaced", "unchanged");
+        assertThat(enumValues(schemas, "AuditEventType")).containsExactly(
+                "PollPublished", "PollExpired", "PollArchived", "PollRestoredFromArchive",
+                "PollExpiryChanged", "PollReopened", "PollSoftDeleted", "PollRestored",
+                "VoteCast", "VoteReplaced", "VoteWithdrawn", "VoteRemovedForIdentityChange", "VoteRemovedByAdmin");
+        assertThat(enumValues(schemas, "PollAuditEventType")).containsExactly(
+                "PollPublished", "PollExpired", "PollArchived", "PollRestoredFromArchive",
+                "PollExpiryChanged", "PollReopened", "PollSoftDeleted", "PollRestored");
+        assertThat(enumValues(schemas, "VoteAuditEventType")).containsExactly(
+                "VoteCast", "VoteReplaced", "VoteWithdrawn", "VoteRemovedForIdentityChange", "VoteRemovedByAdmin");
+
+        Map<String, Object> audit = map(schemas.get("AuditEntry"));
+        assertThat((List<?>) audit.get("oneOf")).hasSize(2);
+        assertThat(schemas).containsKeys("PollAuditEntry", "VoteAuditEntry");
+        assertThat((List<?>) map(schemas.get("PollAuditEntry")).get("allOf")).isNotEmpty();
+        assertThat((List<?>) map(schemas.get("VoteAuditEntry")).get("allOf")).isNotEmpty();
+    }
+
+    @Test
+    void usesCanonicalUtcTimestampSchemaEverywhere() {
+        Map<String, Object> document = map(new Yaml().load(resource("docs/justvotes-v1.yaml")));
+        Map<String, Object> schemas = map(map(document.get("components")).get("schemas"));
+
+        assertThat(map(schemas.get("UtcTimestamp")))
+                .containsEntry("type", "string")
+                .containsEntry("format", "date-time");
+        assertThat(map(schemas.get("UtcTimestamp")).get("description").toString())
+                .contains("UTC", "Z", "millisecond");
+        assertThat(map(schemas.get("NullableUtcTimestamp")))
+                .containsEntry("nullable", true);
+        assertThat(map(map(schemas.get("Poll")).get("properties")).get("createdAt"))
+                .isEqualTo(Map.of("$ref", "#/components/schemas/UtcTimestamp"));
+        assertThat(map(map(schemas.get("PollResults")).get("properties")).get("endsAt"))
+                .isEqualTo(Map.of("$ref", "#/components/schemas/NullableUtcTimestamp"));
+    }
+
     private static RequestEntity<String> request(String method, String url, String cookies, String csrfToken, String body) {
         RequestEntity.BodyBuilder request = RequestEntity.method(HttpMethod.valueOf(method.toUpperCase()), url).contentType(MediaType.APPLICATION_JSON);
         if (cookies != null) request.header(HttpHeaders.COOKIE, cookies);
@@ -182,6 +225,7 @@ class CsrfSessionOpenApiContractTest {
     private static String cookies(ResponseEntity<String> response) { return response.getHeaders().get(HttpHeaders.SET_COOKIE).stream().map(value -> value.substring(0, value.indexOf(';'))).reduce((left, right) -> left + "; " + right).orElseThrow(); }
     private static void assertStatus(ResponseEntity<String> response, int status) { assertThat(response.getStatusCode().value()).isEqualTo(status); assertThat(response.getHeaders().getCacheControl()).contains("no-store"); assertThat(response.getHeaders().getContentType()).hasToString("application/problem+json"); }
     private static void assertResponses(Map<String, Object> operation, String... statuses) { Map<String, Object> responses = map(operation.get("responses")); for (String status : statuses) assertThat(responses).containsKey(status); }
+    @SuppressWarnings("unchecked") private static List<String> enumValues(Map<String, Object> schemas, String schema) { return (List<String>) map(schemas.get(schema)).get("enum"); }
     private static boolean hasSecurity(Map<String, Object> operation, String name) { return ((List<Map<String, Object>>) operation.get("security")).stream().anyMatch(requirement -> requirement.containsKey(name)); }
     private static void assertSecurity(Map<String, Object> operation, String... names) { List<Map<String, Object>> requirements = (List<Map<String, Object>>) operation.get("security"); assertThat(requirements).singleElement().satisfies(requirement -> assertThat(requirement).containsKeys(names)); }
     @SuppressWarnings("unchecked") private static Map<String, Object> map(Object value) { return (Map<String, Object>) value; }

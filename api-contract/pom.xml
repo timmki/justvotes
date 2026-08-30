@@ -35,6 +35,7 @@
                             <apiPackage>de.justvotes.api.v1.server</apiPackage>
                             <modelPackage>de.justvotes.api.v1.model</modelPackage>
                             <configOptions>
+                                <validateSpec>true</validateSpec>
                                 <interfaceOnly>true</interfaceOnly>
                                 <skipDefaultInterface>true</skipDefaultInterface>
                                 <requestMappingMode>api_interface</requestMappingMode>
@@ -45,6 +46,28 @@
                                 <openApiNullable>false</openApiNullable>
                                 <useResponseEntity>true</useResponseEntity>
                                 <useTags>true</useTags>
+                                <useOneOfInterfaces>false</useOneOfInterfaces>
+                            </configOptions>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>generate-typescript-client</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                        <configuration>
+                            <inputSpec>${project.basedir}/src/main/openapi/justvotes-v1.yaml</inputSpec>
+                            <generatorName>typescript-fetch</generatorName>
+                            <output>${project.build.directory}/generated-sources/typescript</output>
+                            <configOptions>
+                                <validateSpec>true</validateSpec>
+                                <supportsES6>true</supportsES6>
+                                <typescriptThreePlus>true</typescriptThreePlus>
+                                <enumPropertyNaming>original</enumPropertyNaming>
+                                <useSingleRequestParameter>true</useSingleRequestParameter>
+                                <npmName>@justvotes/api-client</npmName>
+                                <npmVersion>1.0.0</npmVersion>
                             </configOptions>
                         </configuration>
                     </execution>

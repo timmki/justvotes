@@ -51,4 +51,6 @@ erhalten `401` als RFC-9457-Problem-Details.
 
 The versioned OpenAPI contract is maintained at `api-contract/src/main/openapi/justvotes-v1.yaml`. Maven validates it and generates the server interfaces and DTOs; generated sources remain under `target/generated-sources`.
 
+The same Maven execution generates the TypeScript client under `api-contract/target/generated-sources/typescript`; generated sources are never edited or committed. To run the contract compile check, first generate both clients and then run `npm ci` and `npm run typecheck` in `api-contract/typescript-contract`.
+
 Set `API_DOCS_ENABLED=true` in local, test, or staging environments to expose the contract at `/api-docs/openapi-v1.yaml` and Swagger UI at `/swagger-ui/index.html`. It is disabled by default in production. Swagger UI uses `/api/v1/csrf` to obtain the `X-XSRF-TOKEN` value before state-changing calls; administrator calls also require an authenticated session cookie.

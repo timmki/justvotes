@@ -851,7 +851,7 @@ paths:
       operationId: publicPolls
       responses:
         '200':
-          description: Public polls
+          description: Public polls ordered by creation time ascending, then opaque poll ID ascending.
           headers:
             Cache-Control:
               $ref: '#/components/headers/NoStore'
@@ -940,7 +940,7 @@ paths:
       operationId: pollResults
       responses:
         '200':
-          description: Current poll results
+          description: Current poll results with options ordered by stable option number and votes ordered by votedAt ascending, then public identity ascending.
           headers:
             Cache-Control:
               $ref: '#/components/headers/NoStore'
@@ -961,7 +961,7 @@ paths:
       operationId: pollAudit
       responses:
         '200':
-          description: Audit entries
+          description: Audit entries ordered chronologically by occurredAt ascending, then by the persisted audit sequence.
           headers:
             Cache-Control:
               $ref: '#/components/headers/NoStore'
@@ -1180,6 +1180,77 @@ components:
         type: string
         enum: [no-store]
   schemas:
+    UtcTimestamp:
+      type: string
+      format: date-time
+      description: RFC3339 timestamp serialized in UTC with a `Z` offset and millisecond precision.
+      example: 2026-08-18T12:00:00.000Z
+    NullableUtcTimestamp:
+      type: string
+      format: date-time
+      nullable: true
+      description: RFC3339 timestamp serialized in UTC with a `Z` offset and millisecond precision, or null when no timestamp exists.
+      example: 2026-08-18T12:00:00.000Z
+    PollVisibility:
+      type: string
+      description: Whether a poll is visible to public participants.
+      enum:
+        - private
+        - public
+    PollState:
+      type: string
+      description: Current lifecycle state of a poll.
+      enum:
+        - draft
+        - active
+        - expired
+        - archived
+        - deleted
+    VoteStatus:
+      type: string
+      description: Result of casting or replacing the current vote.
+      enum:
+        - created
+        - replaced
+        - unchanged
+    AuditEventType:
+      type: string
+      description: Known public poll audit event types.
+      enum:
+        - PollPublished
+        - PollExpired
+        - PollArchived
+        - PollRestoredFromArchive
+        - PollExpiryChanged
+        - PollReopened
+        - PollSoftDeleted
+        - PollRestored
+        - VoteCast
+        - VoteReplaced
+        - VoteWithdrawn
+        - VoteRemovedForIdentityChange
+        - VoteRemovedByAdmin
+    PollAuditEventType:
+      type: string
+      description: Poll lifecycle events in the public poll audit.
+      enum:
+        - PollPublished
+        - PollExpired
+        - PollArchived
+        - PollRestoredFromArchive
+        - PollExpiryChanged
+        - PollReopened
+        - PollSoftDeleted
+        - PollRestored
+    VoteAuditEventType:
+      type: string
+      description: Vote events in the public poll audit.
+      enum:
+        - VoteCast
+        - VoteReplaced
+        - VoteWithdrawn
+        - VoteRemovedForIdentityChange
+        - VoteRemovedByAdmin
     PollId:
       type: string
       pattern: '^p_v1_[A-Za-z0-9_-]+$'
@@ -1295,9 +1366,7 @@ components:
         - endsAt
       properties:
         endsAt:
-          type: string
-          format: date-time
-          description: UTC timestamp with millisecond precision, for example 2026-08-18T12:00:00.000Z.
+          $ref: '#/components/schemas/UtcTimestamp'
     VoteInput:
       type: object
       additionalProperties: false
@@ -1368,8 +1437,7 @@ components:
           type: string
           pattern: '^[a-z0-9_-]{3,32}$'
         votedAt:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/UtcTimestamp'
         poll:
           $ref: '#/components/schemas/AdminVotePoll'
         option:
@@ -1430,16 +1498,13 @@ components:
         title:
           type: string
         visibility:
-          type: string
+          $ref: '#/components/schemas/PollVisibility'
         state:
-          type: string
+          $ref: '#/components/schemas/PollState'
         createdAt:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/UtcTimestamp'
         endsAt:
-          type: string
-          format: date-time
-          nullable: true
+          $ref: '#/components/schemas/NullableUtcTimestamp'
         totalVotes:
           type: integer
           minimum: 0
@@ -1473,7 +1538,7 @@ components:
         - optionNumber
       properties:
         status:
-          type: string
+          $ref: '#/components/schemas/VoteStatus'
         optionNumber:
           type: integer
     PollResults:
@@ -1494,16 +1559,13 @@ components:
         title:
           type: string
         visibility:
-          type: string
+          $ref: '#/components/schemas/PollVisibility'
         state:
-          type: string
+          $ref: '#/components/schemas/PollState'
         createdAt:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/UtcTimestamp'
         endsAt:
-          type: string
-          format: date-time
-          nullable: true
+          $ref: '#/components/schemas/NullableUtcTimestamp'
         totalVotes:
           type: integer
           minimum: 0
@@ -1543,23 +1605,26 @@ components:
           type: string
           pattern: '^[a-z0-9_-]{3,32}$'
         votedAt:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/UtcTimestamp'
     AuditEntry:
+      oneOf:
+        - $ref: '#/components/schemas/PollAuditEntry'
+        - $ref: '#/components/schemas/VoteAuditEntry'
+      required:
+        - event
+      properties:
+        event:
+          $ref: '#/components/schemas/AuditEventType'
+    AuditEntryBase:
       type: object
-      additionalProperties: false
       required:
         - actor
         - occurredAt
-        - event
       properties:
         actor:
           type: string
         occurredAt:
-          type: string
-          format: date-time
-        event:
-          type: string
+          $ref: '#/components/schemas/UtcTimestamp'
         selection:
           type: string
           nullable: true
@@ -1575,9 +1640,25 @@ components:
           nullable: true
           minimum: 1
         votedAt:
-          type: string
-          format: date-time
-          nullable: true
+          $ref: '#/components/schemas/NullableUtcTimestamp'
+    PollAuditEntry:
+      allOf:
+        - $ref: '#/components/schemas/AuditEntryBase'
+        - type: object
+          required:
+            - event
+          properties:
+            event:
+              $ref: '#/components/schemas/PollAuditEventType'
+    VoteAuditEntry:
+      allOf:
+        - $ref: '#/components/schemas/AuditEntryBase'
+        - type: object
+          required:
+            - event
+          properties:
+            event:
+              $ref: '#/components/schemas/VoteAuditEventType'
     Problem:
       type: object
       additionalProperties: true

@@ -2,10 +2,12 @@ package de.justvotes.adapters.pollmanagement.infra.in.http;
 
 import de.justvotes.adapters.shared.infra.in.http.OpaqueIdCodec;
 import de.justvotes.api.v1.model.AuditEntry;
+import de.justvotes.api.v1.model.AuditEventType;
 import de.justvotes.api.v1.model.ResultOption;
 import de.justvotes.api.v1.model.ResultVote;
 import de.justvotes.api.v1.model.Vote;
 import de.justvotes.api.v1.model.VoteInput;
+import de.justvotes.api.v1.model.VoteStatus;
 import de.justvotes.api.v1.server.PublicPollsApi;
 import de.justvotes.pollmanagement.core.model.Identity;
 import de.justvotes.pollmanagement.core.model.Poll;
@@ -21,8 +23,6 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.List;
 
 @RestController
@@ -80,7 +80,7 @@ public class PublicPollController implements PublicPollsApi {
     @Override
     public ResponseEntity<Vote> castVote(String pollId, VoteInput request) {
         VoteOutcome outcome = votes.castOrReplace(pollId(pollId), identity(), request.getOptionNumber());
-        return noStore(new Vote(outcome.status().name().toLowerCase(), outcome.vote().optionNumber()));
+        return noStore(new Vote(VoteStatus.valueOf(outcome.status().name()), outcome.vote().optionNumber()));
     }
 
     @Override
@@ -97,22 +97,25 @@ public class PublicPollController implements PublicPollsApi {
     @Override
     public ResponseEntity<List<AuditEntry>> pollAudit(String pollId) {
         return noStore(voteQueries.publicAudit(pollId(pollId)).stream()
-                .map(entry -> new AuditEntry(entry.actor(), OffsetDateTime.ofInstant(entry.occurredAt(), ZoneOffset.UTC), entry.event())
+                .map(entry -> new AuditEntry()
+                        .event(AuditEventType.fromValue(entry.event()))
+                        .actor(entry.actor())
+                        .occurredAt(PollResponseMapper.utcTimestamp(entry.occurredAt()))
                         .selection(entry.selection())
                         .reason(entry.reason())
                         .userID(entry.voteIdentity())
                         .optionNumber(entry.optionNumber())
-                        .votedAt(entry.votedAt() == null ? null : OffsetDateTime.ofInstant(entry.votedAt(), ZoneOffset.UTC))).toList());
+                        .votedAt(entry.votedAt() == null ? null : PollResponseMapper.utcTimestamp(entry.votedAt()))).toList());
     }
 
     private static de.justvotes.api.v1.model.PollResults mapResults(PollResults results) {
         return new de.justvotes.api.v1.model.PollResults(
                 OpaqueIdCodec.encode("p", results.id().value()),
                 results.title(),
-                results.visibility().name().toLowerCase(),
-                results.state().name().toLowerCase(),
-                OffsetDateTime.ofInstant(results.createdAt(), ZoneOffset.UTC),
-                results.endsAt() == null ? null : OffsetDateTime.ofInstant(results.endsAt(), ZoneOffset.UTC),
+                de.justvotes.api.v1.model.PollVisibility.valueOf(results.visibility().name()),
+                de.justvotes.api.v1.model.PollState.valueOf(results.state().name()),
+                PollResponseMapper.utcTimestamp(results.createdAt()),
+                results.endsAt() == null ? null : PollResponseMapper.utcTimestamp(results.endsAt()),
                 results.totalVotes(),
                 results.options().stream().map(option -> new ResultOption(
                         option.number(),
@@ -120,6 +123,6 @@ public class PublicPollController implements PublicPollsApi {
                         option.voteCount(),
                         option.votes().stream().map(vote -> new ResultVote(
                                 vote.identity().value(),
-                                OffsetDateTime.ofInstant(vote.votedAt(), ZoneOffset.UTC))).toList())).toList());
+                                PollResponseMapper.utcTimestamp(vote.votedAt()))).toList())).toList());
     }
 }

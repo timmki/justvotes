@@ -1,0 +1,10 @@
+{
+  "name": "@justvotes/api-contract-typecheck",
+  "private": true,
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json"
+  },
+  "devDependencies": {
+    "typescript": "5.7.3"
+  }
+}
