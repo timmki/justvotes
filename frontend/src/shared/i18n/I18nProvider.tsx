@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { messages, type Locale, type TranslationKey } from './translations';
+import { browserStorage } from '../storage';
 
 const localeStorageKey = 'justvotes-locale';
 
@@ -12,7 +13,7 @@ type I18nContextValue = {
 const I18nContext = createContext<I18nContextValue | null>(null);
 
 function storedLocale(): Locale {
-  const value = window.localStorage.getItem(localeStorageKey);
+  const value = browserStorage()?.getItem(localeStorageKey);
   return value === 'en' ? 'en' : 'de';
 }
 
@@ -20,7 +21,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const [locale, setLocale] = useState<Locale>(storedLocale);
 
   useEffect(() => {
-    window.localStorage.setItem(localeStorageKey, locale);
+    browserStorage()?.setItem(localeStorageKey, locale);
     document.documentElement.lang = locale;
   }, [locale]);
 

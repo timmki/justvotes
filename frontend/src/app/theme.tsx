@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { browserStorage } from '../shared/storage';
 
 export type Theme = 'light' | 'dark';
 
@@ -6,7 +7,7 @@ const themeStorageKey = 'justvotes-theme';
 const ThemeContext = createContext<{ theme: Theme; toggleTheme: () => void } | null>(null);
 
 function storedTheme(): Theme {
-  return window.localStorage.getItem(themeStorageKey) === 'dark' ? 'dark' : 'light';
+  return browserStorage()?.getItem(themeStorageKey) === 'dark' ? 'dark' : 'light';
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
@@ -14,7 +15,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
-    window.localStorage.setItem(themeStorageKey, theme);
+    browserStorage()?.setItem(themeStorageKey, theme);
   }, [theme]);
 
   return (

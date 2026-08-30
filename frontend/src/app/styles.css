@@ -61,12 +61,23 @@ svg { width: 1.35rem; height: 1.35rem; fill: none; stroke: currentColor; stroke-
 
 main { width: min(100% - 2rem, 52rem); margin: 0 auto; padding: 3.5rem 0 5rem; }
 .page-frame { display: grid; gap: 1.4rem; max-width: 42rem; margin: 0 auto; }
+.session-notice { display: grid; gap: .2rem; width: min(100% - 2rem, 42rem); margin: 1rem auto 0; padding: .9rem 1rem; border: 1px solid color-mix(in srgb, #ff9500 55%, var(--separator)); border-radius: .9rem; background: color-mix(in srgb, #ff9500 12%, var(--surface)); }
+.session-notice span { color: var(--muted); font-size: .9rem; }
+.session-notice a { width: fit-content; color: var(--accent-text); font-weight: 700; }
 .page-intro { padding: 0 .25rem; }
 .page-intro h2, .error-page h1 { margin: .25rem 0 .35rem; font-size: clamp(2rem, 7vw, 3.5rem); line-height: 1.05; letter-spacing: -.05em; }
 .page-intro p:last-child, .error-page p { max-width: 34rem; margin: 0; color: var(--muted); font-size: 1.05rem; }
 .eyebrow { margin: 0; color: var(--accent-text); font-size: .73rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
 .identity-card, .action-card, .route-state { border: 1px solid var(--separator); border-radius: 1.25rem; background: var(--surface); box-shadow: var(--shadow); }
 .identity-card { padding: 1.4rem; }
+.login-form { display: grid; gap: .55rem; padding: 1.4rem; border: 1px solid var(--separator); border-radius: 1.25rem; background: var(--surface); box-shadow: var(--shadow); }
+.login-form label { font-size: .85rem; font-weight: 700; }
+.login-form input { min-height: 2.9rem; padding: .65rem .8rem; border: 1px solid var(--separator); border-radius: .7rem; color: inherit; background: var(--raised); }
+.login-form input:focus-visible { outline: 3px solid #007aff; outline-offset: 2px; }
+.login-form button:disabled { cursor: wait; opacity: .65; }
+.login-form p { margin: .2rem 0 0; color: var(--muted); }
+.login-form .form-error { color: #b42318; font-weight: 600; }
+:root[data-theme='dark'] .login-form .form-error { color: #ff9f9a; }
 .identity-card h2 { margin: .35rem 0; font-size: 1.35rem; }
 .identity-card p:last-child { margin-bottom: 0; color: var(--muted); }
 .primary-navigation { display: grid; gap: .75rem; }
@@ -80,6 +91,11 @@ main { width: min(100% - 2rem, 52rem); margin: 0 auto; padding: 3.5rem 0 5rem; }
 .route-state { display: flex; align-items: center; gap: 1rem; min-height: 8rem; padding: 1.4rem; }
 .route-state h3 { margin: 0 0 .2rem; font-size: 1.05rem; }
 .route-state p { margin: 0; color: var(--muted); }
+.route-state .stale-state { margin-top: .35rem; color: var(--accent-text); font-size: .86rem; font-weight: 600; }
+.stale-state { color: var(--accent-text); font-size: .86rem; font-weight: 600; }
+.data-card { padding: 1.25rem; border: 1px solid var(--separator); border-radius: 1rem; background: var(--surface); }
+.data-list { display: grid; gap: .75rem; padding-left: 1.25rem; }
+.data-list a { color: var(--accent-text); font-weight: 700; }
 .route-state.error { border-color: color-mix(in srgb, #ff3b30 35%, var(--separator)); }
 .spinner { display: block; width: 1.6rem; height: 1.6rem; border: .2rem solid color-mix(in srgb, #007aff 25%, transparent); border-top-color: #007aff; border-radius: 50%; animation: spin .8s linear infinite; }
 .state-dot { display: block; width: 1.25rem; height: 1.25rem; border: .25rem solid #007aff; border-radius: 50%; }

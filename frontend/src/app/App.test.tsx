@@ -3,13 +3,16 @@ import '@testing-library/jest-dom/vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../shared/i18n/I18nProvider';
+import { apiClient, sessionCoordinator } from '../shared/api/client';
 import { App, AppErrorBoundary, RouteState, ToastProvider, useToast } from './App';
 
 afterEach(() => {
   cleanup();
+  if (sessionCoordinator.isLoginRequired()) sessionCoordinator.consumeReturnRoute();
   window.localStorage.clear();
   document.documentElement.removeAttribute('data-theme');
   document.documentElement.removeAttribute('lang');
+  vi.restoreAllMocks();
 });
 
 beforeEach(() => {
@@ -137,6 +140,33 @@ describe('app shell', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Gespeichert');
     fireEvent.click(screen.getByRole('button', { name: 'Schließen' }));
     expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('shows a localized login notice after a protected session expires', () => {
+    sessionCoordinator.requireLogin('/admin/polls');
+    renderApp('/admin');
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Anmeldung erforderlich');
+    expect(screen.getByRole('alert')).toHaveTextContent('Geschützte Daten wurden entfernt');
+  });
+
+  it('navigates to login when a protected route expires', async () => {
+    sessionCoordinator.requireLogin('/admin/polls');
+    renderApp('/polls');
+
+    expect(await screen.findByRole('heading', { name: 'Administration', level: 1 })).toBeVisible();
+  });
+
+  it('returns to the in-memory target route after login', async () => {
+    sessionCoordinator.requireLogin('/polls');
+    vi.spyOn(apiClient, 'login').mockResolvedValue(undefined);
+    renderApp('/admin');
+
+    fireEvent.change(screen.getByLabelText('Benutzername'), { target: { value: 'admin' } });
+    fireEvent.change(screen.getByLabelText('Passwort'), { target: { value: 'secret' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Anmelden' }));
+
+    expect(await screen.findByRole('heading', { name: 'Öffentliche Polls', level: 1 })).toBeVisible();
   });
 });
 
