@@ -1,6 +1,7 @@
 package de.justvotes.adapters.pollmanagement.infra.in.transaction;
 
 import de.justvotes.pollmanagement.core.model.Poll;
+import de.justvotes.pollmanagement.core.model.PollSummary;
 import de.justvotes.pollmanagement.core.ports.in.ManagePolls;
 import de.justvotes.pollmanagement.core.ports.in.ViewPolls;
 import org.springframework.transaction.annotation.Transactional;
@@ -97,7 +98,7 @@ public class TransactionalPollManagement implements ManagePolls, ViewPolls {
 
     @Override
     @Transactional(readOnly = true)
-    public List<Poll> publicPolls() {
+    public List<PollSummary> publicPolls() {
         return queries.publicPolls();
     }
 

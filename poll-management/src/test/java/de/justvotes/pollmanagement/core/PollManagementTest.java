@@ -103,6 +103,11 @@ class PollManagementTest {
         }
 
         @Override
+        public List<de.justvotes.pollmanagement.core.model.PollSummary> findAllPublicSummaries() {
+            return List.of();
+        }
+
+        @Override
         public List<Poll> findAllPublicActive() {
             return poll != null && poll.isPubliclyVisible() ? List.of(poll) : List.of();
         }

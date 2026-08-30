@@ -1,5 +1,7 @@
 package de.justvotes.bootstrap;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
@@ -13,6 +15,8 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -130,6 +134,68 @@ class PollManagementHttpTest {
         assertEquals(404, privatizedPoll.getStatusCode().value());
         assertTrue(privatizedPoll.getHeaders().getCacheControl().contains("no-store"));
         assertFalse(visitor.getForEntity(publicPollsUrl, String.class).getBody().contains(pollId));
+    }
+
+    @Test
+    void listsPublicPollSummariesWithCurrentVoteCountsAndCreationTimes() {
+        String catalogUrl = "http://localhost:" + port + "/api/v1/admin/template-catalog";
+        String pollsUrl = "http://localhost:" + port + "/api/v1/admin/polls";
+        String publicPollsUrl = "http://localhost:" + port + "/api/v1/polls";
+        AuthenticatedAdmin admin = login();
+        String firstTemplate = createdId(admin.post(catalogUrl + "/templates", "{\"name\":\"Summary-Option-A\"}"));
+        String secondTemplate = createdId(admin.post(catalogUrl + "/templates", "{\"name\":\"Summary-Option-B\"}"));
+        String group = createdId(admin.post(catalogUrl + "/groups", "{\"name\":\"Summary-Gruppe\",\"description\":\"\"}"));
+        assertEquals(204, admin.put(catalogUrl + "/groups/" + group + "/templates/" + firstTemplate).getStatusCode().value());
+        assertEquals(204, admin.put(catalogUrl + "/groups/" + group + "/templates/" + secondTemplate).getStatusCode().value());
+        String firstPoll = stringField(admin.post(pollsUrl, "{\"title\":\"Erste Wahl\",\"templateGroupId\":\"" + group + "\"}"), "id");
+        String secondPoll = stringField(admin.post(pollsUrl, "{\"title\":\"Zweite Wahl\",\"templateGroupId\":\"" + group + "\"}"), "id");
+        admin.put(pollsUrl + "/" + firstPoll + "/publication", "{\"endsAt\":\"2099-01-01T00:00:00Z\"}");
+        admin.put(pollsUrl + "/" + secondPoll + "/publication", "{\"endsAt\":\"2099-01-01T00:00:00Z\"}");
+
+        PublicVisitor visitor = publicVisitor();
+        ResponseEntity<String> identity = visitor.post("http://localhost:" + port + "/api/v1/identity", "{\"userID\":\"SummaryUser\"}");
+        assertEquals(204, identity.getStatusCode().value());
+        visitor = new PublicVisitor(visitor.client(), visitor.cookies() + "; userID=summaryuser", visitor.csrfToken());
+        assertEquals(200, visitor.post(publicPollsUrl + "/" + firstPoll + "/votes", "{\"optionNumber\":2}").getStatusCode().value());
+
+        ResponseEntity<String> listed = visitor.get(publicPollsUrl);
+
+        assertEquals(200, listed.getStatusCode().value(), listed.getBody());
+        assertNoStore(listed);
+        assertTrue(listed.getBody().contains("\"title\":\"Erste Wahl\""));
+        assertTrue(listed.getBody().contains("\"title\":\"Zweite Wahl\""));
+        assertTrue(listed.getBody().contains("\"id\":\"" + firstPoll + "\""));
+        assertTrue(listed.getBody().contains("\"visibility\":\"public\""));
+        assertTrue(listed.getBody().contains("\"state\":\"active\""));
+        assertTrue(listed.getBody().contains("\"endsAt\":\"2099-01-01T00:00:00Z\""));
+        assertTrue(listed.getBody().contains("\"totalVotes\":1"));
+        assertTrue(listed.getBody().contains("\"totalVotes\":0"));
+        assertTrue(Pattern.compile("\\\"createdAt\\\":\\\"[^\\\"]+Z\\\"").matcher(listed.getBody()).find());
+        assertTrue(listed.getBody().indexOf("\"title\":\"Erste Wahl\"") < listed.getBody().indexOf("\"title\":\"Zweite Wahl\""));
+        assertFalse(listed.getBody().contains("createdBy"));
+        assertFalse(listed.getBody().contains("systemadmin"));
+
+        assertEquals(1, totalVotes(listed, firstPoll));
+        assertEquals(0, totalVotes(listed, secondPoll));
+        assertEquals(200, visitor.post(publicPollsUrl + "/" + firstPoll + "/votes", "{\"optionNumber\":1}").getStatusCode().value());
+        assertEquals(1, totalVotes(visitor.get(publicPollsUrl), firstPoll));
+
+        ResponseEntity<String> changedIdentity = visitor.post("http://localhost:" + port + "/api/v1/identity", "{\"userID\":\"AnotherUser\"}");
+        assertEquals(204, changedIdentity.getStatusCode().value());
+        visitor = new PublicVisitor(visitor.client(), visitor.cookies() + "; userID=anotheruser", visitor.csrfToken());
+        assertEquals(0, totalVotes(visitor.get(publicPollsUrl), firstPoll));
+
+        assertEquals(200, admin.delete(pollsUrl + "/" + firstPoll + "/publication").getStatusCode().value());
+        assertFalse(visitor.get(publicPollsUrl).getBody().contains("\"id\":\"" + firstPoll + "\""));
+    }
+
+    private static int totalVotes(ResponseEntity<String> response, String pollId) {
+        try {
+            return ((Number) new ObjectMapper().readValue(response.getBody(), new TypeReference<List<Map<String, Object>>>() {
+            }).stream().filter(poll -> pollId.equals(poll.get("id"))).findFirst().orElseThrow().get("totalVotes")).intValue();
+        } catch (Exception exception) {
+            throw new AssertionError("Missing poll summary " + pollId + " in " + response.getBody(), exception);
+        }
     }
 
     @Test

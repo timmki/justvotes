@@ -2,12 +2,17 @@ package de.justvotes.adapters.pollmanagement.infra.out.persistence;
 
 import de.justvotes.pollmanagement.core.model.Poll;
 import de.justvotes.pollmanagement.core.model.Identity;
+import de.justvotes.pollmanagement.core.model.PollSummary;
 import de.justvotes.pollmanagement.core.model.Vote;
 import de.justvotes.pollmanagement.core.ports.out.PollRepository;
 
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
+import java.time.Instant;
 
 public final class JpaPollPersistenceAdapter implements PollRepository {
     private final SpringDataPollRepository polls;
@@ -64,6 +69,16 @@ public final class JpaPollPersistenceAdapter implements PollRepository {
     }
 
     @Override
+    public List<PollSummary> findAllPublicSummaries() {
+        Map<String, PollSummaryAccumulator> summaries = new LinkedHashMap<>();
+        for (PollSummaryProjection row : polls.findAllPublicSummaries()) {
+            summaries.computeIfAbsent(row.getId(), ignored -> new PollSummaryAccumulator(row))
+                    .add(row);
+        }
+        return summaries.values().stream().map(PollSummaryAccumulator::toSummary).toList();
+    }
+
+    @Override
     public List<Poll> findAllPublicActive() {
         return polls.findAllByVisibilityAndState(
                 Poll.Visibility.PUBLIC.name().toLowerCase(),
@@ -102,5 +117,47 @@ public final class JpaPollPersistenceAdapter implements PollRepository {
                         .toList(),
                 entity.votes().stream().map(vote -> new Vote(
                         Identity.of(vote.userId()), vote.option().number(), vote.votedAt())).toList());
+    }
+
+    private static final class PollSummaryAccumulator {
+        private final Poll.PollId id;
+        private final String title;
+        private final Poll.Visibility visibility;
+        private final Poll.State state;
+        private final Instant createdAt;
+        private final Instant endsAt;
+        private final Poll.TemplateGroup templateGroup;
+        private final Map<Integer, Poll.Option> templateSnapshotOptions = new TreeMap<>();
+        private final Map<Integer, Poll.Option> options = new TreeMap<>();
+        private int totalVotes;
+
+        private PollSummaryAccumulator(PollSummaryProjection row) {
+            id = Poll.PollId.of(row.getId());
+            title = row.getTitle();
+            visibility = Poll.Visibility.valueOf(row.getVisibility().toUpperCase());
+            createdAt = PollEntity.parseInstant(row.getCreatedAt());
+            endsAt = row.getEndsAt() == null ? null : PollEntity.parseInstant(row.getEndsAt());
+            state = Poll.State.valueOf(row.getState().toUpperCase());
+            templateGroup = Poll.TemplateGroup.of(
+                    Poll.TemplateGroupId.of(row.getTemplateGroupId()),
+                    row.getTemplateGroupName(),
+                    row.getTemplateGroupDescription());
+            totalVotes = Math.toIntExact(row.getTotalVotes());
+        }
+
+        private void add(PollSummaryProjection row) {
+            if (row.getOptionNumber() != null) {
+                options.put(row.getOptionNumber(), new Poll.Option(row.getOptionNumber(), row.getOptionText()));
+            }
+            if (row.getTemplateSnapshotOptionNumber() != null) {
+                templateSnapshotOptions.put(row.getTemplateSnapshotOptionNumber(), new Poll.Option(
+                        row.getTemplateSnapshotOptionNumber(), row.getTemplateSnapshotOptionText()));
+            }
+        }
+
+        private PollSummary toSummary() {
+            return new PollSummary(id, title, visibility, state, createdAt, endsAt, templateGroup,
+                    templateSnapshotOptions.values().stream().toList(), options.values().stream().toList(), totalVotes);
+        }
     }
 }

@@ -18,7 +18,7 @@ public class PollEntity {
     private String endsAt;
     @Column(name = "createdBy")
     private String createdBy;
-    @Column(name = "createdAt", insertable = false, updatable = false)
+    @Column(name = "createdAt", updatable = false)
     private String createdAt;
     @Column(name = "templateGroupID")
     private int templateGroupId;
@@ -62,7 +62,7 @@ public class PollEntity {
     }
 
     Instant createdAt() {
-        return Instant.parse(createdAt.replace(' ', 'T') + (createdAt.endsWith("Z") ? "" : "Z"));
+        return parseInstant(createdAt);
     }
 
     String visibility() {
@@ -74,7 +74,11 @@ public class PollEntity {
     }
 
     Instant endsAt() {
-        return endsAt == null ? null : Instant.parse(endsAt);
+        return endsAt == null ? null : parseInstant(endsAt);
+    }
+
+    static Instant parseInstant(String value) {
+        return Instant.parse(value.replace(' ', 'T') + (value.endsWith("Z") ? "" : "Z"));
     }
 
     long templateGroupId() {

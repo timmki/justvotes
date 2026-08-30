@@ -1244,6 +1244,9 @@ components:
         - title
         - visibility
         - state
+        - createdAt
+        - endsAt
+        - totalVotes
         - templateGroup
         - templateSnapshotOptions
         - options
@@ -1256,10 +1259,16 @@ components:
           type: string
         state:
           type: string
+        createdAt:
+          type: string
+          format: date-time
         endsAt:
           type: string
           format: date-time
           nullable: true
+        totalVotes:
+          type: integer
+          minimum: 0
         templateGroup:
           $ref: '#/components/schemas/TemplateGroup'
         templateSnapshotOptions:

@@ -122,6 +122,16 @@ class CsrfSessionOpenApiContractTest {
         assertThat(map(pollResults.get("responses"))).containsKeys("200", "403", "404");
     }
 
+    @Test
+    void documentsCreationTimeAndCurrentVoteCountOnPublicPollSummaries() {
+        Map<String, Object> components = map(map(new Yaml().load(resource("docs/justvotes-v1.yaml"))).get("components"));
+        Map<String, Object> schemas = map(components.get("schemas"));
+        Map<String, Object> poll = map(schemas.get("Poll"));
+
+        assertThat(poll.get("required").toString()).contains("createdAt", "endsAt", "totalVotes");
+        assertThat(map(poll.get("properties"))).containsKeys("createdAt", "totalVotes");
+    }
+
     private static RequestEntity<String> request(String method, String url, String cookies, String csrfToken, String body) {
         RequestEntity.BodyBuilder request = RequestEntity.method(HttpMethod.valueOf(method.toUpperCase()), url).contentType(MediaType.APPLICATION_JSON);
         if (cookies != null) request.header(HttpHeaders.COOKIE, cookies);

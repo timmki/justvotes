@@ -3,6 +3,7 @@ package de.justvotes.pollmanagement.core;
 import de.justvotes.pollmanagement.core.event.PollLifecycleChanged;
 import de.justvotes.pollmanagement.core.exception.PollNotFoundException;
 import de.justvotes.pollmanagement.core.model.Poll;
+import de.justvotes.pollmanagement.core.model.PollSummary;
 import de.justvotes.pollmanagement.core.ports.in.ManagePolls;
 import de.justvotes.pollmanagement.core.ports.in.ViewPolls;
 import de.justvotes.pollmanagement.core.ports.out.PollEventPublisher;
@@ -112,8 +113,8 @@ public final class PollManagement implements ManagePolls, ViewPolls {
     }
 
     @Override
-    public List<Poll> publicPolls() {
-        return polls.findAllByVisibility(Poll.Visibility.PUBLIC).stream().filter(poll -> poll.state() == Poll.State.ACTIVE || poll.state() == Poll.State.EXPIRED).toList();
+    public List<PollSummary> publicPolls() {
+        return polls.findAllPublicSummaries();
     }
 
     @Override

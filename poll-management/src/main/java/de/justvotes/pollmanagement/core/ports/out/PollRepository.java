@@ -1,6 +1,7 @@
 package de.justvotes.pollmanagement.core.ports.out;
 
 import de.justvotes.pollmanagement.core.model.Poll;
+import de.justvotes.pollmanagement.core.model.PollSummary;
 
 import java.util.List;
 import java.util.Optional;
@@ -13,6 +14,8 @@ public interface PollRepository {
     List<Poll> findAllByCreator(String creator);
 
     List<Poll> findAllByVisibility(Poll.Visibility visibility);
+
+    List<PollSummary> findAllPublicSummaries();
 
     List<Poll> findAllPublicActive();
 

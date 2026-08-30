@@ -158,6 +158,11 @@ class VoteManagementTest {
         }
 
         @Override
+        public List<de.justvotes.pollmanagement.core.model.PollSummary> findAllPublicSummaries() {
+            return List.of();
+        }
+
+        @Override
         public List<Poll> findAllPublicActive() {
             return polls.stream().filter(Poll::isPubliclyVisible).toList();
         }
