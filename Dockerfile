@@ -1,7 +1,11 @@
 FROM maven:3.9.9-eclipse-temurin-21 AS build
 WORKDIR /workspace
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends nodejs npm \
+    && npm install --global pnpm@10.6.1 \
+    && rm -rf /var/lib/apt/lists/*
 COPY . .
-RUN mvn -s .mvn/settings.xml -DskipTests package
+RUN mvn -s .mvn/settings.xml -DskipTests -Prelease package
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app
