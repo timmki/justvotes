@@ -1,4 +1,4 @@
-import { Link, useLocation, useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react';
 import { apiClient } from '../../shared/api/client';
 import { queryKeys } from '../../shared/api/queryKeys';
@@ -11,9 +11,8 @@ import { RouteState, type StateStatus } from '../../shared/ui/RouteState';
 
 export function PollsPage() {
   const { t, locale } = useI18n();
-  const forcedState = useForcedState();
-  const query = useApiQuery(queryKeys.publicPolls, () => apiClient.getPublicPolls(), { enabled: !forcedState });
-  return <DataPage eyebrow={t('common.publicArea')} title={t('polls.list')} description={t('common.publicArea')} forcedState={forcedState}>
+  const query = useApiQuery(queryKeys.publicPolls, () => apiClient.getPublicPolls());
+  return <DataPage eyebrow={t('common.publicArea')} title={t('polls.list')} description={t('common.publicArea')}>
     <QueryState query={query}>{(polls) => polls.length === 0 ? <RouteState status="empty" /> : <ul className="poll-list">{polls.map((poll) => <li key={poll.id}><Link className="poll-card" to={`/poll/${encodeURIComponent(poll.id)}`} onKeyDown={activateOnKeyDown} onKeyUp={activateOnSpaceUp}>
       <span className="poll-card-heading"><strong>{poll.title}</strong><span className="poll-vote-badge" aria-label={`${poll.totalVotes} ${t('polls.votes')}`}>{poll.totalVotes}</span></span>
       <span className="poll-card-meta"><span>{t('polls.createdBy')} {t('common.admin')}</span><time dateTime={poll.createdAt}>{formatCreatedAt(poll.createdAt, locale)}</time><span className="poll-id">{poll.id}</span></span>
@@ -57,14 +56,8 @@ export function AuditPage() {
   </DataPage>;
 }
 
-function DataPage({ eyebrow, title, description, forcedState, children }: { eyebrow: string; title: string; description: string; forcedState?: StateStatus; children: ReactNode }) {
-  return <PageFrame eyebrow={eyebrow} title={title} description={description}>{forcedState ? <RouteState status={forcedState} /> : children}</PageFrame>;
-}
-
-function useForcedState(): StateStatus | undefined {
-  const { search } = useLocation();
-  const requestedState = new URLSearchParams(search).get('state');
-  return requestedState === 'loading' || requestedState === 'error' ? requestedState : undefined;
+function DataPage({ eyebrow, title, description, children }: { eyebrow: string; title: string; description: string; children: ReactNode }) {
+  return <PageFrame eyebrow={eyebrow} title={title} description={description}>{children}</PageFrame>;
 }
 
 function formatCreatedAt(value: string, locale: Locale) {

@@ -100,16 +100,6 @@ describe('app shell', () => {
     expect(screen.getByText('Daten konnten nicht geladen werden')).toBeVisible();
   });
 
-  it('renders loading and error states on data routes', () => {
-    const { unmount } = renderApp('/polls?state=loading');
-    expect(screen.getByRole('status')).toHaveTextContent('Wird geladen');
-    unmount();
-
-    renderApp('/polls?state=error');
-    expect(screen.getByText('Daten konnten nicht geladen werden')).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Erneut versuchen' })).toBeVisible();
-  });
-
   it('shows the global error fallback', () => {
     const error = new Error('test failure');
     vi.spyOn(console, 'error').mockImplementation(() => undefined);

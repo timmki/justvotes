@@ -59,6 +59,7 @@ test('changes the identity once after confirming the warning', async ({ page }) 
 
 test('renders public poll cards from one list request without N+1 detail requests', async ({ page }) => {
   const requests: string[] = [];
+  await page.setViewportSize({ width: 375, height: 800 });
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     requests.push(request.url());
@@ -85,6 +86,7 @@ test('renders public poll cards from one list request without N+1 detail request
   await expect(card).toContainText('0');
   await expect(card).toContainText('opaque-poll-id-123456789');
   await expect(card).toContainText('Admin');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
   expect(requests.filter((url) => url.endsWith('/polls'))).toHaveLength(1);
   expect(requests.some((url) => /\/polls\/[^/]+$/.test(url))).toBe(false);
 });

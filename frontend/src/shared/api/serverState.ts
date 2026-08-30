@@ -9,7 +9,7 @@ export function presentQuery<T>(query: { data?: T; isPending: boolean; isError: 
   return {
     data: query.data,
     status: query.isPending ? 'loading' : query.isError ? 'error' : 'success',
-    stale: query.isFetching || query.isStale,
+    stale: query.isFetching,
     error: query.error,
   };
 }
