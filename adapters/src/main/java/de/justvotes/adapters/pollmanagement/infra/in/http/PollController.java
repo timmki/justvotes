@@ -9,6 +9,7 @@ import de.justvotes.api.v1.server.PollsApi;
 import de.justvotes.pollmanagement.core.model.Poll;
 import de.justvotes.pollmanagement.core.ports.in.ManagePolls;
 import de.justvotes.pollmanagement.core.ports.in.ViewPolls;
+import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
@@ -42,66 +43,78 @@ public class PollController implements PollsApi {
         return principal.getName();
     }
 
+    private static <T> ResponseEntity<T> noStore(T body) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(body);
+    }
+
+    private static <T> ResponseEntity<T> created(T body, String location) {
+        return ResponseEntity.status(HttpStatus.CREATED).cacheControl(CacheControl.noStore()).header("Location", location).body(body);
+    }
+
+    private static ResponseEntity<Void> noContent() {
+        return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();
+    }
+
     @Override
     public ResponseEntity<de.justvotes.api.v1.model.Poll> createPoll(CreatePoll request) {
         Poll created = commands.createDraft(request.getTitle(), Poll.TemplateGroupId.of(OpaqueIdCodec.decode("g", request.getTemplateGroupId())), admin());
         var response = PollResponseMapper.map(created);
-        return ResponseEntity.status(HttpStatus.CREATED).header("Location", "/api/v1/admin/polls/" + response.getId()).body(response);
+        return created(response, "/api/v1/admin/polls/" + response.getId());
     }
 
     @Override
     public ResponseEntity<de.justvotes.api.v1.model.Poll> replacePollOptions(String pollId, Options request) {
-        return ResponseEntity.ok(PollResponseMapper.map(commands.replaceDraftOptions(pollId(pollId), request.getOptionTexts())));
+        return noStore(PollResponseMapper.map(commands.replaceDraftOptions(pollId(pollId), request.getOptionTexts())));
     }
 
     @Override
     public ResponseEntity<de.justvotes.api.v1.model.Poll> publishPoll(String pollId, Expiry request) {
-        return ResponseEntity.ok(PollResponseMapper.map(commands.publish(pollId(pollId), admin(), instant(request.getEndsAt()))));
+        return noStore(PollResponseMapper.map(commands.publish(pollId(pollId), admin(), instant(request.getEndsAt()))));
     }
 
     @Override
     public ResponseEntity<de.justvotes.api.v1.model.Poll> makePollPrivate(String pollId) {
-        return ResponseEntity.ok(PollResponseMapper.map(commands.makePrivate(pollId(pollId))));
+        return noStore(PollResponseMapper.map(commands.makePrivate(pollId(pollId))));
     }
 
     @Override
     public ResponseEntity<List<de.justvotes.api.v1.model.Poll>> adminPolls() {
-        return ResponseEntity.ok(queries.pollsCreatedBy(admin()).stream().map(PollResponseMapper::map).toList());
+        return noStore(queries.pollsCreatedBy(admin()).stream().map(PollResponseMapper::map).toList());
     }
 
     @Override
     public ResponseEntity<de.justvotes.api.v1.model.Poll> archivePoll(String pollId) {
-        return ResponseEntity.ok(PollResponseMapper.map(commands.archive(pollId(pollId), admin())));
+        return noStore(PollResponseMapper.map(commands.archive(pollId(pollId), admin())));
     }
 
     @Override
     public ResponseEntity<de.justvotes.api.v1.model.Poll> restorePollFromArchive(String pollId) {
-        return ResponseEntity.ok(PollResponseMapper.map(commands.restoreFromArchive(pollId(pollId), admin())));
+        return noStore(PollResponseMapper.map(commands.restoreFromArchive(pollId(pollId), admin())));
     }
 
     @Override
     public ResponseEntity<de.justvotes.api.v1.model.Poll> changePollExpiry(String pollId, Expiry request) {
-        return ResponseEntity.ok(PollResponseMapper.map(commands.changeExpiry(pollId(pollId), instant(request.getEndsAt()), admin())));
+        return noStore(PollResponseMapper.map(commands.changeExpiry(pollId(pollId), instant(request.getEndsAt()), admin())));
     }
 
     @Override
     public ResponseEntity<de.justvotes.api.v1.model.Poll> reopenPoll(String pollId) {
-        return ResponseEntity.ok(PollResponseMapper.map(commands.reopen(pollId(pollId), java.time.Instant.now(), admin())));
+        return noStore(PollResponseMapper.map(commands.reopen(pollId(pollId), java.time.Instant.now(), admin())));
     }
 
     @Override
     public ResponseEntity<de.justvotes.api.v1.model.Poll> deletePoll(String pollId) {
-        return ResponseEntity.ok(PollResponseMapper.map(commands.softDelete(pollId(pollId), admin())));
+        return noStore(PollResponseMapper.map(commands.softDelete(pollId(pollId), admin())));
     }
 
     @Override
     public ResponseEntity<de.justvotes.api.v1.model.Poll> restorePoll(String pollId) {
-        return ResponseEntity.ok(PollResponseMapper.map(commands.restore(pollId(pollId), admin())));
+        return noStore(PollResponseMapper.map(commands.restore(pollId(pollId), admin())));
     }
 
     @Override
     public ResponseEntity<Void> permanentlyDeletePoll(String pollId, DeleteConfirmation confirmation) {
         commands.permanentlyDelete(pollId(pollId), confirmation.getConfirmation() == DeleteConfirmation.ConfirmationEnum.DELETE, true);
-        return ResponseEntity.noContent().build();
+        return noContent();
     }
 }

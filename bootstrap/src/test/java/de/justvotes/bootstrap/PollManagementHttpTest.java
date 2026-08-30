@@ -56,6 +56,10 @@ class PollManagementHttpTest {
                 .reduce((first, second) -> first + "; " + second).orElseThrow();
     }
 
+    private static void assertNoStore(ResponseEntity<?> response) {
+        assertTrue(response.getHeaders().getCacheControl().contains("no-store"));
+    }
+
     @Test
     void letsTheSystemAdminCreateAndEditPrivateDraftsFromTemplateGroupSnapshots() {
         String catalogUrl = "http://localhost:" + port + "/api/v1/admin/template-catalog";
@@ -69,6 +73,7 @@ class PollManagementHttpTest {
 
         ResponseEntity<String> created = admin.post(pollsUrl, "{\"title\":\"Vorstand\",\"templateGroupId\":\"" + group + "\"}");
         assertEquals(201, created.getStatusCode().value(), created.getBody());
+        assertNoStore(created);
         assertTrue(created.getBody().contains("\"visibility\":\"private\""));
         assertTrue(created.getBody().contains("\"state\":\"draft\""));
         assertTrue(created.getBody().indexOf("alpha") < created.getBody().indexOf("zeta"));
@@ -76,11 +81,14 @@ class PollManagementHttpTest {
 
         ResponseEntity<String> edited = admin.put(pollsUrl + "/" + pollId + "/options", "{\"optionTexts\":[\"Ja\",\"Nein\"]}");
         assertEquals(200, edited.getStatusCode().value(), edited.getBody());
+        assertNoStore(edited);
         assertTrue(edited.getBody().contains("Ja"));
         assertTrue(edited.getBody().contains("alpha"));
         assertTrue(edited.getBody().contains("zeta"));
         assertEquals(400, admin.put(pollsUrl + "/" + pollId + "/options", "{\"optionTexts\":[\" Ja \",\"ja\"]}").getStatusCode().value());
-        assertTrue(admin.get(pollsUrl).getBody().contains(pollId));
+        ResponseEntity<String> adminPolls = admin.get(pollsUrl);
+        assertNoStore(adminPolls);
+        assertTrue(adminPolls.getBody().contains(pollId));
     }
 
     @Test
@@ -100,15 +108,24 @@ class PollManagementHttpTest {
         ResponseEntity<String> privatePoll = visitor.getForEntity(publicPollsUrl + "/" + pollId, String.class);
         assertEquals(404, privatePoll.getStatusCode().value(), privatePoll.getBody());
         assertTrue(privatePoll.getHeaders().getCacheControl().contains("no-store"));
+        ResponseEntity<String> missingPoll = visitor.getForEntity(publicPollsUrl + "/p_v1_missing", String.class);
+        assertEquals(privatePoll.getStatusCode(), missingPoll.getStatusCode());
+        assertEquals(privatePoll.getBody().replace("/" + pollId, "/p_v1_missing"), missingPoll.getBody());
+        assertTrue(missingPoll.getHeaders().getCacheControl().contains("no-store"));
 
         ResponseEntity<String> published = admin.put(pollsUrl + "/" + pollId + "/publication", "{\"endsAt\":\"2099-01-01T00:00:00Z\"}");
         assertEquals(200, published.getStatusCode().value(), published.getBody());
+        assertNoStore(published);
         assertTrue(published.getBody().contains("\"visibility\":\"public\""));
         assertTrue(published.getBody().contains("\"state\":\"active\""));
         assertTrue(visitor.getForEntity(publicPollsUrl, String.class).getBody().contains(pollId));
-        assertEquals(200, visitor.getForEntity(publicPollsUrl + "/" + pollId, String.class).getStatusCode().value());
+        ResponseEntity<String> visiblePoll = visitor.getForEntity(publicPollsUrl + "/" + pollId, String.class);
+        assertEquals(200, visiblePoll.getStatusCode().value());
+        assertTrue(visiblePoll.getHeaders().getCacheControl().contains("no-store"));
 
-        assertEquals(200, admin.delete(pollsUrl + "/" + pollId + "/publication").getStatusCode().value());
+        ResponseEntity<String> madePrivate = admin.delete(pollsUrl + "/" + pollId + "/publication");
+        assertEquals(200, madePrivate.getStatusCode().value());
+        assertNoStore(madePrivate);
         ResponseEntity<String> privatizedPoll = visitor.getForEntity(publicPollsUrl + "/" + pollId, String.class);
         assertEquals(404, privatizedPoll.getStatusCode().value());
         assertTrue(privatizedPoll.getHeaders().getCacheControl().contains("no-store"));
@@ -132,21 +149,30 @@ class PollManagementHttpTest {
         PublicVisitor visitor = publicVisitor();
         ResponseEntity<String> identity = visitor.post("http://localhost:" + port + "/api/v1/identity", "{\"userID\":\"  Alice_1  \"}");
         assertEquals(204, identity.getStatusCode().value(), identity.getBody());
+        assertTrue(identity.getHeaders().getCacheControl().contains("no-store"));
         assertTrue(identity.getHeaders().get(HttpHeaders.SET_COOKIE).stream().anyMatch(cookie -> cookie.startsWith("userID=alice_1;")));
         visitor = new PublicVisitor(visitor.client(), visitor.cookies() + "; userID=alice_1", visitor.csrfToken());
 
+        ResponseEntity<String> csrfRejectedVote = visitor.postWithoutCsrf(publicPollsUrl + "/" + pollId + "/votes", "{\"optionNumber\":1}");
+        assertEquals(403, csrfRejectedVote.getStatusCode().value());
+        assertNoStore(csrfRejectedVote);
+
         ResponseEntity<String> created = visitor.post(publicPollsUrl + "/" + pollId + "/votes", "{\"optionNumber\":1}");
         assertEquals(200, created.getStatusCode().value(), created.getBody());
+        assertTrue(created.getHeaders().getCacheControl().contains("no-store"));
         assertTrue(created.getBody().contains("\"status\":\"created\""));
         ResponseEntity<String> unchanged = visitor.post(publicPollsUrl + "/" + pollId + "/votes", "{\"optionNumber\":1}");
         assertEquals(200, unchanged.getStatusCode().value(), unchanged.getBody());
+        assertTrue(unchanged.getHeaders().getCacheControl().contains("no-store"));
         assertTrue(unchanged.getBody().contains("\"status\":\"unchanged\""));
         ResponseEntity<String> replaced = visitor.post(publicPollsUrl + "/" + pollId + "/votes", "{\"optionNumber\":2}");
         assertEquals(200, replaced.getStatusCode().value(), replaced.getBody());
+        assertTrue(replaced.getHeaders().getCacheControl().contains("no-store"));
         assertTrue(replaced.getBody().contains("\"status\":\"replaced\""));
 
         ResponseEntity<String> audit = visitor.get(publicPollsUrl + "/" + pollId + "/audit");
         assertEquals(200, audit.getStatusCode().value(), audit.getBody());
+        assertTrue(audit.getHeaders().getCacheControl().contains("no-store"));
         assertTrue(audit.getBody().contains("alice_1"));
         assertTrue(audit.getBody().contains("VoteCast"));
         assertTrue(audit.getBody().contains("VoteReplaced"));
@@ -211,6 +237,11 @@ class PollManagementHttpTest {
         ResponseEntity<String> post(String url, String body) {
             return client.exchange(RequestEntity.post(url).contentType(MediaType.APPLICATION_JSON)
                     .header(HttpHeaders.COOKIE, cookies).header("X-XSRF-TOKEN", csrfToken).body(body), String.class);
+        }
+
+        ResponseEntity<String> postWithoutCsrf(String url, String body) {
+            return client.exchange(RequestEntity.post(url).contentType(MediaType.APPLICATION_JSON)
+                    .header(HttpHeaders.COOKIE, cookies).body(body), String.class);
         }
     }
 }

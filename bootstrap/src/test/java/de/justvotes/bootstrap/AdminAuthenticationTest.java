@@ -45,6 +45,7 @@ class AdminAuthenticationTest {
 
     private static void assertProblem(ResponseEntity<String> response, int status, String code) throws Exception {
         assertThat(response.getStatusCode().value()).isEqualTo(status);
+        assertThat(response.getHeaders().getCacheControl()).contains("no-store");
         assertThat(response.getHeaders().getContentType()).hasToString("application/problem+json");
         JsonNode body = JSON.readTree(response.getBody());
         assertThat(body.path("type").asText()).isNotBlank();
@@ -102,21 +103,24 @@ class AdminAuthenticationTest {
                 .header("X-XSRF-TOKEN", csrfToken)
                 .body("{\"username\":\"systemadmin\",\"password\":\"password\"}"), String.class);
         assertThat(login.getStatusCode().value()).isEqualTo(204);
+        assertThat(login.getHeaders().getCacheControl()).contains("no-store");
         cookies = cookies + "; " + cookieHeader(login.getHeaders());
 
         ResponseEntity<String> session = client.exchange(RequestEntity.get(baseUrl + "/api/v1/admin/session")
                 .header(HttpHeaders.COOKIE, cookies).build(), String.class);
         assertThat(session.getStatusCode().value()).isEqualTo(204);
+        assertThat(session.getHeaders().getCacheControl()).contains("no-store");
 
         ResponseEntity<String> csrfRejectedLogout = client.exchange(RequestEntity.post(baseUrl + "/api/v1/admin/logout")
                 .header(HttpHeaders.COOKIE, cookies).build(), String.class);
-        assertThat(csrfRejectedLogout.getStatusCode().value()).isEqualTo(403);
+        assertProblem(csrfRejectedLogout, 403, "access-denied");
 
         ResponseEntity<String> logout = client.exchange(RequestEntity.post(baseUrl + "/api/v1/admin/logout")
                 .header(HttpHeaders.COOKIE, cookies)
                 .header("X-XSRF-TOKEN", csrfToken)
                 .build(), String.class);
         assertThat(logout.getStatusCode().value()).isEqualTo(204);
+        assertThat(logout.getHeaders().getCacheControl()).contains("no-store");
 
         ResponseEntity<String> afterLogout = client.exchange(RequestEntity.get(baseUrl + "/api/v1/admin/session")
                 .header(HttpHeaders.COOKIE, cookies).build(), String.class);

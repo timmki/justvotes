@@ -10,6 +10,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.MediaType;
+import org.springframework.http.CacheControl;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -38,7 +39,7 @@ class AdminSessionController implements SessionApi {
     public ResponseEntity<CsrfToken> csrf() {
         org.springframework.security.web.csrf.CsrfToken token = (org.springframework.security.web.csrf.CsrfToken) ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest()
                 .getAttribute(org.springframework.security.web.csrf.CsrfToken.class.getName());
-        return ResponseEntity.ok(new CsrfToken(token.getToken(), token.getHeaderName()));
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(new CsrfToken(token.getToken(), token.getHeaderName()));
     }
 
     @Override
@@ -52,7 +53,7 @@ class AdminSessionController implements SessionApi {
         context.setAuthentication(authentication);
         securityContextRepository.saveContext(context, request, response);
         SecurityContextHolder.setContext(context);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();
     }
 
     @Override
@@ -61,12 +62,12 @@ class AdminSessionController implements SessionApi {
         HttpServletRequest request = attributes.getRequest();
         HttpServletResponse response = attributes.getResponse();
         logoutHandler.logout(request, response, SecurityContextHolder.getContext().getAuthentication());
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();
     }
 
     @Override
     public ResponseEntity<Void> session() {
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();
     }
 
     @ExceptionHandler(BadCredentialsException.class)
@@ -77,6 +78,7 @@ class AdminSessionController implements SessionApi {
         problem.setProperty("code", "invalid-credentials");
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .contentType(MediaType.APPLICATION_PROBLEM_JSON)
+                .cacheControl(CacheControl.noStore())
                 .body(problem);
     }
 

@@ -46,6 +46,8 @@ paths:
         '200':
           description: CSRF bootstrap token. The response sets the readable `XSRF-TOKEN` cookie; send the JSON `token` in the JSON `headerName` on subsequent unsafe requests.
           headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
             Set-Cookie:
               description: XSRF-TOKEN CSRF cookie; Path=/, session lifetime, SameSite=Lax, Secure for effective HTTPS, HttpOnly=false. The same-origin browser client reads this cookie and sends its value in X-XSRF-TOKEN.
               schema:
@@ -68,6 +70,8 @@ paths:
         '204':
           description: Logged in; sets the server-side session cookie.
           headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
             Set-Cookie:
               description: JSESSIONID session cookie; Path=/, session lifetime, SameSite=Lax, Secure for effective HTTPS, HttpOnly=true. Browser-managed; clients do not read or mirror it.
               schema:
@@ -92,6 +96,9 @@ paths:
       responses:
         '204':
           description: Logged out
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -106,6 +113,9 @@ paths:
       responses:
         '204':
           description: Active session
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
         '401':
           $ref: '#/components/responses/Problem'
   /identity:
@@ -122,6 +132,8 @@ paths:
         '204':
           description: Identity changed; sets the normalized `userID` cookie used for voting; ten-year lifetime, Path=/, SameSite=Lax, HttpOnly=true, Secure for effective HTTPS. Browser-managed; clients do not read or mirror it.
           headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
             Set-Cookie:
               schema:
                 type: string
@@ -141,6 +153,9 @@ paths:
           $ref: '#/components/responses/Problem'
         '200':
           description: Templates
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
           content:
             application/json:
               schema:
@@ -165,6 +180,8 @@ paths:
         '201':
           description: Created
           headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
             Location:
               schema:
                 type: string
@@ -197,6 +214,9 @@ paths:
           $ref: '#/components/responses/Problem'
         '200':
           description: Updated
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
           content:
             application/json:
               schema:
@@ -222,6 +242,9 @@ paths:
           $ref: '#/components/responses/Problem'
         '204':
           description: Deleted
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
         '404':
           $ref: '#/components/responses/Problem'
         '409':
@@ -238,6 +261,9 @@ paths:
           $ref: '#/components/responses/Problem'
         '200':
           description: Groups
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
           content:
             application/json:
               schema:
@@ -262,6 +288,8 @@ paths:
         '201':
           description: Created
           headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
             Location:
               schema:
                 type: string
@@ -294,6 +322,9 @@ paths:
           $ref: '#/components/responses/Problem'
         '200':
           description: Updated
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
           content:
             application/json:
               schema:
@@ -319,6 +350,9 @@ paths:
           $ref: '#/components/responses/Problem'
         '204':
           description: Deleted
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
         '404':
           $ref: '#/components/responses/Problem'
         '409':
@@ -337,6 +371,9 @@ paths:
           $ref: '#/components/responses/Problem'
         '200':
           description: Templates
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
           content:
             application/json:
               schema:
@@ -364,6 +401,9 @@ paths:
           $ref: '#/components/responses/Problem'
         '204':
           description: Assigned
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
         '404':
           $ref: '#/components/responses/Problem'
         '409':
@@ -383,6 +423,9 @@ paths:
           $ref: '#/components/responses/Problem'
         '204':
           description: Removed
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
         '404':
           $ref: '#/components/responses/Problem'
   /admin/polls:
@@ -397,6 +440,9 @@ paths:
           $ref: '#/components/responses/Problem'
         '200':
           description: Polls
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
           content:
             application/json:
               schema:
@@ -421,6 +467,8 @@ paths:
         '201':
           description: Created
           headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
             Location:
               schema:
                 type: string
@@ -451,6 +499,9 @@ paths:
           $ref: '#/components/responses/Problem'
         '200':
           description: Updated
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
           content:
             application/json:
               schema:
@@ -479,6 +530,9 @@ paths:
           $ref: '#/components/responses/Problem'
         '200':
           description: Transitioned
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
           content:
             application/json:
               schema:
@@ -505,6 +559,9 @@ paths:
           $ref: '#/components/responses/Problem'
         '200':
           description: Restored from archive
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
           content:
             application/json:
               schema:
@@ -531,6 +588,9 @@ paths:
           $ref: '#/components/responses/Problem'
         '200':
           description: Reopened
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
           content:
             application/json:
               schema:
@@ -557,6 +617,9 @@ paths:
           $ref: '#/components/responses/Problem'
         '200':
           description: Restored
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
           content:
             application/json:
               schema:
@@ -585,6 +648,9 @@ paths:
           $ref: '#/components/responses/Problem'
         '200':
           description: Published
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
           content:
             application/json:
               schema:
@@ -610,6 +676,9 @@ paths:
           $ref: '#/components/responses/Problem'
         '200':
           description: Made private
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
           content:
             application/json:
               schema:
@@ -638,6 +707,9 @@ paths:
           $ref: '#/components/responses/Problem'
         '200':
           description: Updated
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
           content:
             application/json:
               schema:
@@ -666,6 +738,9 @@ paths:
           $ref: '#/components/responses/Problem'
         '200':
           description: Deleted
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
           content:
             application/json:
               schema:
@@ -694,6 +769,9 @@ paths:
           $ref: '#/components/responses/Problem'
         '204':
           description: Permanently deleted
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
         '400':
           $ref: '#/components/responses/Problem'
         '404':
@@ -710,9 +788,7 @@ paths:
           description: Public polls
           headers:
             Cache-Control:
-              schema:
-                type: string
-                example: no-store
+              $ref: '#/components/headers/NoStore'
           content:
             application/json:
               schema:
@@ -731,9 +807,7 @@ paths:
           description: Poll
           headers:
             Cache-Control:
-              schema:
-                type: string
-                example: no-store
+              $ref: '#/components/headers/NoStore'
           content:
             application/json:
               schema:
@@ -760,9 +834,7 @@ paths:
           description: Vote recorded
           headers:
             Cache-Control:
-              schema:
-                type: string
-                example: no-store
+              $ref: '#/components/headers/NoStore'
           content:
             application/json:
               schema:
@@ -785,9 +857,7 @@ paths:
           description: Audit entries
           headers:
             Cache-Control:
-              schema:
-                type: string
-                example: no-store
+              $ref: '#/components/headers/NoStore'
           content:
             application/json:
               schema:
@@ -895,52 +965,82 @@ components:
   responses:
     Problem:
       description: Problem Details (RFC 9457). `code` is stable and suitable for machine handling; `detail` is diagnostic text.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/NoStore'
       content:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
     BadRequest:
       description: Request is syntactically or semantically invalid.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/NoStore'
       content:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
     Unauthorized:
       description: Authentication is required.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/NoStore'
       content:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
     Forbidden:
       description: The authenticated caller is not allowed to perform this operation.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/NoStore'
       content:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
     NotFound:
       description: Resource does not exist (including invalid or opaque identifiers).
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/NoStore'
       content:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
     MethodNotAllowed:
       description: HTTP method is not supported by this operation.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/NoStore'
       content:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
     Conflict:
       description: Domain state prevents this operation (for example an illegal poll lifecycle transition).
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/NoStore'
       content:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
     UnsupportedMediaType:
       description: Request representation is not supported.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/NoStore'
       content:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
+  headers:
+    NoStore:
+      description: Response must not be stored or reused by browsers or intermediary caches.
+      schema:
+        type: string
+        enum: [no-store]
   schemas:
     PollId:
       type: string

@@ -51,31 +51,61 @@ class TemplateCatalogHttpTest {
                 .reduce((first, second) -> first + "; " + second).orElseThrow();
     }
 
+    private static void assertNoStore(ResponseEntity<?> response) {
+        assertTrue(response.getHeaders().getCacheControl().contains("no-store"));
+    }
+
     @Test
     void letsOnlyTheSystemAdminManageTemplatesGroupsAndAssignments() {
         String baseUrl = "http://localhost:" + port + "/api/v1/admin/template-catalog";
         TestRestTemplate anonymous = new TestRestTemplate();
-        assertEquals(401, anonymous.getForEntity(baseUrl + "/templates", String.class).getStatusCode().value());
+        ResponseEntity<String> unauthorized = anonymous.getForEntity(baseUrl + "/templates", String.class);
+        assertEquals(401, unauthorized.getStatusCode().value());
+        assertNoStore(unauthorized);
 
         AuthenticatedAdmin admin = login();
-        String templateId = createdId(admin.post(baseUrl + "/templates", "{\"name\":\"  Vorstand  \"}"));
-        assertEquals(409, admin.post(baseUrl + "/groups", "{\"name\":\" vorstand \",\"description\":\"\"}").getStatusCode().value());
+        ResponseEntity<String> createdTemplate = admin.post(baseUrl + "/templates", "{\"name\":\"  Vorstand  \"}");
+        assertNoStore(createdTemplate);
+        String templateId = createdId(createdTemplate);
+        ResponseEntity<String> duplicateGroup = admin.post(baseUrl + "/groups", "{\"name\":\" vorstand \",\"description\":\"\"}");
+        assertEquals(409, duplicateGroup.getStatusCode().value());
+        assertNoStore(duplicateGroup);
         ResponseEntity<String> rename = admin.patch(baseUrl + "/templates/" + templateId, "{\"name\":\" Beirat \"}");
         assertEquals(200, rename.getStatusCode().value());
+        assertNoStore(rename);
         assertEquals(templateId, id(rename));
-        String firstGroupId = createdId(admin.post(baseUrl + "/groups", "{\"name\":\"Gremium A\",\"description\":\"\"}"));
-        String secondGroupId = createdId(admin.post(baseUrl + "/groups", "{\"name\":\"Gremium B\",\"description\":\"\"}"));
-        assertEquals(409, admin.patch(baseUrl + "/groups/" + firstGroupId, "{\"name\":\" gremium b \"}").getStatusCode().value());
+        ResponseEntity<String> createdFirstGroup = admin.post(baseUrl + "/groups", "{\"name\":\"Gremium A\",\"description\":\"\"}");
+        assertNoStore(createdFirstGroup);
+        String firstGroupId = createdId(createdFirstGroup);
+        ResponseEntity<String> createdSecondGroup = admin.post(baseUrl + "/groups", "{\"name\":\"Gremium B\",\"description\":\"\"}");
+        assertNoStore(createdSecondGroup);
+        String secondGroupId = createdId(createdSecondGroup);
+        ResponseEntity<String> duplicateGroupRename = admin.patch(baseUrl + "/groups/" + firstGroupId, "{\"name\":\" gremium b \"}");
+        assertEquals(409, duplicateGroupRename.getStatusCode().value());
+        assertNoStore(duplicateGroupRename);
 
         ResponseEntity<String> firstAssignment = admin.put(baseUrl + "/groups/" + firstGroupId + "/templates/" + templateId);
         assertEquals(204, firstAssignment.getStatusCode().value(), firstAssignment.getBody());
-        assertEquals(204, admin.put(baseUrl + "/groups/" + secondGroupId + "/templates/" + templateId).getStatusCode().value());
-        assertEquals(204, admin.delete(baseUrl + "/groups/" + firstGroupId).getStatusCode().value());
-        assertTrue(admin.get(baseUrl + "/groups/" + secondGroupId + "/templates").getBody().contains("Beirat"));
+        assertNoStore(firstAssignment);
+        ResponseEntity<String> secondAssignment = admin.put(baseUrl + "/groups/" + secondGroupId + "/templates/" + templateId);
+        assertEquals(204, secondAssignment.getStatusCode().value());
+        assertNoStore(secondAssignment);
+        ResponseEntity<String> deletedGroup = admin.delete(baseUrl + "/groups/" + firstGroupId);
+        assertEquals(204, deletedGroup.getStatusCode().value());
+        assertNoStore(deletedGroup);
+        ResponseEntity<String> groupTemplates = admin.get(baseUrl + "/groups/" + secondGroupId + "/templates");
+        assertNoStore(groupTemplates);
+        assertTrue(groupTemplates.getBody().contains("Beirat"));
 
-        assertEquals(204, admin.delete(baseUrl + "/templates/" + templateId).getStatusCode().value());
-        assertEquals("[]", admin.get(baseUrl + "/groups/" + secondGroupId + "/templates").getBody());
-        assertEquals(409, admin.post(baseUrl + "/groups", "{\"name\":\" gremium b \",\"description\":\"\"}").getStatusCode().value());
+        ResponseEntity<String> deletedTemplate = admin.delete(baseUrl + "/templates/" + templateId);
+        assertEquals(204, deletedTemplate.getStatusCode().value());
+        assertNoStore(deletedTemplate);
+        ResponseEntity<String> emptyGroupTemplates = admin.get(baseUrl + "/groups/" + secondGroupId + "/templates");
+        assertNoStore(emptyGroupTemplates);
+        assertEquals("[]", emptyGroupTemplates.getBody());
+        ResponseEntity<String> duplicateGroupAfterDelete = admin.post(baseUrl + "/groups", "{\"name\":\" gremium b \",\"description\":\"\"}");
+        assertEquals(409, duplicateGroupAfterDelete.getStatusCode().value());
+        assertNoStore(duplicateGroupAfterDelete);
     }
 
     private AuthenticatedAdmin login() {

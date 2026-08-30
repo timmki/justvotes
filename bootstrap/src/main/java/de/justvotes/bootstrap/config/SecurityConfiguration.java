@@ -50,6 +50,7 @@ class SecurityConfiguration {
         problem.setProperty("code", code);
         response.setStatus(status.value());
         response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
+        response.setHeader("Cache-Control", "no-store");
         objectMapper.writeValue(response.getOutputStream(), problem);
     }
 

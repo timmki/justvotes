@@ -21,10 +21,6 @@ public final class OptionTemplateGroup {
         this.templateReferences = new LinkedHashSet<>(templateReferences);
     }
 
-    private static OptionTemplate.OptionTemplateId templateReference(long templateId) {
-        return OptionTemplate.OptionTemplateId.of(templateId);
-    }
-
     public OptionTemplateGroupId id() {
         return id;
     }

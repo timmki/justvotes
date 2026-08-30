@@ -42,6 +42,7 @@ class CsrfSessionOpenApiContractTest {
         TestRestTemplate client = new TestRestTemplate();
         String baseUrl = "http://localhost:" + port + "/api/v1";
         ResponseEntity<String> bootstrap = client.getForEntity(baseUrl + "/csrf", String.class);
+        assertThat(bootstrap.getHeaders().getCacheControl()).contains("no-store");
         String csrfCookie = cookies(bootstrap);
         String token = token(bootstrap);
 
@@ -80,6 +81,28 @@ class CsrfSessionOpenApiContractTest {
         }));
     }
 
+    @Test
+    void documentsNoStoreForEveryApiResponse() {
+        Map<String, Object> document = map(new Yaml().load(resource("docs/justvotes-v1.yaml")));
+        Map<String, Object> paths = map(document.get("paths"));
+        Map<String, Object> components = map(document.get("components"));
+        Map<String, Object> responseComponents = map(components.get("responses"));
+
+        paths.forEach((path, pathItem) -> map(pathItem).forEach((method, value) -> {
+            if (!(value instanceof Map)) return;
+            Map<String, Object> operation = map(value);
+            map(operation.get("responses")).forEach((status, response) -> {
+                Map<String, Object> responseDefinition = map(response);
+                if (responseDefinition.containsKey("$ref")) {
+                    String reference = (String) responseDefinition.get("$ref");
+                    responseDefinition = map(responseComponents.get(reference.substring(reference.lastIndexOf('/') + 1)));
+                }
+                assertThat(map(responseDefinition.get("headers"))).containsKey("Cache-Control");
+                assertThat(map(responseDefinition.get("headers")).get("Cache-Control")).isEqualTo(Map.of("$ref", "#/components/headers/NoStore"));
+            });
+        }));
+    }
+
     private static RequestEntity<String> request(String method, String url, String cookies, String csrfToken, String body) {
         RequestEntity.BodyBuilder request = RequestEntity.method(org.springframework.http.HttpMethod.valueOf(method.toUpperCase()), url).contentType(MediaType.APPLICATION_JSON);
         if (cookies != null) request.header(HttpHeaders.COOKIE, cookies);
@@ -90,7 +113,7 @@ class CsrfSessionOpenApiContractTest {
     private static InputStream resource(String name) { return CsrfSessionOpenApiContractTest.class.getClassLoader().getResourceAsStream(name); }
     private static String token(ResponseEntity<String> response) { var matcher = TOKEN.matcher(response.getBody()); assertThat(matcher.find()).isTrue(); return matcher.group(1); }
     private static String cookies(ResponseEntity<String> response) { return response.getHeaders().get(HttpHeaders.SET_COOKIE).stream().map(value -> value.substring(0, value.indexOf(';'))).reduce((left, right) -> left + "; " + right).orElseThrow(); }
-    private static void assertStatus(ResponseEntity<String> response, int status) { assertThat(response.getStatusCode().value()).isEqualTo(status); assertThat(response.getHeaders().getContentType()).hasToString("application/problem+json"); }
+    private static void assertStatus(ResponseEntity<String> response, int status) { assertThat(response.getStatusCode().value()).isEqualTo(status); assertThat(response.getHeaders().getCacheControl()).contains("no-store"); assertThat(response.getHeaders().getContentType()).hasToString("application/problem+json"); }
     private static void assertResponses(Map<String, Object> operation, String... statuses) { Map<String, Object> responses = map(operation.get("responses")); for (String status : statuses) assertThat(responses).containsKey(status); }
     private static boolean hasSecurity(Map<String, Object> operation, String name) { return ((List<Map<String, Object>>) operation.get("security")).stream().anyMatch(requirement -> requirement.containsKey(name)); }
     private static void assertSecurity(Map<String, Object> operation, String... names) { List<Map<String, Object>> requirements = (List<Map<String, Object>>) operation.get("security"); assertThat(requirements).singleElement().satisfies(requirement -> assertThat(requirement).containsKeys(names)); }

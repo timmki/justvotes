@@ -24,7 +24,8 @@ public class IdentityController implements IdentityApi {
         HttpServletRequest servletRequest = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest();
         Identity identity = Identity.of(request.getUserID());
         votes.changeIdentity(cookieIdentity(servletRequest), identity);
-        return ResponseEntity.noContent().header("Set-Cookie", ResponseCookie.from(COOKIE, identity.value())
+        return ResponseEntity.noContent().cacheControl(org.springframework.http.CacheControl.noStore())
+                .header("Set-Cookie", ResponseCookie.from(COOKIE, identity.value())
                 .path("/")
                 .maxAge(java.time.Duration.ofDays(3650))
                 .sameSite("Lax")
