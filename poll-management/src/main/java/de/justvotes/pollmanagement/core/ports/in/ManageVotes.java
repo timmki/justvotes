@@ -8,4 +8,6 @@ public interface ManageVotes {
     void changeIdentity(Identity oldIdentity, Identity newIdentity);
 
     VoteOutcome castOrReplace(Poll.PollId pollId, Identity identity, int optionNumber);
+
+    void withdrawVote(Poll.PollId pollId, Identity identity);
 }

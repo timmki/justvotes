@@ -859,6 +859,26 @@ paths:
           $ref: '#/components/responses/Problem'
         '409':
           $ref: '#/components/responses/Problem'
+    delete:
+      tags:
+        - Public polls
+      operationId: withdrawVote
+      security:
+        - voterIdentity: [ ]
+          csrf: [ ]
+          csrfCookie: [ ]
+      responses:
+        '204':
+          description: Vote withdrawn
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
   '/polls/{pollId}/results':
     parameters:
       - $ref: '#/components/parameters/PollId'

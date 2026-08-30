@@ -24,11 +24,15 @@ public class PollDomainEventEntity {
     }
 
     PollDomainEventEntity(String pollId, String eventType, String actorId, String metadata) {
+        this(pollId, eventType, actorId, metadata, Instant.now());
+    }
+
+    PollDomainEventEntity(String pollId, String eventType, String actorId, String metadata, Instant createdAt) {
         this.pollId = pollId;
         this.eventType = eventType;
         this.actorId = actorId;
         this.metadata = metadata;
-        this.createdAt = Instant.now().toString();
+        this.createdAt = createdAt.toString();
     }
 
     String actorId() {

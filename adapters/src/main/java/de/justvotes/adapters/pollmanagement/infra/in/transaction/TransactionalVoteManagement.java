@@ -30,6 +30,12 @@ public class TransactionalVoteManagement implements ManageVotes, ViewVotes {
     }
 
     @Override
+    @Transactional
+    public void withdrawVote(Poll.PollId pollId, Identity identity) {
+        commands.withdrawVote(pollId, identity);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public Optional<Vote> currentVote(Poll.PollId pollId, Identity identity) {
         return queries.currentVote(pollId, identity);

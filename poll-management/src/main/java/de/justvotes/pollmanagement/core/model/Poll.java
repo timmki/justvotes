@@ -1,6 +1,7 @@
 package de.justvotes.pollmanagement.core.model;
 
 import de.justvotes.pollmanagement.core.event.PollPublished;
+import de.justvotes.pollmanagement.core.exception.PollNotActiveException;
 
 import java.time.Instant;
 import java.util.Comparator;
@@ -160,8 +161,8 @@ public final class Poll {
     }
 
     public Optional<Vote> removeVoteForIdentity(Identity identity) {
-        if (!isPubliclyVisible()) {
-            return Optional.empty();
+        if (state != State.ACTIVE) {
+            throw new PollNotActiveException(state);
         }
         Optional<Vote> current = votes.stream().filter(vote -> vote.identity().equals(identity)).findFirst();
         current.ifPresent(votes::remove);

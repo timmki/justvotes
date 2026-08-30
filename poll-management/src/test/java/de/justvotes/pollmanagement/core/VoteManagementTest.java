@@ -2,6 +2,9 @@ package de.justvotes.pollmanagement.core;
 
 import de.justvotes.pollmanagement.core.event.PollDomainEvent;
 import de.justvotes.pollmanagement.core.event.VoteRemovedForIdentityChange;
+import de.justvotes.pollmanagement.core.event.VoteWithdrawn;
+import de.justvotes.pollmanagement.core.exception.PollNotActiveException;
+import de.justvotes.pollmanagement.core.exception.PollNotFoundException;
 import de.justvotes.pollmanagement.core.exception.ResultsNotAvailableException;
 import de.justvotes.pollmanagement.core.model.Identity;
 import de.justvotes.pollmanagement.core.model.Poll;
@@ -72,6 +75,39 @@ class VoteManagementTest {
         assertEquals(List.of(new Vote(OLD_IDENTITY, 1, VOTE_TIME)), openPoll.votes());
         assertEquals(List.of(), events);
         assertEquals(List.of(), polls.saved());
+    }
+
+    @Test
+    void withdrawsOwnVoteIdempotentlyAndRecordsTheRemovalAtTheClockTime() {
+        Poll poll = activePollWithVote(OLD_IDENTITY);
+        var polls = new InMemoryPollRepository(poll);
+        var events = new ArrayList<PollDomainEvent>();
+        Instant withdrawalTime = Instant.parse("2026-08-30T10:05:00Z");
+        VoteManagement management = new VoteManagement(polls, pollId -> List.of(), events::add, () -> withdrawalTime);
+
+        management.withdrawVote(poll.id(), OLD_IDENTITY);
+        management.withdrawVote(poll.id(), OLD_IDENTITY);
+
+        assertEquals(List.of(), poll.votes());
+        assertEquals(List.of(new VoteWithdrawn(poll.id(), new Vote(OLD_IDENTITY, 1, VOTE_TIME), "Ja", withdrawalTime)), events);
+        assertEquals(List.of(poll), polls.saved());
+    }
+
+    @Test
+    void rejectsPrivateAndNonActivePollsWithTheirDocumentedSemantics() {
+        Poll privatePoll = Poll.reconstitue(
+                Poll.PollId.newId(), "Privat", "systemadmin", Poll.Visibility.PRIVATE, Poll.State.ACTIVE,
+                group(), List.of("Ja"), List.of("Ja"), List.of());
+        Poll expiredPoll = Poll.reconstitue(
+                Poll.PollId.newId(), "Abgelaufen", "systemadmin", Poll.Visibility.PUBLIC, Poll.State.EXPIRED,
+                group(), List.of("Ja"), List.of("Ja"), List.of());
+        VoteManagement management = management(privatePoll, expiredPoll);
+
+        assertThrows(PollNotFoundException.class, () -> management.withdrawVote(privatePoll.id(), OLD_IDENTITY));
+        assertThrows(PollNotActiveException.class, () -> management.withdrawVote(expiredPoll.id(), OLD_IDENTITY));
+        assertThrows(PollNotFoundException.class, () -> management.withdrawVote(Poll.PollId.newId(), OLD_IDENTITY));
+        Poll activePoll = activePollWithVote(OLD_IDENTITY);
+        assertThrows(IllegalArgumentException.class, () -> management(activePoll).withdrawVote(activePoll.id(), null));
     }
 
     @Test

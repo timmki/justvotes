@@ -123,6 +123,17 @@ class CsrfSessionOpenApiContractTest {
     }
 
     @Test
+    void documentsVoteWithdrawalAsACsrfProtectedIdentityBoundMutation() {
+        Map<String, Object> paths = map(map(new Yaml().load(resource("docs/justvotes-v1.yaml"))).get("paths"));
+        Map<String, Object> withdrawal = map(map(paths.get("/polls/{pollId}/votes")).get("delete"));
+
+        assertThat(withdrawal.get("operationId")).isEqualTo("withdrawVote");
+        assertSecurity(withdrawal, "voterIdentity", "csrf", "csrfCookie");
+        assertThat(withdrawal).doesNotContainKey("requestBody");
+        assertResponses(withdrawal, "204", "403", "404", "409");
+    }
+
+    @Test
     void documentsCreationTimeAndCurrentVoteCountOnPublicPollSummaries() {
         Map<String, Object> components = map(map(new Yaml().load(resource("docs/justvotes-v1.yaml"))).get("components"));
         Map<String, Object> schemas = map(components.get("schemas"));

@@ -189,6 +189,101 @@ class PollManagementHttpTest {
         assertFalse(visitor.get(publicPollsUrl).getBody().contains("\"id\":\"" + firstPoll + "\""));
     }
 
+    @Test
+    void withdrawsOnlyTheCookieIdentityAndUpdatesResultsAndAuditIdempotently() {
+        String catalogUrl = "http://localhost:" + port + "/api/v1/admin/template-catalog";
+        String pollsUrl = "http://localhost:" + port + "/api/v1/admin/polls";
+        String publicPollsUrl = "http://localhost:" + port + "/api/v1/polls";
+        AuthenticatedAdmin admin = login();
+        String firstTemplate = createdId(admin.post(catalogUrl + "/templates", "{\"name\":\"Withdrawal-Ja\"}"));
+        String secondTemplate = createdId(admin.post(catalogUrl + "/templates", "{\"name\":\"Withdrawal-Nein\"}"));
+        String group = createdId(admin.post(catalogUrl + "/groups", "{\"name\":\"Withdrawal\",\"description\":\"\"}"));
+        admin.put(catalogUrl + "/groups/" + group + "/templates/" + firstTemplate);
+        admin.put(catalogUrl + "/groups/" + group + "/templates/" + secondTemplate);
+        String pollId = stringField(admin.post(pollsUrl, "{\"title\":\"Withdrawal\",\"templateGroupId\":\"" + group + "\"}"), "id");
+        admin.put(pollsUrl + "/" + pollId + "/publication", "{\"endsAt\":\"2099-01-01T00:00:00Z\"}");
+
+        PublicVisitor alice = publicVisitor();
+        ResponseEntity<String> aliceIdentity = alice.post("http://localhost:" + port + "/api/v1/identity", "{\"userID\":\"Alice\"}");
+        assertEquals(204, aliceIdentity.getStatusCode().value());
+        alice = new PublicVisitor(alice.client(), alice.cookies() + "; userID=alice", alice.csrfToken());
+        PublicVisitor bob = publicVisitor();
+        ResponseEntity<String> bobIdentity = bob.post("http://localhost:" + port + "/api/v1/identity", "{\"userID\":\"Bob\"}");
+        assertEquals(204, bobIdentity.getStatusCode().value());
+        bob = new PublicVisitor(bob.client(), bob.cookies() + "; userID=bob", bob.csrfToken());
+
+        assertEquals(200, alice.post(publicPollsUrl + "/" + pollId + "/votes", "{\"optionNumber\":1}").getStatusCode().value());
+        assertEquals(200, bob.post(publicPollsUrl + "/" + pollId + "/votes", "{\"optionNumber\":2}").getStatusCode().value());
+
+        ResponseEntity<String> csrfRejected = alice.deleteWithoutCsrf(publicPollsUrl + "/" + pollId + "/votes");
+        assertEquals(403, csrfRejected.getStatusCode().value());
+        assertNoStore(csrfRejected);
+        ResponseEntity<String> withdrawn = alice.delete(publicPollsUrl + "/" + pollId + "/votes");
+        assertEquals(204, withdrawn.getStatusCode().value());
+        assertNoStore(withdrawn);
+        ResponseEntity<String> repeated = alice.delete(publicPollsUrl + "/" + pollId + "/votes");
+        assertEquals(204, repeated.getStatusCode().value());
+        assertNoStore(repeated);
+
+        ResponseEntity<String> results = bob.get(publicPollsUrl + "/" + pollId + "/results");
+        assertEquals(200, results.getStatusCode().value(), results.getBody());
+        assertTrue(results.getBody().contains("\"totalVotes\":1"));
+        assertTrue(results.getBody().contains("\"userID\":\"bob\""));
+        assertFalse(results.getBody().contains("\"userID\":\"alice\""));
+
+        ResponseEntity<String> audit = alice.get(publicPollsUrl + "/" + pollId + "/audit");
+        assertEquals(200, audit.getStatusCode().value(), audit.getBody());
+        assertEquals(1, occurrences(audit.getBody(), "VoteWithdrawn"));
+        assertTrue(audit.getBody().contains("\"actor\":\"alice\""));
+        assertTrue(audit.getBody().contains("\"selection\":\"withdrawal-ja\""));
+        assertTrue(audit.getBody().contains("\"occurredAt\":\""));
+    }
+
+    @Test
+    void rejectsWithdrawalForPrivateUnknownAndNonActivePolls() {
+        String catalogUrl = "http://localhost:" + port + "/api/v1/admin/template-catalog";
+        String pollsUrl = "http://localhost:" + port + "/api/v1/admin/polls";
+        String publicPollsUrl = "http://localhost:" + port + "/api/v1/polls";
+        AuthenticatedAdmin admin = login();
+        String template = createdId(admin.post(catalogUrl + "/templates", "{\"name\":\"Withdrawal-State-Option\"}"));
+        String group = createdId(admin.post(catalogUrl + "/groups", "{\"name\":\"Withdrawal-State-Group\",\"description\":\"\"}"));
+        admin.put(catalogUrl + "/groups/" + group + "/templates/" + template);
+        PublicVisitor visitor = publicVisitor();
+        PublicVisitor anonymous = publicVisitor();
+        ResponseEntity<String> identity = visitor.post("http://localhost:" + port + "/api/v1/identity", "{\"userID\":\"StateUser\"}");
+        assertEquals(204, identity.getStatusCode().value());
+        visitor = new PublicVisitor(visitor.client(), visitor.cookies() + "; userID=stateuser", visitor.csrfToken());
+
+        String privatePoll = stringField(admin.post(pollsUrl, "{\"title\":\"Privat\",\"templateGroupId\":\"" + group + "\"}"), "id");
+        assertEquals(404, visitor.delete(publicPollsUrl + "/" + privatePoll + "/votes").getStatusCode().value());
+        assertEquals(404, anonymous.delete(publicPollsUrl + "/" + privatePoll + "/votes").getStatusCode().value());
+        assertEquals(404, visitor.delete(publicPollsUrl + "/p_v1_missing/votes").getStatusCode().value());
+        assertEquals(404, anonymous.delete(publicPollsUrl + "/p_v1_missing/votes").getStatusCode().value());
+
+        String expiredPoll = stringField(admin.post(pollsUrl, "{\"title\":\"Abgelaufen\",\"templateGroupId\":\"" + group + "\"}"), "id");
+        admin.put(pollsUrl + "/" + expiredPoll + "/publication", "{\"endsAt\":\"2000-01-01T00:00:00Z\"}");
+        ResponseEntity<String> expired = visitor.delete(publicPollsUrl + "/" + expiredPoll + "/votes");
+        assertEquals(409, expired.getStatusCode().value(), expired.getBody());
+        assertTrue(expired.getBody().contains("poll-not-active"));
+        assertEquals(409, anonymous.delete(publicPollsUrl + "/" + expiredPoll + "/votes").getStatusCode().value());
+
+        String archivedPoll = stringField(admin.post(pollsUrl, "{\"title\":\"Archiviert\",\"templateGroupId\":\"" + group + "\"}"), "id");
+        admin.put(pollsUrl + "/" + archivedPoll + "/publication", "{\"endsAt\":\"2099-01-01T00:00:00Z\"}");
+        admin.put(pollsUrl + "/" + archivedPoll + "/archive");
+        ResponseEntity<String> archived = visitor.delete(publicPollsUrl + "/" + archivedPoll + "/votes");
+        assertEquals(409, archived.getStatusCode().value(), archived.getBody());
+
+        String deletedPoll = stringField(admin.post(pollsUrl, "{\"title\":\"Geloescht\",\"templateGroupId\":\"" + group + "\"}"), "id");
+        admin.put(pollsUrl + "/" + deletedPoll + "/publication", "{\"endsAt\":\"2099-01-01T00:00:00Z\"}");
+        admin.delete(pollsUrl + "/" + deletedPoll);
+        ResponseEntity<String> deleted = visitor.delete(publicPollsUrl + "/" + deletedPoll + "/votes");
+        assertEquals(409, deleted.getStatusCode().value(), deleted.getBody());
+    }
+
+    private static int occurrences(String text, String value) {
+        return text.split(Pattern.quote(value), -1).length - 1;
+    }
+
     private static int totalVotes(ResponseEntity<String> response, String pollId) {
         try {
             return ((Number) new ObjectMapper().readValue(response.getBody(), new TypeReference<List<Map<String, Object>>>() {
@@ -424,6 +519,15 @@ class PollManagementHttpTest {
         ResponseEntity<String> postWithoutCsrf(String url, String body) {
             return client.exchange(RequestEntity.post(url).contentType(MediaType.APPLICATION_JSON)
                     .header(HttpHeaders.COOKIE, cookies).body(body), String.class);
+        }
+
+        ResponseEntity<String> delete(String url) {
+            return client.exchange(RequestEntity.delete(url).header(HttpHeaders.COOKIE, cookies)
+                    .header("X-XSRF-TOKEN", csrfToken).build(), String.class);
+        }
+
+        ResponseEntity<String> deleteWithoutCsrf(String url) {
+            return client.exchange(RequestEntity.delete(url).header(HttpHeaders.COOKIE, cookies).build(), String.class);
         }
     }
 }

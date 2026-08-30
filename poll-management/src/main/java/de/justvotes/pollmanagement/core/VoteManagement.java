@@ -4,7 +4,9 @@ import de.justvotes.pollmanagement.core.event.VoteCast;
 import de.justvotes.pollmanagement.core.event.PollLifecycleChanged;
 import de.justvotes.pollmanagement.core.event.VoteRemovedForIdentityChange;
 import de.justvotes.pollmanagement.core.event.VoteReplaced;
+import de.justvotes.pollmanagement.core.event.VoteWithdrawn;
 import de.justvotes.pollmanagement.core.exception.PollNotFoundException;
+import de.justvotes.pollmanagement.core.exception.PollNotActiveException;
 import de.justvotes.pollmanagement.core.exception.ResultsNotAvailableException;
 import de.justvotes.pollmanagement.core.model.*;
 import de.justvotes.pollmanagement.core.ports.in.ManageVotes;
@@ -69,6 +71,27 @@ public final class VoteManagement implements ManageVotes, ViewVotes {
                 .map(polls::save)
                 .map(ignored -> outcome)
                 .get();
+    }
+
+    @Override
+    public void withdrawVote(Poll.PollId pollId, Identity identity) {
+        Poll poll = loadAndExpireIfDue(pollId);
+        if (poll.visibility() != Poll.Visibility.PUBLIC) {
+            throw new PollNotFoundException(pollId);
+        }
+        if (poll.state() != Poll.State.ACTIVE) {
+            throw new PollNotActiveException(poll.state());
+        }
+        if (identity == null) {
+            throw new IllegalArgumentException("An identity must be set before withdrawing a vote.");
+        }
+
+        Optional<Vote> withdrawn = poll.removeVoteForIdentity(identity);
+        if (withdrawn.isEmpty()) {
+            return;
+        }
+        events.publish(new VoteWithdrawn(poll.id(), withdrawn.get(), optionText(poll, withdrawn.get()), clock.now()));
+        polls.save(poll);
     }
 
     @Override

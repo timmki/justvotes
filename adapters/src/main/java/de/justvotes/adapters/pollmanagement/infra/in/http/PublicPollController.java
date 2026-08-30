@@ -84,6 +84,12 @@ public class PublicPollController implements PublicPollsApi {
     }
 
     @Override
+    public ResponseEntity<Void> withdrawVote(String pollId) {
+        votes.withdrawVote(pollId(pollId), currentIdentity());
+        return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();
+    }
+
+    @Override
     public ResponseEntity<de.justvotes.api.v1.model.PollResults> pollResults(String pollId) {
         return noStore(mapResults(voteQueries.results(pollId(pollId), currentIdentity())));
     }

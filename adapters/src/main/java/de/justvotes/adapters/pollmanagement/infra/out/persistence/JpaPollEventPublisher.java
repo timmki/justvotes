@@ -17,6 +17,6 @@ public final class JpaPollEventPublisher implements PollEventPublisher {
         if (Objects.isNull(event)) {
             return;
         }
-        events.save(new PollDomainEventEntity(event.pollId().value(), event.eventType(), event.actorId(), event.selection()));
+        events.save(new PollDomainEventEntity(event.pollId().value(), event.eventType(), event.actorId(), event.selection(), event.occurredAt()));
     }
 }

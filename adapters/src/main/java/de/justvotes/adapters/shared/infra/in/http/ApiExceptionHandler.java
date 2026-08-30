@@ -1,6 +1,7 @@
 package de.justvotes.adapters.shared.infra.in.http;
 
 import de.justvotes.pollmanagement.core.exception.PollNotFoundException;
+import de.justvotes.pollmanagement.core.exception.PollNotActiveException;
 import de.justvotes.pollmanagement.core.exception.ResultsNotAvailableException;
 import de.justvotes.templatecatalog.core.exception.CatalogItemNotFoundException;
 import de.justvotes.templatecatalog.core.exception.CatalogNameAlreadyExistsException;
@@ -77,6 +78,11 @@ public final class ApiExceptionHandler {
     @ExceptionHandler(ResultsNotAvailableException.class)
     ResponseEntity<ProblemDetail> resultsNotAvailable(ResultsNotAvailableException exception) {
         return problem(HttpStatus.FORBIDDEN, "results-not-available", "The poll results are not available yet.");
+    }
+
+    @ExceptionHandler(PollNotActiveException.class)
+    ResponseEntity<ProblemDetail> pollNotActive(PollNotActiveException exception) {
+        return problem(HttpStatus.CONFLICT, "poll-not-active", "The poll is not active.");
     }
 
     @ExceptionHandler({IllegalStateException.class, CatalogNameAlreadyExistsException.class, DataIntegrityViolationException.class})
