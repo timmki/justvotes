@@ -7,8 +7,8 @@ import { queryKeys } from '../../shared/api/queryKeys';
 import { useApiQuery } from '../../shared/api/useApiQuery';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { PageFrame } from '../../shared/ui/PageFrame';
-import { QueryState } from '../../shared/ui/QueryState';
 import { RouteState } from '../../shared/ui/RouteState';
+import { AdminVotes } from './AdministrativeVotes';
 import { AdminPolls, CreatePoll } from './PollAdministration';
 import { TemplateCatalogGroups, TemplateCatalogTemplates } from './TemplateCatalog';
 
@@ -115,12 +115,6 @@ function AdminSectionView({ section }: { section: AdminSectionName }) {
   if (section === 'groups') return <TemplateCatalogGroups />;
   if (section === 'templates') return <TemplateCatalogTemplates />;
   return <CreatePoll />;
-}
-
-function AdminVotes() {
-  const { t } = useI18n();
-  const query = useApiQuery(queryKeys.adminVotes(0, 50), () => apiClient.getAdminVotes());
-  return <QueryState query={query}>{(page) => <section className="admin-panel"><h3>{t('admin.votes')}</h3>{page.votes.length === 0 ? <RouteState status="empty" /> : <ul className="data-list">{page.votes.map((vote) => <li key={vote.voteId}>{vote.poll.title}: {vote.option.text} ({vote.userID})</li>)}</ul>}</section>}</QueryState>;
 }
 
 function sectionFromPath(pathname: string): AdminSectionName | null {

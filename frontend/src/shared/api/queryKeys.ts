@@ -5,6 +5,7 @@ export const queryKeys = {
   pollResults: (pollId: string) => ['poll', pollId, 'results'] as const,
   pollAudit: (pollId: string) => ['poll', pollId, 'audit'] as const,
   adminSession: ['admin', 'session'] as const,
+  adminVotesRoot: ['admin', 'votes'] as const,
   adminVotes: (page: number, size: number) => ['admin', 'votes', { page, size }] as const,
   adminPolls: ['admin', 'polls'] as const,
   templates: ['admin', 'templates'] as const,
@@ -14,7 +15,7 @@ export const queryKeys = {
 
 export const protectedQueryPrefixes = [
   queryKeys.adminSession,
-  ['admin', 'votes'] as const,
+  queryKeys.adminVotesRoot,
   queryKeys.adminPolls,
   queryKeys.templates,
   queryKeys.groups,

@@ -437,3 +437,97 @@ describe('Admin poll lifecycle', () => {
     expect(confirm).toHaveBeenCalledTimes(3);
   });
 });
+type TestAdminVote = components['"'"'schemas'"'"']['"'"'AdminVote'"'"'];
+
+function testAdminVote(id: string, pollId: string, pollTitle: string, userID: string, optionText = '"'"'Yes'"'"'): TestAdminVote {
+  return {
+    voteId: id,
+    userID,
+    votedAt: '"'"'2026-08-31T12:00:00.000Z'"'"',
+    poll: { id: pollId, title: pollTitle },
+    option: { number: 1, text: optionText },
+  };
+}
+
+describe('"'"'Admin vote administration'"'"', () => {
+  it('"'"'loads all pages for global metrics and paginates the visible votes'"'"', async () => {
+    vi.spyOn(apiClient, '"'"'getAdminSession'"'"').mockResolvedValue(undefined);
+    const votes = [
+      testAdminVote('"'"'v_v1_one'"'"', '"'"'p_v1_alpha'"'"', '"'"'Alpha'"'"', '"'"'alice'"'"'),
+      testAdminVote('"'"'v_v1_two'"'"', '"'"'p_v1_alpha'"'"', '"'"'Alpha'"'"', '"'"'bob'"'"', '"'"'No'"'"'),
+    ];
+    votes.push(...Array.from({ length: 48 }, (_, index) => testAdminVote(`v_v1_extra_${index}`, '"'"'p_v1_alpha'"'"', '"'"'Alpha'"'"', '"'"'alice'"'"')));
+    votes.push(testAdminVote('"'"'v_v1_three'"'"', '"'"'p_v1_beta'"'"', '"'"'Beta'"'"', '"'"'alice'"'"'));
+    const getAdminVotes = vi.spyOn(apiClient, '"'"'getAdminVotes'"'"').mockImplementation(async (page = 0, size = 50) => ({
+      votes: page === 0 ? votes.slice(0, 50) : votes.slice(50),
+      page,
+      size,
+      totalElements: votes.length,
+    }));
+
+    renderAdmin('"'"'/admin/votes'"'"');
+
+    expect(await screen.findByRole('"'"'heading'"'"', { name: '"'"'Stimmen'"'"', level: 3 })).toBeVisible();
+    expect(screen.getByText('"'"'Aktuelle Stimmen'"'"').parentElement).toHaveTextContent('"'"'51'"'"');
+    expect(screen.getByText('"'"'Betroffene Polls'"'"').parentElement).toHaveTextContent('"'"'2'"'"');
+    expect(screen.getByText('"'"'Unterschiedliche Identitäten'"'"').parentElement).toHaveTextContent('"'"'2'"'"');
+    const voteList = screen.getByRole('"'"'list'"'"');
+    expect(within(voteList).getAllByText('"'"'Alpha'"'"')).toHaveLength(50);
+    expect(within(voteList).queryByText('"'"'Beta'"'"')).toBeNull();
+    expect(getAdminVotes).toHaveBeenCalledWith(0, 50);
+    expect(getAdminVotes).toHaveBeenCalledWith(1, 50);
+
+    fireEvent.change(screen.getByLabelText('"'"'Poll filtern'"'"'), { target: { value: '"'"'p_v1_beta'"'"' } });
+    expect(await within(voteList).findByText('"'"'Beta'"'"')).toBeVisible();
+    expect(within(voteList).queryByText('"'"'Alpha'"'"')).toBeNull();
+    fireEvent.change(screen.getByLabelText('"'"'Poll filtern'"'"'), { target: { value: '"'"''"'"' } });
+
+    fireEvent.click(screen.getByRole('"'"'button'"'"', { name: '"'"'Nächste Seite'"'"' }));
+
+    expect(await within(voteList).findByText('"'"'Beta'"'"')).toBeVisible();
+    expect(screen.getByText('"'"'Seite 2 von 2'"'"')).toBeVisible();
+  });
+
+  it('"'"'requires a trimmed reason and removes a vote after confirmation'"'"', async () => {
+    vi.spyOn(apiClient, '"'"'getAdminSession'"'"').mockResolvedValue(undefined);
+    vi.spyOn(apiClient, '"'"'getAdminVotes'"'"').mockResolvedValue({ votes: [testAdminVote('"'"'v_v1_vote'"'"', '"'"'p_v1_poll'"'"', '"'"'A poll'"'"', '"'"'alice'"'"')], page: 0, size: 50, totalElements: 1 });
+    const removeAdminVote = vi.spyOn(apiClient, '"'"'removeAdminVote'"'"').mockResolvedValue(undefined);
+
+    renderAdmin('"'"'/admin/votes'"'"');
+
+    const vote = (await within(await screen.findByRole('"'"'list'"'"')).findByText('"'"'A poll'"'"')).closest('"'"'li'"'"');
+    expect(vote).not.toBeNull();
+    fireEvent.click(within(vote as HTMLElement).getByRole('"'"'button'"'"', { name: '"'"'Stimme entfernen'"'"' }));
+
+    const dialog = screen.getByRole('"'"'dialog'"'"');
+    expect(dialog).toHaveTextContent('"'"'unveränderlich'"'"');
+    const submit = within(dialog).getByRole('"'"'button'"'"', { name: '"'"'Stimme entfernen'"'"' });
+    expect(submit).toBeDisabled();
+    fireEvent.change(within(dialog).getByRole('"'"'textbox'"'"', { name: '"'"'Begründung'"'"' }), { target: { value: '"'"'  Regelverstoß  '"'"' } });
+    expect(submit).toBeEnabled();
+    fireEvent.click(submit);
+
+    await waitFor(() => expect(removeAdminVote).toHaveBeenCalledWith('"'"'v_v1_vote'"'"', '"'"'Regelverstoß'"'"'));
+    expect(await screen.findByText('"'"'Noch keine Daten vorhanden'"'"')).toBeVisible();
+    expect(screen.queryByRole('"'"'dialog'"'"')).toBeNull();
+  });
+
+  it('"'"'keeps the vote and entered reason visible when removal fails'"'"', async () => {
+    vi.spyOn(apiClient, '"'"'getAdminSession'"'"').mockResolvedValue(undefined);
+    vi.spyOn(apiClient, '"'"'getAdminVotes'"'"').mockResolvedValue({ votes: [testAdminVote('"'"'v_v1_vote'"'"', '"'"'p_v1_poll'"'"', '"'"'A poll'"'"', '"'"'alice'"'"')], page: 0, size: 50, totalElements: 1 });
+    vi.spyOn(apiClient, '"'"'removeAdminVote'"'"').mockRejectedValue(problemError({ status: 409, code: '"'"'vote_conflict'"'"' }, 409));
+
+    renderAdmin('"'"'/admin/votes'"'"');
+
+    const vote = (await within(await screen.findByRole('"'"'list'"'"')).findByText('"'"'A poll'"'"')).closest('"'"'li'"'"');
+    fireEvent.click(within(vote as HTMLElement).getByRole('"'"'button'"'"', { name: '"'"'Stimme entfernen'"'"' }));
+    const dialog = screen.getByRole('"'"'dialog'"'"');
+    const reason = within(dialog).getByRole('"'"'textbox'"'"', { name: '"'"'Begründung'"'"' });
+    fireEvent.change(reason, { target: { value: '"'"'  Korrektur  '"'"' } });
+    fireEvent.click(within(dialog).getByRole('"'"'button'"'"', { name: '"'"'Stimme entfernen'"'"' }));
+
+    expect(await screen.findByRole('"'"'alert'"'"')).toHaveTextContent('"'"'Der aktuelle Zustand erlaubt diese Aktion nicht.'"'"');
+    expect(within(screen.getByRole('"'"'list'"'"')).getByText('"'"'A poll'"'"')).toBeVisible();
+    expect(reason).toHaveValue('"'"'  Korrektur  '"'"');
+  });
+});

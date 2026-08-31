@@ -85,6 +85,7 @@ export class ApiClient {
   castVote(pollId: string, optionNumber: number) { return this.request<Vote>(`/polls/${encodeURIComponent(pollId)}/votes`, { method: 'POST', body: { optionNumber } }); }
   withdrawVote(pollId: string) { return this.request<void>(`/polls/${encodeURIComponent(pollId)}/votes`, { method: 'DELETE' }); }
   getAdminVotes(page = 0, size = 50) { return this.request<AdminVotePage>(`/admin/votes?page=${page}&size=${size}`); }
+  removeAdminVote(voteId: string, reason: string) { return this.request<void>(`/admin/votes/${encodeURIComponent(voteId)}`, { method: 'DELETE', body: { reason } }); }
   getAdminPolls() { return this.request<Poll[]>('/admin/polls'); }
   createPoll(poll: CreatePoll) { return this.request<Poll>('/admin/polls', { method: 'POST', body: poll }); }
   replacePollOptions(pollId: string, optionTexts: string[]) { return this.request<Poll>(`/admin/polls/${encodeURIComponent(pollId)}/options`, { method: 'PUT', body: { optionTexts } }); }

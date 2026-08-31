@@ -120,6 +120,59 @@ test('logs in, restores the active admin area after reload, and logs out', async
   expect(await page.getByRole('navigation', { name: 'Admin-Navigation' }).count()).toBe(0);
 });
 
+test('removes an administrative vote through the browser flow', async ({ page }) => {
+  let votePresent = true;
+  let removalReason: string | undefined;
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request();
+    const url = request.url();
+    if (url.endsWith('/csrf')) return route.fulfill({ json: { token: 'csrf-token', headerName: 'X-XSRF-TOKEN' } });
+    if (url.endsWith('/admin/session')) return route.fulfill({ status: 204 });
+    if (url.includes('/admin/votes/') && request.method() === 'DELETE') {
+      removalReason = request.postDataJSON().reason;
+      votePresent = false;
+      return route.fulfill({ status: 204 });
+    }
+    if (url.includes('/admin/votes?')) return route.fulfill({ json: votePresent ? {
+      votes: [{ voteId: 'v_v1_browser', userID: 'alice', votedAt: '2026-08-31T12:00:00.000Z', poll: { id: 'p_v1_browser', title: 'Browser poll' }, option: { number: 1, text: 'Yes' } }],
+      page: 0,
+      size: 50,
+      totalElements: 1,
+    } : { votes: [], page: 0, size: 50, totalElements: 0 } });
+    if (url.endsWith('/polls/p_v1_browser/results')) return route.fulfill({ json: {
+      id: 'p_v1_browser',
+      title: 'Browser poll',
+      visibility: 'public',
+      state: 'active',
+      createdAt: '2026-08-31T12:00:00.000Z',
+      endsAt: null,
+      totalVotes: votePresent ? 1 : 0,
+      options: [{ number: 1, text: 'Yes', voteCount: votePresent ? 1 : 0, votes: votePresent ? [{ userID: 'alice', votedAt: '2026-08-31T12:00:00.000Z' }] : [] }],
+    } });
+    if (url.endsWith('/polls/p_v1_browser/audit')) return route.fulfill({ json: votePresent ? [] : [{ event: 'VoteRemovedByAdmin', actor: 'admin', occurredAt: '2026-08-31T12:00:00.000Z', selection: 'Yes', reason: 'Browser test', userID: 'alice', optionNumber: 1, votedAt: '2026-08-31T12:00:00.000Z' }] });
+    return route.fulfill({ json: [] });
+  });
+
+  await page.goto('/admin/votes');
+  await expect(page.locator('.admin-vote-list').getByText('Browser poll')).toBeVisible();
+  await expect(page.getByText('Aktuelle Stimmen').locator('..')).toContainText('1');
+  await page.getByRole('button', { name: 'Stimme entfernen' }).click();
+
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('button', { name: 'Stimme entfernen' })).toBeDisabled();
+  await dialog.getByRole('textbox', { name: 'Begründung' }).fill('  Browser test  ');
+  await dialog.getByRole('button', { name: 'Stimme entfernen' }).click();
+
+  await expect(page.getByText('Noch keine Daten vorhanden')).toBeVisible();
+  expect(removalReason).toBe('Browser test');
+
+  await page.goto('/poll/results/p_v1_browser');
+  await expect(page.getByRole('heading', { name: 'Browser poll', level: 3 })).toBeVisible();
+  await expect(page.getByText('Yes 0')).toBeVisible();
+  await page.goto('/poll/audit/p_v1_browser');
+  await expect(page.getByText('VoteRemovedByAdmin')).toBeVisible();
+});
+
 test('shows login on session expiry and restores the previous admin route', async ({ page }) => {
   let authenticated = true;
   let expired = false;

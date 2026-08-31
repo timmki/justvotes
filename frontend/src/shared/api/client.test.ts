@@ -153,4 +153,17 @@ describe('ApiClient', () => {
     expect((fetcher.mock.calls[2][1] as RequestInit).body).toBe(JSON.stringify({ endsAt: '2099-01-01T00:00:00.000Z' }));
     expect((fetcher.mock.calls[10][1] as RequestInit).body).toBe(JSON.stringify({ confirmation: 'DELETE' }));
   });
+
+  it('removes an administrative vote with its reason', async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(jsonResponse(200, { token: 'vote-token', headerName: 'X-XSRF-TOKEN' }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const client = new ApiClient({ fetcher });
+
+    await client.removeAdminVote('v_v1_vote', 'Regelverstoß');
+
+    expect(fetcher.mock.calls[1][0]).toBe('/api/v1/admin/votes/v_v1_vote');
+    expect((fetcher.mock.calls[1][1] as RequestInit).method).toBe('DELETE');
+    expect((fetcher.mock.calls[1][1] as RequestInit).body).toBe(JSON.stringify({ reason: 'Regelverstoß' }));
+  });
 });
