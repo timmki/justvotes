@@ -49,6 +49,10 @@ public class PollEntity {
         this.templateGroupDescription = templateGroupDescription;
     }
 
+    static Instant parseInstant(String value) {
+        return Instant.parse(value.replace(' ', 'T') + (value.endsWith("Z") ? "" : "Z"));
+    }
+
     String id() {
         return id;
     }
@@ -75,10 +79,6 @@ public class PollEntity {
 
     Instant endsAt() {
         return endsAt == null ? null : parseInstant(endsAt);
-    }
-
-    static Instant parseInstant(String value) {
-        return Instant.parse(value.replace(' ', 'T') + (value.endsWith("Z") ? "" : "Z"));
     }
 
     long templateGroupId() {

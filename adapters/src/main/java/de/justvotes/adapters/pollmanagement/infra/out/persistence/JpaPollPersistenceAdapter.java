@@ -1,20 +1,10 @@
 package de.justvotes.adapters.pollmanagement.infra.out.persistence;
 
-import de.justvotes.pollmanagement.core.model.Poll;
-import de.justvotes.pollmanagement.core.model.Identity;
-import de.justvotes.pollmanagement.core.model.PollSummary;
-import de.justvotes.pollmanagement.core.model.Vote;
-import de.justvotes.pollmanagement.core.model.AdminVote;
-import de.justvotes.pollmanagement.core.model.AdminVotePage;
+import de.justvotes.pollmanagement.core.model.*;
 import de.justvotes.pollmanagement.core.ports.out.PollRepository;
 
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.TreeMap;
 import java.time.Instant;
+import java.util.*;
 
 public final class JpaPollPersistenceAdapter implements PollRepository {
     private final SpringDataPollRepository polls;

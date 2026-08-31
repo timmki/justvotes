@@ -23,9 +23,9 @@ public class TemplateCatalogAdministration implements ManageTemplateCatalog, Vie
         this.groups = groups;
     }
 
-    private static String normalizedName(String name) {
-        return name.trim().toLowerCase(Locale.ROOT);
-    }
+//    private static String normalizedName(String name) {
+//        return name.trim().toLowerCase(Locale.ROOT);
+//    }
 
     @Override
     public OptionTemplate createTemplate(String name) {
@@ -41,7 +41,7 @@ public class TemplateCatalogAdministration implements ManageTemplateCatalog, Vie
         return Try.of(() -> OptionTemplate.OptionTemplateId.of(templateId))
                 .map(this::template)
                 .andThen(template -> ensureNameIsAvailable(name, template.id(), null))
-                .map(template -> template.rename(normalizedName(name)))
+                .map(template -> template.rename(name))
                 .map(templates::save)
                 .get();
     }
@@ -73,7 +73,7 @@ public class TemplateCatalogAdministration implements ManageTemplateCatalog, Vie
         return Try.of(() -> OptionTemplateGroup.OptionTemplateGroupId.of(groupId))
                 .map(this::group)
                 .andThen(group -> ensureNameIsAvailable(name, null, group.id()))
-                .map(group -> group.rename(normalizedName(name)))
+                .map(group -> group.rename(name))
                 .map(groups::save)
                 .get();
     }
@@ -131,19 +131,17 @@ public class TemplateCatalogAdministration implements ManageTemplateCatalog, Vie
     }
 
     private String ensureNameIsAvailable(String name) {
-        String normalizedName = normalizedName(name);
-        if (templates.findByNormalizedName(normalizedName).isPresent()
-                || groups.findByNormalizedName(normalizedName).isPresent()) {
+        if (templates.findByNormalizedName(name).isPresent()
+                || groups.findByNormalizedName(name).isPresent()) {
             throw new CatalogNameAlreadyExistsException(name);
         }
-        return normalizedName;
+        return name;
     }
 
     private void ensureNameIsAvailable(String name, OptionTemplate.OptionTemplateId templateId, OptionTemplateGroup.OptionTemplateGroupId groupId) {
-        String normalizedName = normalizedName(name);
-        boolean usedByAnotherTemplate = templates.findByNormalizedName(normalizedName)
+        boolean usedByAnotherTemplate = templates.findByNormalizedName(name)
                 .filter(template -> !template.id().equals(templateId)).isPresent();
-        boolean usedByAnotherGroup = groups.findByNormalizedName(normalizedName)
+        boolean usedByAnotherGroup = groups.findByNormalizedName(name)
                 .filter(group -> !group.id().equals(groupId)).isPresent();
         if (usedByAnotherTemplate || usedByAnotherGroup) {
             throw new CatalogNameAlreadyExistsException(name);

@@ -1,30 +1,26 @@
 package de.justvotes.adapters.shared.infra.in.http;
 
-import de.justvotes.pollmanagement.core.exception.PollNotFoundException;
 import de.justvotes.pollmanagement.core.exception.PollNotActiveException;
+import de.justvotes.pollmanagement.core.exception.PollNotFoundException;
 import de.justvotes.pollmanagement.core.exception.ResultsNotAvailableException;
 import de.justvotes.pollmanagement.core.exception.VoteNotFoundException;
 import de.justvotes.templatecatalog.core.exception.CatalogItemNotFoundException;
 import de.justvotes.templatecatalog.core.exception.CatalogNameAlreadyExistsException;
+import jakarta.validation.ConstraintViolationException;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
-import org.springframework.http.ProblemDetail;
-import org.springframework.http.ResponseEntity;
-import org.springframework.http.CacheControl;
+import org.springframework.http.*;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.method.MethodValidationException;
+import org.springframework.web.ErrorResponseException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-import org.springframework.web.HttpMediaTypeNotSupportedException;
-import org.springframework.web.HttpRequestMethodNotSupportedException;
-import org.springframework.web.ErrorResponseException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
-import org.springframework.core.annotation.Order;
-import org.springframework.core.Ordered;
-import jakarta.validation.ConstraintViolationException;
 
 import java.net.URI;
 

@@ -1,13 +1,7 @@
 package de.justvotes.adapters.pollmanagement.infra.in.http;
 
 import de.justvotes.adapters.shared.infra.in.http.OpaqueIdCodec;
-import de.justvotes.api.v1.model.AuditEntry;
-import de.justvotes.api.v1.model.AuditEventType;
-import de.justvotes.api.v1.model.ResultOption;
-import de.justvotes.api.v1.model.ResultVote;
-import de.justvotes.api.v1.model.Vote;
-import de.justvotes.api.v1.model.VoteInput;
-import de.justvotes.api.v1.model.VoteStatus;
+import de.justvotes.api.v1.model.*;
 import de.justvotes.api.v1.server.PublicPollsApi;
 import de.justvotes.pollmanagement.core.model.Identity;
 import de.justvotes.pollmanagement.core.model.Poll;
@@ -67,6 +61,24 @@ public class PublicPollController implements PublicPollsApi {
         return null;
     }
 
+    private static de.justvotes.api.v1.model.PollResults mapResults(PollResults results) {
+        return new de.justvotes.api.v1.model.PollResults(
+                OpaqueIdCodec.encode("p", results.id().value()),
+                results.title(),
+                de.justvotes.api.v1.model.PollVisibility.valueOf(results.visibility().name()),
+                de.justvotes.api.v1.model.PollState.valueOf(results.state().name()),
+                PollResponseMapper.utcTimestamp(results.createdAt()),
+                results.endsAt() == null ? null : PollResponseMapper.utcTimestamp(results.endsAt()),
+                results.totalVotes(),
+                results.options().stream().map(option -> new ResultOption(
+                        option.number(),
+                        option.text(),
+                        option.voteCount(),
+                        option.votes().stream().map(vote -> new ResultVote(
+                                vote.identity().value(),
+                                PollResponseMapper.utcTimestamp(vote.votedAt()))).toList())).toList());
+    }
+
     @Override
     public ResponseEntity<List<de.justvotes.api.v1.model.Poll>> publicPolls() {
         return noStore(polls.publicPolls().stream().map(PollResponseMapper::map).toList());
@@ -106,23 +118,5 @@ public class PublicPollController implements PublicPollsApi {
                         .userID(entry.voteIdentity())
                         .optionNumber(entry.optionNumber())
                         .votedAt(entry.votedAt() == null ? null : PollResponseMapper.utcTimestamp(entry.votedAt()))).toList());
-    }
-
-    private static de.justvotes.api.v1.model.PollResults mapResults(PollResults results) {
-        return new de.justvotes.api.v1.model.PollResults(
-                OpaqueIdCodec.encode("p", results.id().value()),
-                results.title(),
-                de.justvotes.api.v1.model.PollVisibility.valueOf(results.visibility().name()),
-                de.justvotes.api.v1.model.PollState.valueOf(results.state().name()),
-                PollResponseMapper.utcTimestamp(results.createdAt()),
-                results.endsAt() == null ? null : PollResponseMapper.utcTimestamp(results.endsAt()),
-                results.totalVotes(),
-                results.options().stream().map(option -> new ResultOption(
-                        option.number(),
-                        option.text(),
-                        option.voteCount(),
-                        option.votes().stream().map(vote -> new ResultVote(
-                                vote.identity().value(),
-                                PollResponseMapper.utcTimestamp(vote.votedAt()))).toList())).toList());
     }
 }

@@ -1,8 +1,8 @@
 package de.justvotes.adapters.pollmanagement.infra.out.persistence;
 
-import jakarta.persistence.*;
 import de.justvotes.pollmanagement.core.event.PollDomainEvent;
 import de.justvotes.pollmanagement.core.model.Vote;
+import jakarta.persistence.*;
 
 import java.time.Instant;
 

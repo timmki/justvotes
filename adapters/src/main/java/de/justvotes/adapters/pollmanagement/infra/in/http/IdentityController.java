@@ -1,7 +1,7 @@
 package de.justvotes.adapters.pollmanagement.infra.in.http;
 
-import de.justvotes.api.v1.server.IdentityApi;
 import de.justvotes.api.v1.model.CurrentIdentity;
+import de.justvotes.api.v1.server.IdentityApi;
 import de.justvotes.pollmanagement.core.model.Identity;
 import de.justvotes.pollmanagement.core.ports.in.ManageVotes;
 import jakarta.servlet.http.HttpServletRequest;
@@ -38,12 +38,12 @@ public class IdentityController implements IdentityApi {
         votes.changeIdentity(cookieIdentity(servletRequest), identity);
         return ResponseEntity.noContent().cacheControl(CacheControl.noStore())
                 .header("Set-Cookie", ResponseCookie.from(COOKIE, identity.value())
-                .path("/")
-                .maxAge(Duration.ofDays(3650))
-                .sameSite("Lax")
-                .httpOnly(true)
-                .secure(servletRequest.isSecure())
-                .build().toString()).build();
+                        .path("/")
+                        .maxAge(Duration.ofDays(3650))
+                        .sameSite("Lax")
+                        .httpOnly(true)
+                        .secure(servletRequest.isSecure())
+                        .build().toString()).build();
     }
 
     private Identity cookieIdentity(HttpServletRequest request) {

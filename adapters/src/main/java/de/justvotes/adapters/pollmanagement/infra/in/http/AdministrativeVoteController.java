@@ -1,13 +1,8 @@
 package de.justvotes.adapters.pollmanagement.infra.in.http;
 
 import de.justvotes.adapters.shared.infra.in.http.OpaqueIdCodec;
-import de.justvotes.api.v1.model.AdminVote;
-import de.justvotes.api.v1.model.AdminVotePage;
-import de.justvotes.api.v1.model.AdminVotePoll;
-import de.justvotes.api.v1.model.Option;
-import de.justvotes.api.v1.model.VoteRemoval;
+import de.justvotes.api.v1.model.*;
 import de.justvotes.api.v1.server.AdministrationApi;
-import de.justvotes.pollmanagement.core.model.Poll;
 import de.justvotes.pollmanagement.core.ports.in.ManageAdminVotes;
 import de.justvotes.pollmanagement.core.ports.in.ViewAdminVotes;
 import org.springframework.http.CacheControl;
@@ -27,6 +22,14 @@ public class AdministrativeVoteController implements AdministrationApi {
     public AdministrativeVoteController(ViewAdminVotes queries, ManageAdminVotes commands) {
         this.queries = queries;
         this.commands = commands;
+    }
+
+    private static String admin() {
+        var principal = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest().getUserPrincipal();
+        if (principal == null) {
+            throw new IllegalStateException("An administrator session is required.");
+        }
+        return principal.getName();
     }
 
     @Override
@@ -49,13 +52,5 @@ public class AdministrativeVoteController implements AdministrationApi {
         }
         commands.removeAdminVote(OpaqueIdCodec.decode("v", voteId), admin(), voteRemoval.getReason());
         return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();
-    }
-
-    private static String admin() {
-        var principal = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest().getUserPrincipal();
-        if (principal == null) {
-            throw new IllegalStateException("An administrator session is required.");
-        }
-        return principal.getName();
     }
 }

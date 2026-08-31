@@ -8,9 +8,9 @@ import de.justvotes.api.v1.model.TemplateGroup;
 import de.justvotes.pollmanagement.core.model.Poll;
 import de.justvotes.pollmanagement.core.model.PollSummary;
 
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
 final class PollResponseMapper {

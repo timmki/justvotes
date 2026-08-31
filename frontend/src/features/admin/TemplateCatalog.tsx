@@ -366,7 +366,7 @@ function GroupManager({ groups, templates, activeGroup, groupTemplatesQuery, onS
 }
 
 function normalizeName(value: string) {
-  return value.trim().toLowerCase();
+  return value.trim();
 }
 
 function frontendError(cause: unknown) {
