@@ -90,3 +90,60 @@ test('renders public poll cards from one list request without N+1 detail request
   expect(requests.filter((url) => url.endsWith('/polls'))).toHaveLength(1);
   expect(requests.some((url) => /\/polls\/[^/]+$/.test(url))).toBe(false);
 });
+
+test('logs in, restores the active admin area after reload, and logs out', async ({ page }) => {
+  let authenticated = false;
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request();
+    const url = request.url();
+    if (url.endsWith('/csrf')) return route.fulfill({ json: { token: 'csrf-token', headerName: 'X-XSRF-TOKEN' } });
+    if (url.endsWith('/admin/session')) return authenticated ? route.fulfill({ status: 204 }) : route.fulfill({ status: 401, json: { status: 401, code: 'unauthorized' } });
+    if (url.endsWith('/admin/login')) { authenticated = true; return route.fulfill({ status: 204 }); }
+    if (url.endsWith('/admin/logout')) { authenticated = false; return route.fulfill({ status: 204 }); }
+    if (url.includes('/admin/votes?')) return route.fulfill({ json: { votes: [], page: 0, size: 50, totalElements: 0 } });
+    return route.fulfill({ json: [] });
+  });
+
+  await page.goto('/admin');
+  await expect(page.getByLabel('Benutzername')).toBeVisible();
+  expect(await page.getByRole('navigation', { name: 'Admin-Navigation' }).count()).toBe(0);
+  await page.getByLabel('Benutzername').fill('admin');
+  await page.getByLabel('Passwort').fill('secret');
+  await page.getByRole('button', { name: 'Anmelden' }).click();
+
+  await expect(page.getByRole('heading', { name: 'Stimmen', level: 3 })).toBeVisible();
+  await expect(page.locator('.admin-tabs').getByRole('link', { name: 'Stimmen' })).toHaveAttribute('aria-current', 'page');
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Stimmen', level: 3 })).toBeVisible();
+  await page.getByRole('button', { name: 'Abmelden' }).click();
+  await expect(page.getByLabel('Benutzername')).toBeVisible();
+  expect(await page.getByRole('navigation', { name: 'Admin-Navigation' }).count()).toBe(0);
+});
+
+test('shows login on session expiry and restores the previous admin route', async ({ page }) => {
+  let authenticated = true;
+  let expired = false;
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request();
+    const url = request.url();
+    if (url.endsWith('/csrf')) return route.fulfill({ json: { token: 'csrf-token', headerName: 'X-XSRF-TOKEN' } });
+    if (url.endsWith('/admin/session')) return authenticated ? route.fulfill({ status: 204 }) : route.fulfill({ status: 401, json: { status: 401, code: 'unauthorized' } });
+    if (url.endsWith('/admin/login')) { authenticated = true; expired = false; return route.fulfill({ status: 204 }); }
+    if (url.endsWith('/admin/polls')) return expired ? route.fulfill({ status: 401, json: { status: 401, code: 'unauthorized' } }) : route.fulfill({ json: [] });
+    return route.fulfill({ json: [] });
+  });
+
+  await page.goto('/admin/polls');
+  await expect(page.getByRole('heading', { name: 'Polls', level: 3 })).toBeVisible();
+  expired = true;
+  await page.reload();
+
+  await expect(page.getByLabel('Benutzername')).toBeVisible();
+  expect(await page.getByRole('navigation', { name: 'Admin-Navigation' }).count()).toBe(0);
+  await page.getByLabel('Benutzername').fill('admin');
+  await page.getByLabel('Passwort').fill('secret');
+  await page.getByRole('button', { name: 'Anmelden' }).click();
+
+  await expect(page.getByRole('heading', { name: 'Polls', level: 3 })).toBeVisible();
+  await expect(page.locator('.admin-tabs').getByRole('link', { name: 'Polls' })).toHaveAttribute('aria-current', 'page');
+});

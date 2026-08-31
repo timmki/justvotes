@@ -22,6 +22,7 @@ type Vote = components['schemas']['Vote'];
 type AdminVotePage = components['schemas']['AdminVotePage'];
 type Template = components['schemas']['Template'];
 type TemplateGroup = components['schemas']['TemplateGroup'];
+type CreatePoll = components['schemas']['CreatePoll'];
 
 export class ApiClient {
   private csrf: CsrfToken | null = null;
@@ -85,6 +86,7 @@ export class ApiClient {
   withdrawVote(pollId: string) { return this.request<void>(`/polls/${encodeURIComponent(pollId)}/votes`, { method: 'DELETE' }); }
   getAdminVotes(page = 0, size = 50) { return this.request<AdminVotePage>(`/admin/votes?page=${page}&size=${size}`); }
   getAdminPolls() { return this.request<Poll[]>('/admin/polls'); }
+  createPoll(poll: CreatePoll) { return this.request<Poll>('/admin/polls', { method: 'POST', body: poll }); }
   getTemplates() { return this.request<Template[]>('/admin/template-catalog/templates'); }
   getGroups() { return this.request<TemplateGroup[]>('/admin/template-catalog/groups'); }
 

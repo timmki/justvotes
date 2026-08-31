@@ -35,6 +35,6 @@ function pageTitle(pathname: string, t: ReturnType<typeof useI18n>['t']) {
   if (pathname.startsWith('/poll/results/')) return t('polls.results');
   if (pathname.startsWith('/poll/audit/')) return t('audit.title');
   if (pathname.startsWith('/poll/')) return t('polls.detail');
-  if (pathname === '/admin') return t('admin.title');
+  if (pathname.startsWith('/admin')) return t('admin.title');
   return t('errors.notFound');
 }

@@ -78,6 +78,13 @@ main { width: min(100% - 2rem, 52rem); margin: 0 auto; padding: 3.5rem 0 5rem; }
 .login-form p { margin: .2rem 0 0; color: var(--muted); }
 .login-form .form-error { color: #b42318; font-weight: 600; }
 :root[data-theme='dark'] .login-form .form-error { color: #ff9f9a; }
+.login-form select { min-height: 2.9rem; padding: .65rem .8rem; border: 1px solid var(--separator); border-radius: .7rem; color: inherit; background: var(--raised); }
+.admin-tabs { display: flex; flex-wrap: wrap; gap: .45rem; padding: .35rem; border: 1px solid var(--separator); border-radius: 1rem; background: var(--raised); }
+.admin-tab { flex: 1 1 8rem; padding: .7rem .8rem; border-radius: .7rem; color: var(--muted); font-size: .85rem; font-weight: 700; text-align: center; text-decoration: none; }
+.admin-tab:hover, .admin-tab[aria-current='page'] { color: inherit; background: var(--surface); box-shadow: var(--shadow); }
+.admin-toolbar { display: flex; justify-content: flex-end; }
+.admin-panel { display: grid; gap: .8rem; padding: 1.25rem; border: 1px solid var(--separator); border-radius: 1rem; background: var(--surface); }
+.admin-panel h3 { margin: 0; }
 .identity-card h2 { margin: .35rem 0; font-size: 1.35rem; }
 .identity-card p:last-child { margin-bottom: 0; color: var(--muted); }
 .identity-card label { display: block; margin-top: .8rem; font-size: .85rem; font-weight: 700; }

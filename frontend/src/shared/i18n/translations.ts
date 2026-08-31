@@ -42,6 +42,10 @@ export const messages = {
       history: 'Historie',
       privateArea: 'Privater Bereich',
       mainNavigation: 'Hauptnavigation',
+      adminNavigation: 'Adminnavigation',
+      logout: 'Abmelden',
+      loggingOut: 'Abmeldung läuft',
+      saving: 'Speichern läuft',
       loadingText: 'Bitte warten.',
       emptyText: 'Sobald Inhalte vorhanden sind, erscheinen sie hier.',
       errorText: 'Prüfe deine Verbindung und versuche es erneut.',
@@ -77,7 +81,7 @@ export const messages = {
       label: 'Fehler',
     },
     audit: { title: 'Audit Log' },
-    admin: { title: 'Administration', login: 'Anmeldung' },
+    admin: { title: 'Administration', login: 'Anmeldung', votes: 'Stimmen', polls: 'Polls', groups: 'Vorlagengruppen', templates: 'Optionsvorlagen', createPoll: 'Poll erstellen', pollTitle: 'Poll-Titel', templateGroup: 'Vorlagengruppe', selectGroup: 'Vorlagengruppe auswählen' },
   },
   en: {
     common: {
@@ -120,6 +124,10 @@ export const messages = {
       history: 'History',
       privateArea: 'Private area',
       mainNavigation: 'Main navigation',
+      adminNavigation: 'Administration navigation',
+      logout: 'Sign out',
+      loggingOut: 'Signing out',
+      saving: 'Saving',
       loadingText: 'Please wait.',
       emptyText: 'Content will appear here when available.',
       errorText: 'Check your connection and try again.',
@@ -155,7 +163,7 @@ export const messages = {
       label: 'Error',
     },
     audit: { title: 'Audit log' },
-    admin: { title: 'Administration', login: 'Sign in' },
+    admin: { title: 'Administration', login: 'Sign in', votes: 'Votes', polls: 'Polls', groups: 'Template groups', templates: 'Option templates', createPoll: 'Create poll', pollTitle: 'Poll title', templateGroup: 'Template group', selectGroup: 'Select a template group' },
   },
 } as const;
 

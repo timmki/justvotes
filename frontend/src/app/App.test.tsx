@@ -19,6 +19,7 @@ afterEach(() => {
 
 beforeEach(() => {
   vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({ userID: null });
+  vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
   const values = new Map<string, string>();
   Object.defineProperty(window, 'localStorage', {
     configurable: true,
