@@ -1,19 +1,14 @@
 package de.justvotes.pollmanagement.core;
 
 import de.justvotes.pollmanagement.core.event.PollDomainEvent;
-import de.justvotes.pollmanagement.core.event.VoteRemovedForIdentityChange;
 import de.justvotes.pollmanagement.core.event.VoteRemovedByAdmin;
-import de.justvotes.pollmanagement.core.exception.VoteNotFoundException;
+import de.justvotes.pollmanagement.core.event.VoteRemovedForIdentityChange;
 import de.justvotes.pollmanagement.core.event.VoteWithdrawn;
 import de.justvotes.pollmanagement.core.exception.PollNotActiveException;
 import de.justvotes.pollmanagement.core.exception.PollNotFoundException;
 import de.justvotes.pollmanagement.core.exception.ResultsNotAvailableException;
-import de.justvotes.pollmanagement.core.model.Identity;
-import de.justvotes.pollmanagement.core.model.Poll;
-import de.justvotes.pollmanagement.core.model.PollResults;
-import de.justvotes.pollmanagement.core.model.Vote;
-import de.justvotes.pollmanagement.core.model.AdminVote;
-import de.justvotes.pollmanagement.core.model.AdminVotePage;
+import de.justvotes.pollmanagement.core.exception.VoteNotFoundException;
+import de.justvotes.pollmanagement.core.model.*;
 import de.justvotes.pollmanagement.core.ports.out.PollRepository;
 import org.junit.jupiter.api.Test;
 
@@ -41,6 +36,24 @@ class VoteManagementTest {
 
     private static Poll.TemplateGroup group() {
         return Poll.TemplateGroup.of(Poll.TemplateGroupId.of(1), "Wahl", "");
+    }
+
+    private static VoteManagement management(Poll... polls) {
+        return management(Instant.now(), polls);
+    }
+
+    private static VoteManagement management(Poll poll, Instant now) {
+        return management(now, poll);
+    }
+
+    private static VoteManagement management(InMemoryPollRepository polls) {
+        return new VoteManagement(polls, pollId -> List.of(), ignored -> {
+        }, Instant::now);
+    }
+
+    private static VoteManagement management(Instant now, Poll... polls) {
+        return new VoteManagement(new InMemoryPollRepository(polls), pollId -> List.of(), ignored -> {
+        }, () -> now);
     }
 
     @Test
@@ -199,24 +212,6 @@ class VoteManagementTest {
         assertThrows(IllegalArgumentException.class, () -> management.adminVotes(-1, 2));
         assertThrows(IllegalArgumentException.class, () -> management.adminVotes(0, 0));
         assertThrows(IllegalArgumentException.class, () -> management.adminVotes(0, 101));
-    }
-
-    private static VoteManagement management(Poll... polls) {
-        return management(Instant.now(), polls);
-    }
-
-    private static VoteManagement management(Poll poll, Instant now) {
-        return management(now, poll);
-    }
-
-    private static VoteManagement management(InMemoryPollRepository polls) {
-        return new VoteManagement(polls, pollId -> List.of(), ignored -> {
-        }, Instant::now);
-    }
-
-    private static VoteManagement management(Instant now, Poll... polls) {
-        return new VoteManagement(new InMemoryPollRepository(polls), pollId -> List.of(), ignored -> {
-        }, () -> now);
     }
 
     private static final class InMemoryPollRepository implements PollRepository {

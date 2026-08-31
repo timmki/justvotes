@@ -6,14 +6,20 @@ import org.junit.jupiter.api.Test;
 import java.time.Instant;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 class PollTest {
     private static final Identity ALICE = Identity.of("alice");
     private static final Identity BOB = Identity.of("bob");
     private static final Instant VOTE_TIME = Instant.parse("2026-08-30T10:00:00Z");
+
+    private static Poll poll(Poll.State state, List<Vote> votes) {
+        return Poll.reconstitue(
+                Poll.PollId.newId(), "Wahl", "systemadmin", Poll.Visibility.PUBLIC, state,
+                Instant.parse("2026-08-30T09:00:00Z"), Instant.parse("2099-01-01T00:00:00Z"),
+                new Poll.TemplateGroup(Poll.TemplateGroupId.of(1), "Gruppe", ""),
+                List.of("Ja", "Nein"), List.of("Ja", "Nein"), votes);
+    }
 
     @Test
     void withdrawsOnlyTheRequestedIdentityVote() {
@@ -42,13 +48,5 @@ class PollTest {
         assertEquals(alice, poll.removeVoteById(41L).orElseThrow());
         assertEquals(List.of(bob), poll.votes());
         assertTrue(poll.removeVoteById(41L).isEmpty());
-    }
-
-    private static Poll poll(Poll.State state, List<Vote> votes) {
-        return Poll.reconstitue(
-                Poll.PollId.newId(), "Wahl", "systemadmin", Poll.Visibility.PUBLIC, state,
-                Instant.parse("2026-08-30T09:00:00Z"), Instant.parse("2099-01-01T00:00:00Z"),
-                new Poll.TemplateGroup(Poll.TemplateGroupId.of(1), "Gruppe", ""),
-                List.of("Ja", "Nein"), List.of("Ja", "Nein"), votes);
     }
 }

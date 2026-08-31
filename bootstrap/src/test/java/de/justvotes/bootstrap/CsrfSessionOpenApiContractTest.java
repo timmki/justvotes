@@ -4,11 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
-import org.springframework.http.RequestEntity;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -28,13 +24,65 @@ class CsrfSessionOpenApiContractTest {
     private static final Path DATABASE_PATH = Path.of("target", "csrf-contract-" + UUID.randomUUID() + ".db");
     private static final Pattern TOKEN = Pattern.compile("\\\"token\\\":\\\"([^\\\"]+)\\\"");
 
-    @LocalServerPort int port;
+    @LocalServerPort
+    int port;
 
     @DynamicPropertySource
     static void applicationProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + DATABASE_PATH);
         registry.add("ADMIN_USERNAME", () -> "systemadmin");
         registry.add("ADMIN_PASSWORD_HASH", () -> new BCryptPasswordEncoder().encode("password"));
+    }
+
+    private static RequestEntity<String> request(String method, String url, String cookies, String csrfToken, String body) {
+        RequestEntity.BodyBuilder request = RequestEntity.method(HttpMethod.valueOf(method.toUpperCase()), url).contentType(MediaType.APPLICATION_JSON);
+        if (cookies != null) request.header(HttpHeaders.COOKIE, cookies);
+        if (csrfToken != null) request.header("X-XSRF-TOKEN", csrfToken);
+        return request.body(body);
+    }
+
+    private static InputStream resource(String name) {
+        return CsrfSessionOpenApiContractTest.class.getClassLoader().getResourceAsStream(name);
+    }
+
+    private static String token(ResponseEntity<String> response) {
+        var matcher = TOKEN.matcher(response.getBody());
+        assertThat(matcher.find()).isTrue();
+        return matcher.group(1);
+    }
+
+    private static String cookies(ResponseEntity<String> response) {
+        return response.getHeaders().get(HttpHeaders.SET_COOKIE).stream().map(value -> value.substring(0, value.indexOf(';'))).reduce((left, right) -> left + "; " + right).orElseThrow();
+    }
+
+    private static void assertStatus(ResponseEntity<String> response, int status) {
+        assertThat(response.getStatusCode().value()).isEqualTo(status);
+        assertThat(response.getHeaders().getCacheControl()).contains("no-store");
+        assertThat(response.getHeaders().getContentType()).hasToString("application/problem+json");
+    }
+
+    private static void assertResponses(Map<String, Object> operation, String... statuses) {
+        Map<String, Object> responses = map(operation.get("responses"));
+        for (String status : statuses) assertThat(responses).containsKey(status);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<String> enumValues(Map<String, Object> schemas, String schema) {
+        return (List<String>) map(schemas.get(schema)).get("enum");
+    }
+
+    private static boolean hasSecurity(Map<String, Object> operation, String name) {
+        return ((List<Map<String, Object>>) operation.get("security")).stream().anyMatch(requirement -> requirement.containsKey(name));
+    }
+
+    private static void assertSecurity(Map<String, Object> operation, String... names) {
+        List<Map<String, Object>> requirements = (List<Map<String, Object>>) operation.get("security");
+        assertThat(requirements).singleElement().satisfies(requirement -> assertThat(requirement).containsKeys(names));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> map(Object value) {
+        return (Map<String, Object>) value;
     }
 
     @Test
@@ -212,21 +260,4 @@ class CsrfSessionOpenApiContractTest {
         assertThat(map(map(schemas.get("PollResults")).get("properties")).get("endsAt"))
                 .isEqualTo(Map.of("$ref", "#/components/schemas/NullableUtcTimestamp"));
     }
-
-    private static RequestEntity<String> request(String method, String url, String cookies, String csrfToken, String body) {
-        RequestEntity.BodyBuilder request = RequestEntity.method(HttpMethod.valueOf(method.toUpperCase()), url).contentType(MediaType.APPLICATION_JSON);
-        if (cookies != null) request.header(HttpHeaders.COOKIE, cookies);
-        if (csrfToken != null) request.header("X-XSRF-TOKEN", csrfToken);
-        return request.body(body);
-    }
-
-    private static InputStream resource(String name) { return CsrfSessionOpenApiContractTest.class.getClassLoader().getResourceAsStream(name); }
-    private static String token(ResponseEntity<String> response) { var matcher = TOKEN.matcher(response.getBody()); assertThat(matcher.find()).isTrue(); return matcher.group(1); }
-    private static String cookies(ResponseEntity<String> response) { return response.getHeaders().get(HttpHeaders.SET_COOKIE).stream().map(value -> value.substring(0, value.indexOf(';'))).reduce((left, right) -> left + "; " + right).orElseThrow(); }
-    private static void assertStatus(ResponseEntity<String> response, int status) { assertThat(response.getStatusCode().value()).isEqualTo(status); assertThat(response.getHeaders().getCacheControl()).contains("no-store"); assertThat(response.getHeaders().getContentType()).hasToString("application/problem+json"); }
-    private static void assertResponses(Map<String, Object> operation, String... statuses) { Map<String, Object> responses = map(operation.get("responses")); for (String status : statuses) assertThat(responses).containsKey(status); }
-    @SuppressWarnings("unchecked") private static List<String> enumValues(Map<String, Object> schemas, String schema) { return (List<String>) map(schemas.get(schema)).get("enum"); }
-    private static boolean hasSecurity(Map<String, Object> operation, String name) { return ((List<Map<String, Object>>) operation.get("security")).stream().anyMatch(requirement -> requirement.containsKey(name)); }
-    private static void assertSecurity(Map<String, Object> operation, String... names) { List<Map<String, Object>> requirements = (List<Map<String, Object>>) operation.get("security"); assertThat(requirements).singleElement().satisfies(requirement -> assertThat(requirement).containsKeys(names)); }
-    @SuppressWarnings("unchecked") private static Map<String, Object> map(Object value) { return (Map<String, Object>) value; }
 }

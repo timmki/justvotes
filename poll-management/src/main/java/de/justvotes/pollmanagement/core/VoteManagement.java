@@ -1,20 +1,15 @@
 package de.justvotes.pollmanagement.core;
 
-import de.justvotes.pollmanagement.core.event.VoteCast;
-import de.justvotes.pollmanagement.core.event.PollLifecycleChanged;
-import de.justvotes.pollmanagement.core.event.VoteRemovedForIdentityChange;
-import de.justvotes.pollmanagement.core.event.VoteReplaced;
-import de.justvotes.pollmanagement.core.event.VoteWithdrawn;
-import de.justvotes.pollmanagement.core.event.VoteRemovedByAdmin;
-import de.justvotes.pollmanagement.core.exception.VoteNotFoundException;
-import de.justvotes.pollmanagement.core.exception.PollNotFoundException;
+import de.justvotes.pollmanagement.core.event.*;
 import de.justvotes.pollmanagement.core.exception.PollNotActiveException;
+import de.justvotes.pollmanagement.core.exception.PollNotFoundException;
 import de.justvotes.pollmanagement.core.exception.ResultsNotAvailableException;
+import de.justvotes.pollmanagement.core.exception.VoteNotFoundException;
 import de.justvotes.pollmanagement.core.model.*;
-import de.justvotes.pollmanagement.core.ports.in.ManageVotes;
-import de.justvotes.pollmanagement.core.ports.in.ViewVotes;
 import de.justvotes.pollmanagement.core.ports.in.ManageAdminVotes;
+import de.justvotes.pollmanagement.core.ports.in.ManageVotes;
 import de.justvotes.pollmanagement.core.ports.in.ViewAdminVotes;
+import de.justvotes.pollmanagement.core.ports.in.ViewVotes;
 import de.justvotes.pollmanagement.core.ports.out.PollAuditRepository;
 import de.justvotes.pollmanagement.core.ports.out.PollEventPublisher;
 import de.justvotes.pollmanagement.core.ports.out.PollRepository;
@@ -32,11 +27,18 @@ public final class VoteManagement implements ManageVotes, ViewVotes, ManageAdmin
     private final UtcClock clock;
 
     public VoteManagement(PollRepository polls, PollAuditRepository audit, PollEventPublisher events,
-                           UtcClock clock) {
+                          UtcClock clock) {
         this.polls = polls;
         this.audit = audit;
         this.events = events;
         this.clock = clock;
+    }
+
+    private static String requiredText(String value, String message) {
+        if (value == null || value.trim().isEmpty()) {
+            throw new IllegalArgumentException(message);
+        }
+        return value.trim();
     }
 
     @Override
@@ -183,12 +185,5 @@ public final class VoteManagement implements ManageVotes, ViewVotes, ManageAdmin
                 .findFirst()
                 .map(Poll.Option::text)
                 .orElse(null);
-    }
-
-    private static String requiredText(String value, String message) {
-        if (value == null || value.trim().isEmpty()) {
-            throw new IllegalArgumentException(message);
-        }
-        return value.trim();
     }
 }

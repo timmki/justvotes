@@ -64,6 +64,24 @@ class PollManagementHttpTest {
         assertTrue(response.getHeaders().getCacheControl().contains("no-store"));
     }
 
+    private static int occurrences(String text, String value) {
+        return text.split(Pattern.quote(value), -1).length - 1;
+    }
+
+    private static int totalVotes(ResponseEntity<String> response, String pollId) {
+        try {
+            return ((Number) new ObjectMapper().readValue(response.getBody(), new TypeReference<List<Map<String, Object>>>() {
+            }).stream().filter(poll -> pollId.equals(poll.get("id"))).findFirst().orElseThrow().get("totalVotes")).intValue();
+        } catch (Exception exception) {
+            throw new AssertionError("Missing poll summary " + pollId + " in " + response.getBody(), exception);
+        }
+    }
+
+    private static void assertResultResponse(ResponseEntity<String> response, int status) {
+        assertEquals(status, response.getStatusCode().value(), response.getBody());
+        assertTrue(response.getHeaders().getCacheControl().contains("no-store"));
+    }
+
     @Test
     void letsTheSystemAdminCreateAndEditPrivateDraftsFromTemplateGroupSnapshots() {
         String catalogUrl = "http://localhost:" + port + "/api/v1/admin/template-catalog";
@@ -280,19 +298,6 @@ class PollManagementHttpTest {
         assertEquals(409, deleted.getStatusCode().value(), deleted.getBody());
     }
 
-    private static int occurrences(String text, String value) {
-        return text.split(Pattern.quote(value), -1).length - 1;
-    }
-
-    private static int totalVotes(ResponseEntity<String> response, String pollId) {
-        try {
-            return ((Number) new ObjectMapper().readValue(response.getBody(), new TypeReference<List<Map<String, Object>>>() {
-            }).stream().filter(poll -> pollId.equals(poll.get("id"))).findFirst().orElseThrow().get("totalVotes")).intValue();
-        } catch (Exception exception) {
-            throw new AssertionError("Missing poll summary " + pollId + " in " + response.getBody(), exception);
-        }
-    }
-
     @Test
     void keepsTheTemplateGroupSnapshotAfterTheSourceGroupIsRenamedAndDeleted() {
         String catalogUrl = "http://localhost:" + port + "/api/v1/admin/template-catalog";
@@ -449,11 +454,6 @@ class PollManagementHttpTest {
         assertResultResponse(privateResults, 404);
         assertResultResponse(unknownResults, 404);
         assertEquals(privateResults.getBody().replace("/" + privatePoll, "/p_v1_missing"), unknownResults.getBody());
-    }
-
-    private static void assertResultResponse(ResponseEntity<String> response, int status) {
-        assertEquals(status, response.getStatusCode().value(), response.getBody());
-        assertTrue(response.getHeaders().getCacheControl().contains("no-store"));
     }
 
     private AuthenticatedAdmin login() {

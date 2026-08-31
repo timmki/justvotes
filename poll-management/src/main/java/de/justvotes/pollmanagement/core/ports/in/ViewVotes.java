@@ -1,10 +1,6 @@
 package de.justvotes.pollmanagement.core.ports.in;
 
-import de.justvotes.pollmanagement.core.model.AuditEntry;
-import de.justvotes.pollmanagement.core.model.Identity;
-import de.justvotes.pollmanagement.core.model.Poll;
-import de.justvotes.pollmanagement.core.model.PollResults;
-import de.justvotes.pollmanagement.core.model.Vote;
+import de.justvotes.pollmanagement.core.model.*;
 
 import java.util.List;
 import java.util.Optional;

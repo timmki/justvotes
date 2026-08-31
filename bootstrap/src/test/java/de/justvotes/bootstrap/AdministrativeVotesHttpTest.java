@@ -1,17 +1,13 @@
 package de.justvotes.bootstrap;
 
-import de.justvotes.adapters.shared.infra.in.http.OpaqueIdCodec;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import de.justvotes.adapters.shared.infra.in.http.OpaqueIdCodec;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
-import org.springframework.http.RequestEntity;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -20,9 +16,7 @@ import java.nio.file.Path;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class AdministrativeVotesHttpTest {
@@ -39,6 +33,37 @@ class AdministrativeVotesHttpTest {
         registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + DATABASE_PATH);
         registry.add("ADMIN_USERNAME", () -> "systemadmin");
         registry.add("ADMIN_PASSWORD_HASH", () -> new BCryptPasswordEncoder().encode("password"));
+    }
+
+    private static String createdId(ResponseEntity<String> response) {
+        assertEquals(201, response.getStatusCode().value(), response.getBody());
+        var matcher = ID.matcher(response.getBody());
+        assertTrue(matcher.find());
+        return matcher.group(1);
+    }
+
+    private static String token(ResponseEntity<String> response) {
+        var matcher = CSRF_TOKEN.matcher(response.getBody());
+        assertTrue(matcher.find());
+        return matcher.group(1);
+    }
+
+    private static String cookies(ResponseEntity<String> response) {
+        return response.getHeaders().get(HttpHeaders.SET_COOKIE).stream()
+                .map(value -> value.substring(0, value.indexOf(';')))
+                .reduce((left, right) -> left + "; " + right).orElseThrow();
+    }
+
+    private static void assertProblem(ResponseEntity<String> response, int status, String code) {
+        assertEquals(status, response.getStatusCode().value(), response.getBody());
+        assertTrue(response.getHeaders().getCacheControl().contains("no-store"));
+        JsonNode body;
+        try {
+            body = JSON.readTree(response.getBody());
+        } catch (Exception exception) {
+            throw new AssertionError(response.getBody(), exception);
+        }
+        assertEquals(code, body.path("code").asText());
     }
 
     @Test
@@ -131,37 +156,6 @@ class AdministrativeVotesHttpTest {
         String baseUrl = "http://localhost:" + port;
         ResponseEntity<String> csrf = client.getForEntity(baseUrl + "/api/v1/csrf", String.class);
         return new PublicVisitor(client, cookies(csrf), token(csrf), port);
-    }
-
-    private static String createdId(ResponseEntity<String> response) {
-        assertEquals(201, response.getStatusCode().value(), response.getBody());
-        var matcher = ID.matcher(response.getBody());
-        assertTrue(matcher.find());
-        return matcher.group(1);
-    }
-
-    private static String token(ResponseEntity<String> response) {
-        var matcher = CSRF_TOKEN.matcher(response.getBody());
-        assertTrue(matcher.find());
-        return matcher.group(1);
-    }
-
-    private static String cookies(ResponseEntity<String> response) {
-        return response.getHeaders().get(HttpHeaders.SET_COOKIE).stream()
-                .map(value -> value.substring(0, value.indexOf(';')))
-                .reduce((left, right) -> left + "; " + right).orElseThrow();
-    }
-
-    private static void assertProblem(ResponseEntity<String> response, int status, String code) {
-        assertEquals(status, response.getStatusCode().value(), response.getBody());
-        assertTrue(response.getHeaders().getCacheControl().contains("no-store"));
-        JsonNode body;
-        try {
-            body = JSON.readTree(response.getBody());
-        } catch (Exception exception) {
-            throw new AssertionError(response.getBody(), exception);
-        }
-        assertEquals(code, body.path("code").asText());
     }
 
     private record AuthenticatedAdmin(TestRestTemplate client, String cookies, String csrfToken) {

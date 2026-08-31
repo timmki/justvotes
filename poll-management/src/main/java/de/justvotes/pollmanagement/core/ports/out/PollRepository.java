@@ -1,8 +1,8 @@
 package de.justvotes.pollmanagement.core.ports.out;
 
+import de.justvotes.pollmanagement.core.model.AdminVotePage;
 import de.justvotes.pollmanagement.core.model.Poll;
 import de.justvotes.pollmanagement.core.model.PollSummary;
-import de.justvotes.pollmanagement.core.model.AdminVotePage;
 
 import java.util.List;
 import java.util.Optional;

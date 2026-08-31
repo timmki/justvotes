@@ -1178,7 +1178,7 @@ components:
       description: Response must not be stored or reused by browsers or intermediary caches.
       schema:
         type: string
-        enum: [no-store]
+        enum: [ no-store ]
   schemas:
     UtcTimestamp:
       type: string

@@ -12,7 +12,6 @@ import io.vavr.API;
 import io.vavr.control.Try;
 
 import java.util.List;
-import java.util.Locale;
 
 public class TemplateCatalogAdministration implements ManageTemplateCatalog, ViewTemplateCatalog {
     private final OptionTemplateRepository templates;

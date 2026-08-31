@@ -4,7 +4,6 @@ import de.justvotes.pollmanagement.core.event.PollPublished;
 import de.justvotes.pollmanagement.core.exception.PollNotActiveException;
 
 import java.time.Instant;
-import java.util.Comparator;
 import java.util.*;
 import java.util.stream.IntStream;
 

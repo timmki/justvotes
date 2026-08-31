@@ -9,7 +9,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Serves the SPA for browser routes, while leaving API and operational URLs alone. */
+/**
+ * Serves the SPA for browser routes, while leaving API and operational URLs alone.
+ */
 @RestController
 public class SpaFallbackController {
     private final ResourceLoader resources;

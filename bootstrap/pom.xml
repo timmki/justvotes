@@ -100,7 +100,9 @@
                             <execution>
                                 <id>embed-frontend</id>
                                 <phase>process-resources</phase>
-                                <goals><goal>copy-resources</goal></goals>
+                                <goals>
+                                    <goal>copy-resources</goal>
+                                </goals>
                                 <configuration>
                                     <outputDirectory>${project.build.outputDirectory}/static</outputDirectory>
                                     <resources>

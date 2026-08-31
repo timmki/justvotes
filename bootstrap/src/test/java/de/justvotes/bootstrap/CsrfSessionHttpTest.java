@@ -33,6 +33,49 @@ class CsrfSessionHttpTest {
         registry.add("ADMIN_PASSWORD_HASH", () -> new BCryptPasswordEncoder().encode("password"));
     }
 
+    private static RequestEntity<String> post(String url, String cookies, String csrfToken, String body) {
+        RequestEntity.BodyBuilder request = RequestEntity.post(url);
+        if (cookies != null) request.header(HttpHeaders.COOKIE, cookies);
+        if (csrfToken != null) request.header("X-XSRF-TOKEN", csrfToken);
+        if (body != null) request.contentType(MediaType.APPLICATION_JSON);
+        return request.body(body);
+    }
+
+    private static String credentials() {
+        return "{\"username\":\"systemadmin\",\"password\":\"password\"}";
+    }
+
+    private static String token(ResponseEntity<String> response) {
+        var matcher = TOKEN.matcher(response.getBody());
+        assertThat(matcher.find()).isTrue();
+        return matcher.group(1);
+    }
+
+    private static String cookies(ResponseEntity<String> response) {
+        return response.getHeaders().get(HttpHeaders.SET_COOKIE).stream().map(value -> value.substring(0, value.indexOf(';'))).reduce((left, right) -> left + "; " + right).orElseThrow();
+    }
+
+    private static void assertCookie(ResponseEntity<String> response, String name, boolean httpOnly, boolean secure) {
+        String cookie = response.getHeaders().get(HttpHeaders.SET_COOKIE).stream()
+                .filter(value -> value.startsWith(name + "=")).findFirst().orElseThrow();
+        assertThat(cookie).contains("Path=/", "SameSite=Lax");
+        if (httpOnly) assertThat(cookie).contains("HttpOnly");
+        else assertThat(cookie).doesNotContain("HttpOnly");
+        if (secure) assertThat(cookie).contains("Secure");
+        else assertThat(cookie).doesNotContain("Secure");
+        if (name.equals("userID")) assertThat(cookie).contains("Max-Age=315360000");
+    }
+
+    private static void assertNoCookieSideEffects(ResponseEntity<String> response) {
+        assertThat(response.getHeaders().getCacheControl()).contains("no-store");
+        assertThat(response.getHeaders().get(HttpHeaders.SET_COOKIE)).isNullOrEmpty();
+    }
+
+    private static void assertStatus(ResponseEntity<String> response, int expected) {
+        assertThat(response.getStatusCode().value()).isEqualTo(expected);
+        if (expected >= 400) assertThat(response.getHeaders().getContentType()).hasToString("application/problem+json");
+    }
+
     @Test
     void enforcesTheDocumentedCsrfAndServerSideSessionFlow() {
         TestRestTemplate client = new TestRestTemplate();
@@ -120,29 +163,4 @@ class CsrfSessionHttpTest {
         assertThat(malformed.getBody()).isEqualTo("{\"userID\":null}");
         assertNoCookieSideEffects(malformed);
     }
-
-    private static RequestEntity<String> post(String url, String cookies, String csrfToken, String body) {
-        RequestEntity.BodyBuilder request = RequestEntity.post(url);
-        if (cookies != null) request.header(HttpHeaders.COOKIE, cookies);
-        if (csrfToken != null) request.header("X-XSRF-TOKEN", csrfToken);
-        if (body != null) request.contentType(MediaType.APPLICATION_JSON);
-        return request.body(body);
-    }
-
-    private static String credentials() { return "{\"username\":\"systemadmin\",\"password\":\"password\"}"; }
-    private static String token(ResponseEntity<String> response) { var matcher = TOKEN.matcher(response.getBody()); assertThat(matcher.find()).isTrue(); return matcher.group(1); }
-    private static String cookies(ResponseEntity<String> response) { return response.getHeaders().get(HttpHeaders.SET_COOKIE).stream().map(value -> value.substring(0, value.indexOf(';'))).reduce((left, right) -> left + "; " + right).orElseThrow(); }
-    private static void assertCookie(ResponseEntity<String> response, String name, boolean httpOnly, boolean secure) {
-        String cookie = response.getHeaders().get(HttpHeaders.SET_COOKIE).stream()
-                .filter(value -> value.startsWith(name + "=")).findFirst().orElseThrow();
-        assertThat(cookie).contains("Path=/", "SameSite=Lax");
-        if (httpOnly) assertThat(cookie).contains("HttpOnly"); else assertThat(cookie).doesNotContain("HttpOnly");
-        if (secure) assertThat(cookie).contains("Secure"); else assertThat(cookie).doesNotContain("Secure");
-        if (name.equals("userID")) assertThat(cookie).contains("Max-Age=315360000");
-    }
-    private static void assertNoCookieSideEffects(ResponseEntity<String> response) {
-        assertThat(response.getHeaders().getCacheControl()).contains("no-store");
-        assertThat(response.getHeaders().get(HttpHeaders.SET_COOKIE)).isNullOrEmpty();
-    }
-    private static void assertStatus(ResponseEntity<String> response, int expected) { assertThat(response.getStatusCode().value()).isEqualTo(expected); if (expected >= 400) assertThat(response.getHeaders().getContentType()).hasToString("application/problem+json"); }
 }
