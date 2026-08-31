@@ -80,15 +80,15 @@ class PollManagementHttpTest {
         assertNoStore(created);
         assertTrue(created.getBody().contains("\"visibility\":\"private\""));
         assertTrue(created.getBody().contains("\"state\":\"draft\""));
-        assertTrue(created.getBody().indexOf("alpha") < created.getBody().indexOf("zeta"));
+        assertTrue(created.getBody().indexOf("Alpha") < created.getBody().indexOf("Zeta"));
         String pollId = stringField(created, "id");
 
         ResponseEntity<String> edited = admin.put(pollsUrl + "/" + pollId + "/options", "{\"optionTexts\":[\"Ja\",\"Nein\"]}");
         assertEquals(200, edited.getStatusCode().value(), edited.getBody());
         assertNoStore(edited);
         assertTrue(edited.getBody().contains("Ja"));
-        assertTrue(edited.getBody().contains("alpha"));
-        assertTrue(edited.getBody().contains("zeta"));
+        assertTrue(edited.getBody().contains("Alpha"));
+        assertTrue(edited.getBody().contains("Zeta"));
         assertEquals(400, admin.put(pollsUrl + "/" + pollId + "/options", "{\"optionTexts\":[\" Ja \",\"ja\"]}").getStatusCode().value());
         ResponseEntity<String> adminPolls = admin.get(pollsUrl);
         assertNoStore(adminPolls);
@@ -235,7 +235,7 @@ class PollManagementHttpTest {
         assertEquals(200, audit.getStatusCode().value(), audit.getBody());
         assertEquals(1, occurrences(audit.getBody(), "VoteWithdrawn"));
         assertTrue(audit.getBody().contains("\"actor\":\"alice\""));
-        assertTrue(audit.getBody().contains("\"selection\":\"withdrawal-ja\""));
+        assertTrue(audit.getBody().contains("\"selection\":\"Withdrawal-Ja\""));
         assertTrue(audit.getBody().contains("\"occurredAt\":\""));
     }
 
@@ -306,7 +306,7 @@ class PollManagementHttpTest {
         ResponseEntity<String> created = admin.post(pollsUrl, "{\"title\":\"Snapshot-Test\",\"templateGroupId\":\"" + group + "\"}");
         String pollId = stringField(created, "id");
         ResponseEntity<String> published = admin.put(pollsUrl + "/" + pollId + "/publication", "{\"endsAt\":\"2099-01-01T00:00:00Z\"}");
-        assertTrue(published.getBody().contains("\"name\":\"ursprungsgruppe\""));
+        assertTrue(published.getBody().contains("\"name\":\"Ursprungsgruppe\""));
         assertTrue(published.getBody().contains("\"description\":\"Historischer Gruppenhinweis\""));
 
         assertEquals(200, admin.patch(catalogUrl + "/groups/" + group, "{\"name\":\"Neue Gruppe\"}").getStatusCode().value());
@@ -314,7 +314,7 @@ class PollManagementHttpTest {
 
         ResponseEntity<String> loaded = new TestRestTemplate().getForEntity(publicPollsUrl + "/" + pollId, String.class);
         assertEquals(200, loaded.getStatusCode().value(), loaded.getBody());
-        assertTrue(loaded.getBody().contains("\"name\":\"ursprungsgruppe\""));
+        assertTrue(loaded.getBody().contains("\"name\":\"Ursprungsgruppe\""));
         assertTrue(loaded.getBody().contains("\"description\":\"Historischer Gruppenhinweis\""));
     }
 
@@ -363,8 +363,8 @@ class PollManagementHttpTest {
         assertTrue(audit.getBody().contains("VoteCast"));
         assertTrue(audit.getBody().contains("VoteReplaced"));
         assertTrue(
-                audit.getBody().contains("\"selection\":\"ja\"")
-                        || audit.getBody().contains("\"selection\":\"nein\""),
+                audit.getBody().contains("\"selection\":\"Ja\"")
+                        || audit.getBody().contains("\"selection\":\"Nein\""),
                 audit.getBody()
         );
     }
@@ -394,8 +394,8 @@ class PollManagementHttpTest {
         ResponseEntity<String> firstResults = alice.get(resultsUrl + "/" + pollId + "/results");
         assertResultResponse(firstResults, 200);
         assertTrue(firstResults.getBody().contains("\"totalVotes\":1"));
-        assertTrue(firstResults.getBody().contains("\"number\":1,\"text\":\"ergebnis-ja\",\"voteCount\":1"), firstResults.getBody());
-        assertTrue(firstResults.getBody().contains("\"number\":2,\"text\":\"ergebnis-nein\",\"voteCount\":0"));
+        assertTrue(firstResults.getBody().contains("\"number\":1,\"text\":\"Ergebnis-Ja\",\"voteCount\":1"), firstResults.getBody());
+        assertTrue(firstResults.getBody().contains("\"number\":2,\"text\":\"Ergebnis-Nein\",\"voteCount\":0"));
         assertTrue(firstResults.getBody().contains("\"userID\":\"alice\""));
         assertTrue(firstResults.getBody().contains("\"votedAt\":"));
         assertFalse(firstResults.getBody().contains("currentVote"));
@@ -410,8 +410,8 @@ class PollManagementHttpTest {
         ResponseEntity<String> tiedResults = alice.get(resultsUrl + "/" + pollId + "/results");
         assertResultResponse(tiedResults, 200);
         assertTrue(tiedResults.getBody().contains("\"totalVotes\":2"));
-        assertTrue(tiedResults.getBody().contains("\"number\":1,\"text\":\"ergebnis-ja\",\"voteCount\":1"));
-        assertTrue(tiedResults.getBody().contains("\"number\":2,\"text\":\"ergebnis-nein\",\"voteCount\":1"));
+        assertTrue(tiedResults.getBody().contains("\"number\":1,\"text\":\"Ergebnis-Ja\",\"voteCount\":1"));
+        assertTrue(tiedResults.getBody().contains("\"number\":2,\"text\":\"Ergebnis-Nein\",\"voteCount\":1"));
         assertTrue(tiedResults.getBody().contains("\"votes\":[{\"userID\":\"bob\""));
 
         ResponseEntity<String> changedIdentity = alice.post("http://localhost:" + port + "/api/v1/identity", "{\"userID\":\"Charlie\"}");
@@ -420,7 +420,7 @@ class PollManagementHttpTest {
         ResponseEntity<String> afterRemoval = bob.get(resultsUrl + "/" + pollId + "/results");
         assertResultResponse(afterRemoval, 200);
         assertTrue(afterRemoval.getBody().contains("\"totalVotes\":1"));
-        assertTrue(afterRemoval.getBody().contains("\"number\":1,\"text\":\"ergebnis-ja\",\"voteCount\":1"));
+        assertTrue(afterRemoval.getBody().contains("\"number\":1,\"text\":\"Ergebnis-Ja\",\"voteCount\":1"));
         assertTrue(afterRemoval.getBody().contains("\"userID\":\"bob\""));
         assertFalse(afterRemoval.getBody().contains("\"userID\":\"alice\""));
     }

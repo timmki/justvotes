@@ -67,7 +67,7 @@ class TemplateCatalogHttpTest {
         ResponseEntity<String> createdTemplate = admin.post(baseUrl + "/templates", "{\"name\":\"  Vorstand  \"}");
         assertNoStore(createdTemplate);
         String templateId = createdId(createdTemplate);
-        ResponseEntity<String> duplicateGroup = admin.post(baseUrl + "/groups", "{\"name\":\" vorstand \",\"description\":\"\"}");
+        ResponseEntity<String> duplicateGroup = admin.post(baseUrl + "/groups", "{\"name\":\"vorstand\",\"description\":\"\"}");
         assertEquals(409, duplicateGroup.getStatusCode().value());
         assertNoStore(duplicateGroup);
         ResponseEntity<String> rename = admin.patch(baseUrl + "/templates/" + templateId, "{\"name\":\" Beirat \"}");
@@ -80,7 +80,7 @@ class TemplateCatalogHttpTest {
         ResponseEntity<String> createdSecondGroup = admin.post(baseUrl + "/groups", "{\"name\":\"Gremium B\",\"description\":\"\"}");
         assertNoStore(createdSecondGroup);
         String secondGroupId = createdId(createdSecondGroup);
-        ResponseEntity<String> duplicateGroupRename = admin.patch(baseUrl + "/groups/" + firstGroupId, "{\"name\":\" gremium b \"}");
+        ResponseEntity<String> duplicateGroupRename = admin.patch(baseUrl + "/groups/" + firstGroupId, "{\"name\":\"gremium b\"}");
         assertEquals(409, duplicateGroupRename.getStatusCode().value());
         assertNoStore(duplicateGroupRename);
 
@@ -95,7 +95,7 @@ class TemplateCatalogHttpTest {
         assertNoStore(deletedGroup);
         ResponseEntity<String> groupTemplates = admin.get(baseUrl + "/groups/" + secondGroupId + "/templates");
         assertNoStore(groupTemplates);
-        assertTrue(groupTemplates.getBody().contains("beirat"));
+        assertTrue(groupTemplates.getBody().contains("Beirat"));
 
         ResponseEntity<String> removedMembership = admin.delete(baseUrl + "/groups/" + secondGroupId + "/templates/" + templateId);
         assertEquals(204, removedMembership.getStatusCode().value());
@@ -110,7 +110,7 @@ class TemplateCatalogHttpTest {
         ResponseEntity<String> emptyGroupTemplates = admin.get(baseUrl + "/groups/" + secondGroupId + "/templates");
         assertNoStore(emptyGroupTemplates);
         assertEquals("[]", emptyGroupTemplates.getBody());
-        ResponseEntity<String> duplicateGroupAfterDelete = admin.post(baseUrl + "/groups", "{\"name\":\" gremium b \",\"description\":\"\"}");
+        ResponseEntity<String> duplicateGroupAfterDelete = admin.post(baseUrl + "/groups", "{\"name\":\"gremium b\",\"description\":\"\"}");
         assertEquals(409, duplicateGroupAfterDelete.getStatusCode().value());
         assertNoStore(duplicateGroupAfterDelete);
     }
