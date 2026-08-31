@@ -147,3 +147,56 @@ test('shows login on session expiry and restores the previous admin route', asyn
   await expect(page.getByRole('heading', { name: 'Polls', level: 3 })).toBeVisible();
   await expect(page.locator('.admin-tabs').getByRole('link', { name: 'Polls' })).toHaveAttribute('aria-current', 'page');
 });
+
+test('runs an admin poll through publication, expiry, archive, restore and destructive deletion', async ({ page }) => {
+  let state: 'draft' | 'active' | 'expired' | 'archived' | 'deleted' = 'draft';
+  let permanentlyDeleted = false;
+  const poll = (currentState = state) => ({
+    id: 'p_v1_lifecycle',
+    title: 'Lifecycle poll',
+    visibility: currentState === 'draft' || currentState === 'deleted' ? 'private' : 'public',
+    state: currentState,
+    createdAt: '2026-08-31T12:00:00.000Z',
+    endsAt: currentState === 'draft' ? null : '2099-01-01T00:00:00.000Z',
+    totalVotes: 0,
+    templateGroup: { id: 'g_v1_lifecycle', name: 'Lifecycle group', description: 'Snapshot' },
+    templateSnapshotOptions: [{ number: 1, text: 'Yes' }, { number: 2, text: 'No' }],
+    options: [{ number: 1, text: 'Yes' }, { number: 2, text: 'No' }],
+  });
+
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request();
+    const url = request.url();
+    if (url.endsWith('/csrf')) return route.fulfill({ json: { token: 'csrf-token', headerName: 'X-XSRF-TOKEN' } });
+    if (url.endsWith('/admin/session')) return route.fulfill({ status: 204 });
+    if (url.endsWith('/admin/template-catalog/groups') && request.method() === 'GET') return route.fulfill({ json: [{ id: 'g_v1_lifecycle', name: 'Lifecycle group', description: '' }] });
+    if (url.endsWith('/admin/template-catalog/groups/g_v1_lifecycle/templates')) return route.fulfill({ json: [{ id: 't_v1_yes', name: 'Yes' }] });
+    if (url.endsWith('/admin/polls') && request.method() === 'POST') { state = 'draft'; return route.fulfill({ status: 201, json: poll() }); }
+    if (url.endsWith('/admin/polls') && request.method() === 'GET') return route.fulfill({ json: permanentlyDeleted ? [] : [poll()] });
+    if (url.endsWith('/publication') && request.method() === 'PUT') { state = 'expired'; return route.fulfill({ json: poll('active') }); }
+    if (url.endsWith('/archive') && request.method() === 'PUT') { state = 'archived'; return route.fulfill({ json: poll() }); }
+    if (url.endsWith('/restore-from-archive') && request.method() === 'PUT') { state = 'expired'; return route.fulfill({ json: poll('expired') }); }
+    if (url.endsWith('/p_v1_lifecycle') && request.method() === 'DELETE') { state = 'deleted'; return route.fulfill({ json: poll('deleted') }); }
+    if (url.endsWith('/permanent-deletion') && request.method() === 'POST') { permanentlyDeleted = true; return route.fulfill({ status: 204 }); }
+    return route.fulfill({ json: [] });
+  });
+  page.on('dialog', async (dialog) => { await dialog.accept(); });
+
+  await page.goto('/admin/create');
+  await page.getByLabel('Poll-Titel').fill('Lifecycle poll');
+  await page.getByLabel('Vorlagengruppe').selectOption('g_v1_lifecycle');
+  await page.getByRole('button', { name: 'Speichern' }).click();
+  await expect(page.getByRole('heading', { name: 'Lifecycle poll', level: 4 })).toBeVisible();
+
+  await page.getByLabel('Veröffentlichen').fill('2099-01-01T12:00');
+  await page.getByRole('button', { name: 'Veröffentlichen' }).click();
+  await expect(page.getByText('abgelaufen')).toBeVisible();
+  await page.getByRole('button', { name: 'Archivieren' }).click();
+  await expect(page.getByText('archiviert')).toBeVisible();
+  await page.getByRole('button', { name: 'Aus Archiv wiederherstellen' }).click();
+  await expect(page.getByText('abgelaufen')).toBeVisible();
+  await page.getByRole('button', { name: 'Soft löschen' }).click();
+  await expect(page.getByText('gelöscht')).toBeVisible();
+  await page.getByRole('button', { name: 'Permanent löschen' }).click();
+  await expect(page.getByText('Noch keine Daten vorhanden')).toBeVisible();
+});

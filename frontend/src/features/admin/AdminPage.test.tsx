@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { apiClient, sessionCoordinator } from '../../shared/api/client';
@@ -9,6 +9,7 @@ import { queryClient } from '../../shared/api/queryClient';
 import { queryKeys } from '../../shared/api/queryKeys';
 import { I18nProvider } from '../../shared/i18n/I18nProvider';
 import { AdminPage } from './AdminPage';
+import type { components } from '../../shared/api/generated/justvotes';
 
 beforeEach(() => {
   queryClient.clear();
@@ -159,7 +160,7 @@ describe('AdminPage session gate', () => {
     expect(screen.getByText('Template 20')).toBeVisible();
   });
 
-  it('normalizes batch values, skips duplicates, and reports partial failures', async () => {
+  it('trims batch values and reports partial failures', async () => {
     vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
     vi.spyOn(apiClient, 'getTemplates').mockResolvedValue([{ id: 't_v1_existing', name: 'alpha' }]);
     const createTemplate = vi.spyOn(apiClient, 'createTemplate').mockImplementation(async (name) => {
@@ -174,11 +175,12 @@ describe('AdminPage session gate', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Importieren' }));
 
     expect(await screen.findByText('Import-Ergebnis')).toBeVisible();
-    expect(createTemplate.mock.calls.map(([name]) => name).sort()).toEqual(['beta', 'gamma']);
-    expect(screen.getByRole('status')).toHaveTextContent('Erstellt: 1');
-    expect(screen.getByRole('status')).toHaveTextContent('gamma');
-    expect(screen.getByRole('status')).toHaveTextContent('Übersprungen: 3');
-    expect(screen.getByRole('status')).toHaveTextContent('alpha');
+    expect(createTemplate.mock.calls.map(([name]) => name).sort()).toEqual(['Alpha', 'Beta', 'Gamma', 'beta']);
+    expect(screen.getByRole('status')).toHaveTextContent('Erstellt: 3');
+    expect(screen.getByRole('status')).toHaveTextContent('Alpha');
+    expect(screen.getByRole('status')).toHaveTextContent('Beta');
+    expect(screen.getByRole('status')).toHaveTextContent('Gamma');
+    expect(screen.getByRole('status')).toHaveTextContent('Übersprungen: 1');
     expect(screen.getByRole('status')).toHaveTextContent('Leerer Wert');
     expect(screen.getByRole('status')).toHaveTextContent('Fehlgeschlagen: 1');
   });
@@ -220,11 +222,11 @@ describe('AdminPage session gate', () => {
     await screen.findByRole('heading', { name: 'Optionsvorlagen', level: 3 });
     fireEvent.change(screen.getByLabelText('Neue Optionsvorlage'), { target: { value: ' New Template ' } });
     fireEvent.click(screen.getByRole('button', { name: 'Vorlage anlegen' }));
-    await waitFor(() => expect(createTemplate).toHaveBeenCalledWith('new template'));
+    await waitFor(() => expect(createTemplate).toHaveBeenCalledWith('New Template'));
     fireEvent.click(screen.getByRole('button', { name: 'Umbenennen' }));
     fireEvent.change(screen.getByRole('textbox', { name: 'Vorlage umbenennen alpha' }), { target: { value: 'Renamed' } });
     fireEvent.click(screen.getByRole('button', { name: 'Speichern' }));
-    await waitFor(() => expect(renameTemplate).toHaveBeenCalledWith('t_v1_existing', 'renamed'));
+    await waitFor(() => expect(renameTemplate).toHaveBeenCalledWith('t_v1_existing', 'Renamed'));
   });
 
   it('requires confirmation for global template deletion', async () => {
@@ -314,11 +316,124 @@ describe('AdminPage session gate', () => {
     fireEvent.change(screen.getByLabelText('Neue Vorlagengruppe'), { target: { value: 'New Board' } });
     fireEvent.change(screen.getByLabelText('Beschreibung'), { target: { value: 'New description' } });
     fireEvent.click(screen.getByRole('button', { name: 'Gruppe anlegen' }));
-    await waitFor(() => expect(createGroup).toHaveBeenCalledWith({ name: 'new board', description: 'New description' }));
+    await waitFor(() => expect(createGroup).toHaveBeenCalledWith({ name: 'New Board', description: 'New description' }));
     fireEvent.change(screen.getByLabelText('Gruppe umbenennen'), { target: { value: 'Renamed Board' } });
     fireEvent.click(screen.getByRole('button', { name: 'Speichern' }));
-    await waitFor(() => expect(renameGroup).toHaveBeenCalledWith('g_v1_new', 'renamed board'));
+    await waitFor(() => expect(renameGroup).toHaveBeenCalledWith('g_v1_new', 'Renamed Board'));
     fireEvent.click(screen.getByRole('button', { name: 'Löschen' }));
     await waitFor(() => expect(deleteGroup).toHaveBeenCalledWith('g_v1_new'));
+  });
+});
+
+type TestPoll = components['schemas']['Poll'];
+
+function testPoll(state: TestPoll['state'], visibility: TestPoll['visibility'] = state === 'active' ? 'public' : 'private'): TestPoll {
+  return {
+    id: `p_v1_${state}_${visibility}`,
+    title: state === 'active' ? `${state} ${visibility} poll` : `${state} poll`,
+    visibility,
+    state,
+    createdAt: '2026-08-31T12:00:00.000Z',
+    endsAt: state === 'draft' ? null : state === 'expired' ? '2000-01-01T00:00:00.000Z' : '2099-01-01T00:00:00.000Z',
+    totalVotes: 0,
+    templateGroup: { id: 'g_v1_group', name: 'Board', description: 'Snapshot description' },
+    templateSnapshotOptions: [{ number: 1, text: 'Snapshot yes' }, { number: 2, text: 'Snapshot no' }],
+    options: [{ number: 1, text: 'Current yes' }, { number: 2, text: 'Current no' }],
+  };
+}
+
+describe('Admin poll lifecycle', () => {
+  it('renders the exhaustive state/action matrix and draft snapshot', async () => {
+    vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+    vi.spyOn(apiClient, 'getAdminPolls').mockResolvedValue([
+      testPoll('draft'),
+      testPoll('active'),
+      testPoll('active', 'private'),
+      testPoll('expired'),
+      testPoll('archived'),
+      testPoll('deleted'),
+    ]);
+
+    const rendered = renderAdmin('/admin/polls');
+
+    expect(await screen.findByRole('heading', { name: 'draft poll', level: 4 })).toBeVisible();
+    const expectedActions: Record<string, string[]> = {
+      'draft poll': ['Veröffentlichen'],
+      'active public poll': ['Privat schalten', 'Archivieren', 'Soft löschen'],
+      'active private poll': ['Archivieren', 'Soft löschen'],
+      'expired poll': ['Ablauf ändern', 'Archivieren', 'Wieder öffnen', 'Soft löschen'],
+      'archived poll': ['Aus Archiv wiederherstellen', 'Soft löschen'],
+      'deleted poll': ['Wiederherstellen', 'Permanent löschen'],
+    };
+    const cards = Array.from(rendered.container.querySelectorAll<HTMLElement>('.poll-admin-list > .poll-admin-card'));
+    expect(cards).toHaveLength(6);
+    expect(within(cards[0]).getByText(/Snapshot description/)).toBeVisible();
+    expect(within(cards[0]).getByText('Snapshot yes')).toBeVisible();
+    expect(within(cards[0]).getByText('Current yes')).toBeVisible();
+    for (const card of cards) {
+      const title = within(card).getByRole('heading', { level: 4 }).textContent ?? '';
+      for (const action of expectedActions[title]) expect(within(card).getByRole('button', { name: action })).toBeVisible();
+    }
+    expect(within(cards[0]).getByRole('button', { name: 'Optionen ersetzen' })).toBeVisible();
+    expect(within(cards[2]).queryByRole('button', { name: 'Privat schalten' })).toBeNull();
+    expect(within(cards[3]).getByRole('button', { name: 'Wieder öffnen' })).toBeDisabled();
+  });
+
+  it('only allows draft option replacement and publishes only with a future expiry', async () => {
+    vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+    vi.spyOn(apiClient, 'getAdminPolls').mockResolvedValue([testPoll('draft')]);
+    const replacePollOptions = vi.spyOn(apiClient, 'replacePollOptions').mockResolvedValue(testPoll('draft'));
+    const publishPoll = vi.spyOn(apiClient, 'publishPoll').mockResolvedValue(testPoll('active'));
+
+    renderAdmin('/admin/polls');
+
+    const card = (await screen.findByRole('heading', { name: 'draft poll', level: 4 })).closest('li');
+    expect(card).not.toBeNull();
+    const scoped = within(card as HTMLElement);
+    expect(scoped.getByRole('button', { name: 'Veröffentlichen' })).toBeDisabled();
+    fireEvent.change(scoped.getByLabelText('Veröffentlichen'), { target: { value: '2099-01-01T12:00' } });
+    expect(scoped.getByRole('button', { name: 'Veröffentlichen' })).toBeEnabled();
+    fireEvent.click(scoped.getByRole('button', { name: 'Optionen ersetzen' }));
+    fireEvent.change(scoped.getByLabelText('Optionen, eine pro Zeile'), { target: { value: 'First\nSecond' } });
+    fireEvent.click(scoped.getByRole('button', { name: 'Speichern' }));
+    await waitFor(() => expect(replacePollOptions).toHaveBeenCalledWith('p_v1_draft_private', ['First', 'Second']));
+    fireEvent.click(scoped.getByRole('button', { name: 'Veröffentlichen' }));
+    await waitFor(() => expect(publishPoll).toHaveBeenCalledWith('p_v1_draft_private', '2099-01-01T11:00:00.000Z'));
+  });
+
+  it('offers only non-empty template groups for poll creation', async () => {
+    vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+    vi.spyOn(apiClient, 'getGroups').mockResolvedValue([
+      { id: 'g_v1_empty', name: 'Empty', description: '' },
+      { id: 'g_v1_full', name: 'Full', description: '' },
+    ]);
+    vi.spyOn(apiClient, 'getTemplatesInGroup').mockImplementation(async (groupId) => groupId === 'g_v1_full' ? [{ id: 't_v1_one', name: 'One' }] : []);
+
+    renderAdmin('/admin/create');
+
+    const select = await screen.findByLabelText('Vorlagengruppe');
+    expect(within(select).queryByRole('option', { name: 'Empty' })).toBeNull();
+    expect(within(select).getByRole('option', { name: 'Full' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Speichern' })).toBeDisabled();
+    fireEvent.change(select, { target: { value: 'g_v1_full' } });
+    expect(screen.getByRole('button', { name: 'Speichern' })).toBeEnabled();
+  });
+
+  it('requires one confirmation for soft delete and two for permanent delete', async () => {
+    vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+    vi.spyOn(apiClient, 'getAdminPolls').mockResolvedValue([testPoll('active'), testPoll('deleted')]);
+    const deletePoll = vi.spyOn(apiClient, 'deletePoll').mockResolvedValue(testPoll('deleted'));
+    const permanentlyDeletePoll = vi.spyOn(apiClient, 'permanentlyDeletePoll').mockResolvedValue(undefined);
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    const rendered = renderAdmin('/admin/polls');
+
+    await screen.findByRole('heading', { name: 'active public poll', level: 4 });
+    const cards = Array.from(rendered.container.querySelectorAll<HTMLElement>('.poll-admin-list > .poll-admin-card'));
+    fireEvent.click(within(cards[0]).getByRole('button', { name: 'Soft löschen' }));
+    fireEvent.click(within(cards[1]).getByRole('button', { name: 'Permanent löschen' }));
+    await waitFor(() => expect(deletePoll).toHaveBeenCalledWith('p_v1_active_public'));
+    await waitFor(() => expect(permanentlyDeletePoll).toHaveBeenCalledWith('p_v1_deleted_private'));
+    expect(confirm).toHaveBeenCalledTimes(3);
   });
 });

@@ -117,4 +117,40 @@ describe('ApiClient', () => {
     expect(fetcher.mock.calls[3][0]).toBe('/api/v1/admin/template-catalog/templates/t_v1_template');
     expect((fetcher.mock.calls[3][1] as RequestInit).method).toBe('DELETE');
   });
+
+  it('uses the dedicated endpoints for every admin poll lifecycle action', async () => {
+    const poll = { id: 'p_v1_poll', title: 'Poll', visibility: 'public', state: 'active', createdAt: '', endsAt: null, totalVotes: 0, templateGroup: { id: 'g_v1_group', name: 'Group', description: '' }, templateSnapshotOptions: [], options: [] };
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(jsonResponse(200, { token: 'poll-token', headerName: 'X-XSRF-TOKEN' }))
+      .mockImplementation(async () => new Response(JSON.stringify(poll), { status: 200 }));
+    const client = new ApiClient({ fetcher });
+
+    await client.replacePollOptions('p_v1_poll', ['Yes', 'No']);
+    await client.publishPoll('p_v1_poll', '2099-01-01T00:00:00.000Z');
+    await client.makePollPrivate('p_v1_poll');
+    await client.changePollExpiry('p_v1_poll', '2099-01-02T00:00:00.000Z');
+    await client.archivePoll('p_v1_poll');
+    await client.restorePollFromArchive('p_v1_poll');
+    await client.reopenPoll('p_v1_poll');
+    await client.deletePoll('p_v1_poll');
+    await client.restorePoll('p_v1_poll');
+    await client.permanentlyDeletePoll('p_v1_poll');
+
+    expect(fetcher.mock.calls.map(([url, init]) => [url, (init as RequestInit).method])).toEqual([
+      ['/api/v1/csrf', 'GET'],
+      ['/api/v1/admin/polls/p_v1_poll/options', 'PUT'],
+      ['/api/v1/admin/polls/p_v1_poll/publication', 'PUT'],
+      ['/api/v1/admin/polls/p_v1_poll/publication', 'DELETE'],
+      ['/api/v1/admin/polls/p_v1_poll/expiry', 'PUT'],
+      ['/api/v1/admin/polls/p_v1_poll/archive', 'PUT'],
+      ['/api/v1/admin/polls/p_v1_poll/restore-from-archive', 'PUT'],
+      ['/api/v1/admin/polls/p_v1_poll/reopen', 'PUT'],
+      ['/api/v1/admin/polls/p_v1_poll', 'DELETE'],
+      ['/api/v1/admin/polls/p_v1_poll/restore', 'PUT'],
+      ['/api/v1/admin/polls/p_v1_poll/permanent-deletion', 'POST'],
+    ]);
+    expect((fetcher.mock.calls[1][1] as RequestInit).body).toBe(JSON.stringify({ optionTexts: ['Yes', 'No'] }));
+    expect((fetcher.mock.calls[2][1] as RequestInit).body).toBe(JSON.stringify({ endsAt: '2099-01-01T00:00:00.000Z' }));
+    expect((fetcher.mock.calls[10][1] as RequestInit).body).toBe(JSON.stringify({ confirmation: 'DELETE' }));
+  });
 });

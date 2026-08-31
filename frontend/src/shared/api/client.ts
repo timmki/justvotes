@@ -87,6 +87,16 @@ export class ApiClient {
   getAdminVotes(page = 0, size = 50) { return this.request<AdminVotePage>(`/admin/votes?page=${page}&size=${size}`); }
   getAdminPolls() { return this.request<Poll[]>('/admin/polls'); }
   createPoll(poll: CreatePoll) { return this.request<Poll>('/admin/polls', { method: 'POST', body: poll }); }
+  replacePollOptions(pollId: string, optionTexts: string[]) { return this.request<Poll>(`/admin/polls/${encodeURIComponent(pollId)}/options`, { method: 'PUT', body: { optionTexts } }); }
+  publishPoll(pollId: string, endsAt: string) { return this.request<Poll>(`/admin/polls/${encodeURIComponent(pollId)}/publication`, { method: 'PUT', body: { endsAt } }); }
+  makePollPrivate(pollId: string) { return this.request<Poll>(`/admin/polls/${encodeURIComponent(pollId)}/publication`, { method: 'DELETE' }); }
+  changePollExpiry(pollId: string, endsAt: string) { return this.request<Poll>(`/admin/polls/${encodeURIComponent(pollId)}/expiry`, { method: 'PUT', body: { endsAt } }); }
+  archivePoll(pollId: string) { return this.request<Poll>(`/admin/polls/${encodeURIComponent(pollId)}/archive`, { method: 'PUT' }); }
+  restorePollFromArchive(pollId: string) { return this.request<Poll>(`/admin/polls/${encodeURIComponent(pollId)}/restore-from-archive`, { method: 'PUT' }); }
+  reopenPoll(pollId: string) { return this.request<Poll>(`/admin/polls/${encodeURIComponent(pollId)}/reopen`, { method: 'PUT' }); }
+  deletePoll(pollId: string) { return this.request<Poll>(`/admin/polls/${encodeURIComponent(pollId)}`, { method: 'DELETE' }); }
+  restorePoll(pollId: string) { return this.request<Poll>(`/admin/polls/${encodeURIComponent(pollId)}/restore`, { method: 'PUT' }); }
+  permanentlyDeletePoll(pollId: string) { return this.request<void>(`/admin/polls/${encodeURIComponent(pollId)}/permanent-deletion`, { method: 'POST', body: { confirmation: 'DELETE' } }); }
   getTemplates() { return this.request<Template[]>('/admin/template-catalog/templates'); }
   createTemplate(name: string) { return this.request<Template>('/admin/template-catalog/templates', { method: 'POST', body: { name } }); }
   renameTemplate(templateId: string, name: string) { return this.request<Template>(`/admin/template-catalog/templates/${encodeURIComponent(templateId)}`, { method: 'PATCH', body: { name } }); }

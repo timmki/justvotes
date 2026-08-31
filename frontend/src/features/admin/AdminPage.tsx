@@ -1,4 +1,3 @@
-import { useMutation } from '@tanstack/react-query';
 import { useState, useSyncExternalStore, type FormEvent } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { apiClient, sessionCoordinator } from '../../shared/api/client';
@@ -10,6 +9,7 @@ import { useI18n } from '../../shared/i18n/I18nProvider';
 import { PageFrame } from '../../shared/ui/PageFrame';
 import { QueryState } from '../../shared/ui/QueryState';
 import { RouteState } from '../../shared/ui/RouteState';
+import { AdminPolls, CreatePoll } from './PollAdministration';
 import { TemplateCatalogGroups, TemplateCatalogTemplates } from './TemplateCatalog';
 
 type AdminSectionName = 'votes' | 'polls' | 'groups' | 'templates' | 'create';
@@ -121,40 +121,6 @@ function AdminVotes() {
   const { t } = useI18n();
   const query = useApiQuery(queryKeys.adminVotes(0, 50), () => apiClient.getAdminVotes());
   return <QueryState query={query}>{(page) => <section className="admin-panel"><h3>{t('admin.votes')}</h3>{page.votes.length === 0 ? <RouteState status="empty" /> : <ul className="data-list">{page.votes.map((vote) => <li key={vote.voteId}>{vote.poll.title}: {vote.option.text} ({vote.userID})</li>)}</ul>}</section>}</QueryState>;
-}
-
-function AdminPolls() {
-  const { t } = useI18n();
-  const query = useApiQuery(queryKeys.adminPolls, () => apiClient.getAdminPolls());
-  return <QueryState query={query}>{(polls) => <section className="admin-panel"><h3>{t('admin.polls')}</h3>{polls.length === 0 ? <RouteState status="empty" /> : <ul className="data-list">{polls.map((poll) => <li key={poll.id}><strong>{poll.title}</strong> <span>{poll.state}</span> <span>{poll.totalVotes}</span></li>)}</ul>}</section>}</QueryState>;
-}
-
-function CreatePoll() {
-  const { t } = useI18n();
-  const navigate = useNavigate();
-  const [title, setTitle] = useState('');
-  const [groupId, setGroupId] = useState('');
-  const [error, setError] = useState<FrontendError | null>(null);
-  const groupsQuery = useApiQuery(queryKeys.groups, () => apiClient.getGroups());
-  const mutation = useMutation({
-    mutationFn: () => apiClient.createPoll({ title: title.trim(), templateGroupId: groupId }),
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.adminPolls }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.publicPolls }),
-      ]);
-      navigate('/admin/polls');
-    },
-    onError: (cause) => setError(cause instanceof ApiError ? cause.frontend : null),
-  });
-
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(null);
-    mutation.mutate();
-  }
-
-  return <QueryState query={groupsQuery}>{(groups) => <section className="admin-panel"><h3>{t('admin.createPoll')}</h3><form className="login-form" onSubmit={submit}><label htmlFor="poll-title">{t('admin.pollTitle')}</label><input id="poll-title" required value={title} onChange={(event) => setTitle(event.target.value)} /><label htmlFor="poll-group">{t('admin.templateGroup')}</label><select id="poll-group" required value={groupId} onChange={(event) => setGroupId(event.target.value)}><option value="">{t('admin.selectGroup')}</option>{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select><button className="primary-button" type="submit" disabled={mutation.isPending}>{mutation.isPending ? t('common.saving') : t('forms.submit')}</button>{error && <p className="form-error" role="alert">{t(error.messageKey)}</p>}</form></section>}</QueryState>;
 }
 
 function sectionFromPath(pathname: string): AdminSectionName | null {
