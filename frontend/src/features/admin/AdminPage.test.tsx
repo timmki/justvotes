@@ -142,4 +142,183 @@ describe('AdminPage session gate', () => {
     expect(queryClient.getQueryData(queryKeys.adminPolls)).toBeUndefined();
     await waitFor(() => expect(screen.queryByRole('link', { name: 'Stimmen' })).toBeNull());
   });
+
+  it('searches templates and paginates in pages of twenty', async () => {
+    vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+    vi.spyOn(apiClient, 'getTemplates').mockResolvedValue(Array.from({ length: 21 }, (_, index) => ({ id: `t_v1_${index + 1}`, name: `Template ${index + 1}` })));
+
+    renderAdmin('/admin/templates');
+
+    expect(await screen.findByRole('heading', { name: 'Optionsvorlagen', level: 3 })).toBeVisible();
+    expect(screen.getAllByRole('listitem')).toHaveLength(20);
+    fireEvent.click(screen.getByRole('button', { name: 'Weiter' }));
+    expect(screen.getByText('Template 21')).toBeVisible();
+    expect(screen.getAllByRole('listitem')).toHaveLength(1);
+    fireEvent.change(screen.getByLabelText('Vorlagen suchen'), { target: { value: 'Template 2' } });
+    expect(screen.getByText('Template 2')).toBeVisible();
+    expect(screen.getByText('Template 20')).toBeVisible();
+  });
+
+  it('normalizes batch values, skips duplicates, and reports partial failures', async () => {
+    vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+    vi.spyOn(apiClient, 'getTemplates').mockResolvedValue([{ id: 't_v1_existing', name: 'alpha' }]);
+    const createTemplate = vi.spyOn(apiClient, 'createTemplate').mockImplementation(async (name) => {
+      if (name === 'beta') throw problemError({ status: 409, code: 'conflict' }, 409);
+      return { id: 't_v1_gamma', name };
+    });
+
+    renderAdmin('/admin/templates');
+
+    await screen.findByRole('heading', { name: 'Optionsvorlagen', level: 3 });
+    fireEvent.change(screen.getByLabelText('Mehrere Vorlagen (kommagetrennt)'), { target: { value: ' Alpha, , Beta, beta, Gamma ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Importieren' }));
+
+    expect(await screen.findByText('Import-Ergebnis')).toBeVisible();
+    expect(createTemplate.mock.calls.map(([name]) => name).sort()).toEqual(['beta', 'gamma']);
+    expect(screen.getByRole('status')).toHaveTextContent('Erstellt: 1');
+    expect(screen.getByRole('status')).toHaveTextContent('gamma');
+    expect(screen.getByRole('status')).toHaveTextContent('Übersprungen: 3');
+    expect(screen.getByRole('status')).toHaveTextContent('alpha');
+    expect(screen.getByRole('status')).toHaveTextContent('Leerer Wert');
+    expect(screen.getByRole('status')).toHaveTextContent('Fehlgeschlagen: 1');
+  });
+
+  it('limits concurrent batch requests', async () => {
+    vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+    vi.spyOn(apiClient, 'getTemplates').mockResolvedValue([]);
+    let maxActive = 0;
+    let active = 0;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const createTemplate = vi.spyOn(apiClient, 'createTemplate').mockImplementation(async (name) => {
+      active += 1;
+      maxActive = Math.max(maxActive, active);
+      await gate;
+      active -= 1;
+      return { id: `t_v1_${name}`, name };
+    });
+
+    renderAdmin('/admin/templates');
+
+    await screen.findByRole('heading', { name: 'Optionsvorlagen', level: 3 });
+    fireEvent.change(screen.getByLabelText('Mehrere Vorlagen (kommagetrennt)'), { target: { value: 'one, two, three, four, five' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Importieren' }));
+    await waitFor(() => expect(createTemplate).toHaveBeenCalledTimes(3));
+    expect(maxActive).toBe(3);
+    release();
+    expect(await screen.findByText('Import-Ergebnis')).toBeVisible();
+  });
+
+  it('creates and renames an individual option template', async () => {
+    vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+    vi.spyOn(apiClient, 'getTemplates').mockResolvedValue([{ id: 't_v1_existing', name: 'alpha' }]);
+    const createTemplate = vi.spyOn(apiClient, 'createTemplate').mockResolvedValue({ id: 't_v1_new', name: 'new template' });
+    const renameTemplate = vi.spyOn(apiClient, 'renameTemplate').mockResolvedValue({ id: 't_v1_existing', name: 'renamed' });
+
+    renderAdmin('/admin/templates');
+
+    await screen.findByRole('heading', { name: 'Optionsvorlagen', level: 3 });
+    fireEvent.change(screen.getByLabelText('Neue Optionsvorlage'), { target: { value: ' New Template ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Vorlage anlegen' }));
+    await waitFor(() => expect(createTemplate).toHaveBeenCalledWith('new template'));
+    fireEvent.click(screen.getByRole('button', { name: 'Umbenennen' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Vorlage umbenennen alpha' }), { target: { value: 'Renamed' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Speichern' }));
+    await waitFor(() => expect(renameTemplate).toHaveBeenCalledWith('t_v1_existing', 'renamed'));
+  });
+
+  it('requires confirmation for global template deletion', async () => {
+    vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+    vi.spyOn(apiClient, 'getTemplates').mockResolvedValue([{ id: 't_v1_existing', name: 'alpha' }]);
+    const deleteTemplate = vi.spyOn(apiClient, 'deleteTemplate').mockResolvedValue(undefined);
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+
+    renderAdmin('/admin/templates');
+
+    await screen.findByRole('heading', { name: 'Optionsvorlagen', level: 3 });
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Vorlage auswählen alpha' }));
+    fireEvent.click(screen.getByRole('button', { name: /Ausgewählte löschen/ }));
+
+    expect(confirm).toHaveBeenCalled();
+    expect(deleteTemplate).not.toHaveBeenCalled();
+  });
+
+  it('reports partial results when deleting multiple templates', async () => {
+    vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+    vi.spyOn(apiClient, 'getTemplates').mockResolvedValue([{ id: 't_v1_one', name: 'One' }, { id: 't_v1_two', name: 'Two' }]);
+    const deleteTemplate = vi.spyOn(apiClient, 'deleteTemplate').mockImplementation(async (id) => {
+      if (id === 't_v1_two') throw problemError({ status: 409, code: 'conflict' }, 409);
+    });
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    renderAdmin('/admin/templates');
+
+    await screen.findByRole('heading', { name: 'Optionsvorlagen', level: 3 });
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Sichtbare auswählen' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Ausgewählte löschen (2)' }));
+
+    expect(await screen.findByText('Lösch-Ergebnis')).toBeVisible();
+    expect(deleteTemplate).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole('status')).toHaveTextContent('Gelöscht: 1');
+    expect(screen.getByRole('status')).toHaveTextContent('Fehlgeschlagen: 1');
+    expect(screen.getByRole('status')).toHaveTextContent('Two');
+  });
+
+  it('adds and removes memberships without deleting the global template', async () => {
+    vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+    vi.spyOn(apiClient, 'getGroups').mockResolvedValue([{ id: 'g_v1_group', name: 'Board', description: 'A board' }]);
+    vi.spyOn(apiClient, 'getTemplates').mockResolvedValue([{ id: 't_v1_one', name: 'One' }, { id: 't_v1_two', name: 'Two' }]);
+    vi.spyOn(apiClient, 'getTemplatesInGroup').mockResolvedValue([{ id: 't_v1_one', name: 'One' }]);
+    const assign = vi.spyOn(apiClient, 'assignTemplateToGroup').mockResolvedValue(undefined);
+    const remove = vi.spyOn(apiClient, 'removeTemplateFromGroup').mockResolvedValue(undefined);
+    const deleteTemplate = vi.spyOn(apiClient, 'deleteTemplate').mockResolvedValue(undefined);
+
+    renderAdmin('/admin/groups');
+
+    expect(await screen.findByRole('heading', { name: 'Vorlagengruppen', level: 3 })).toBeVisible();
+    expect(await screen.findByText('One')).toBeVisible();
+    fireEvent.change(screen.getByLabelText('Vorlage hinzufügen'), { target: { value: 't_v1_two' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Hinzufügen' }));
+    await waitFor(() => expect(assign).toHaveBeenCalledWith('g_v1_group', 't_v1_two'));
+    fireEvent.click(screen.getByRole('button', { name: 'Mitgliedschaft entfernen' }));
+    await waitFor(() => expect(remove).toHaveBeenCalledWith('g_v1_group', 't_v1_one'));
+    expect(deleteTemplate).not.toHaveBeenCalled();
+  });
+
+  it('creates, renames, and deletes a template group explicitly', async () => {
+    vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+    const groups = [{ id: 'g_v1_group', name: 'Board', description: 'A board' }];
+    vi.spyOn(apiClient, 'getGroups').mockImplementation(async () => groups);
+    vi.spyOn(apiClient, 'getTemplates').mockResolvedValue([]);
+    const createGroup = vi.spyOn(apiClient, 'createGroup').mockImplementation(async ({ name, description }) => {
+      const created = { id: 'g_v1_new', name, description };
+      groups.push(created);
+      return created;
+    });
+    const renameGroup = vi.spyOn(apiClient, 'renameGroup').mockImplementation(async (id, name) => {
+      const group = groups.find((entry) => entry.id === id);
+      if (!group) throw new Error('missing group');
+      group.name = name;
+      return group;
+    });
+    const deleteGroup = vi.spyOn(apiClient, 'deleteGroup').mockImplementation(async (id) => {
+      const index = groups.findIndex((entry) => entry.id === id);
+      groups.splice(index, 1);
+    });
+    vi.spyOn(apiClient, 'getTemplatesInGroup').mockResolvedValue([]);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    renderAdmin('/admin/groups');
+
+    await screen.findByRole('heading', { name: 'Vorlagengruppen', level: 3 });
+    fireEvent.change(screen.getByLabelText('Neue Vorlagengruppe'), { target: { value: 'New Board' } });
+    fireEvent.change(screen.getByLabelText('Beschreibung'), { target: { value: 'New description' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Gruppe anlegen' }));
+    await waitFor(() => expect(createGroup).toHaveBeenCalledWith({ name: 'new board', description: 'New description' }));
+    fireEvent.change(screen.getByLabelText('Gruppe umbenennen'), { target: { value: 'Renamed Board' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Speichern' }));
+    await waitFor(() => expect(renameGroup).toHaveBeenCalledWith('g_v1_new', 'renamed board'));
+    fireEvent.click(screen.getByRole('button', { name: 'Löschen' }));
+    await waitFor(() => expect(deleteGroup).toHaveBeenCalledWith('g_v1_new'));
+  });
 });

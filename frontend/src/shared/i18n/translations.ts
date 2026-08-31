@@ -81,7 +81,7 @@ export const messages = {
       label: 'Fehler',
     },
     audit: { title: 'Audit Log' },
-    admin: { title: 'Administration', login: 'Anmeldung', votes: 'Stimmen', polls: 'Polls', groups: 'Vorlagengruppen', templates: 'Optionsvorlagen', createPoll: 'Poll erstellen', pollTitle: 'Poll-Titel', templateGroup: 'Vorlagengruppe', selectGroup: 'Vorlagengruppe auswählen' },
+    admin: { title: 'Administration', login: 'Anmeldung', votes: 'Stimmen', polls: 'Polls', groups: 'Vorlagengruppen', templates: 'Optionsvorlagen', createPoll: 'Poll erstellen', pollTitle: 'Poll-Titel', templateGroup: 'Vorlagengruppe', selectGroup: 'Vorlagengruppe auswählen', newTemplate: 'Neue Optionsvorlage', createTemplate: 'Vorlage anlegen', batchTemplates: 'Mehrere Vorlagen (kommagetrennt)', batchPlaceholder: 'Option A, Option B, Option C', importTemplates: 'Importieren', searchTemplates: 'Vorlagen suchen', selectVisible: 'Sichtbare auswählen', deleteSelected: 'Ausgewählte löschen', batchSummary: 'Import-Ergebnis', created: 'Erstellt', skipped: 'Übersprungen', failed: 'Fehlgeschlagen', deleteSummary: 'Lösch-Ergebnis', deleted: 'Gelöscht', pagination: 'Vorlagen-Seiten', previous: 'Zurück', next: 'Weiter', selectTemplate: 'Vorlage auswählen', renameTemplate: 'Vorlage umbenennen', rename: 'Umbenennen', delete: 'Löschen', emptyBatchValue: 'Leerer Wert', newGroup: 'Neue Vorlagengruppe', groupDescription: 'Beschreibung', createGroup: 'Gruppe anlegen', renameGroup: 'Gruppe umbenennen', confirmDeleteGroup: 'Vorlagengruppe wirklich löschen?', confirmDeleteTemplates: 'Die ausgewählten Optionsvorlagen dauerhaft löschen?', memberships: 'Mitgliedschaften', addMembership: 'Vorlage hinzufügen', add: 'Hinzufügen', removeMembership: 'Mitgliedschaft entfernen' },
   },
   en: {
     common: {
@@ -163,7 +163,7 @@ export const messages = {
       label: 'Error',
     },
     audit: { title: 'Audit log' },
-    admin: { title: 'Administration', login: 'Sign in', votes: 'Votes', polls: 'Polls', groups: 'Template groups', templates: 'Option templates', createPoll: 'Create poll', pollTitle: 'Poll title', templateGroup: 'Template group', selectGroup: 'Select a template group' },
+    admin: { title: 'Administration', login: 'Sign in', votes: 'Votes', polls: 'Polls', groups: 'Template groups', templates: 'Option templates', createPoll: 'Create poll', pollTitle: 'Poll title', templateGroup: 'Template group', selectGroup: 'Select a template group', newTemplate: 'New option template', createTemplate: 'Create template', batchTemplates: 'Multiple templates (comma-separated)', batchPlaceholder: 'Option A, Option B, Option C', importTemplates: 'Import', searchTemplates: 'Search templates', selectVisible: 'Select visible', deleteSelected: 'Delete selected', batchSummary: 'Import result', created: 'Created', skipped: 'Skipped', failed: 'Failed', deleteSummary: 'Delete result', deleted: 'Deleted', pagination: 'Template pages', previous: 'Previous', next: 'Next', selectTemplate: 'Select template', renameTemplate: 'Rename template', rename: 'Rename', delete: 'Delete', emptyBatchValue: 'Empty value', newGroup: 'New template group', groupDescription: 'Description', createGroup: 'Create group', renameGroup: 'Rename group', confirmDeleteGroup: 'Really delete this template group?', confirmDeleteTemplates: 'Permanently delete the selected option templates?', memberships: 'Memberships', addMembership: 'Add template', add: 'Add', removeMembership: 'Remove membership' },
   },
 } as const;
 

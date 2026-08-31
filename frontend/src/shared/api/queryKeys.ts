@@ -9,6 +9,7 @@ export const queryKeys = {
   adminPolls: ['admin', 'polls'] as const,
   templates: ['admin', 'templates'] as const,
   groups: ['admin', 'groups'] as const,
+  groupTemplates: (groupId: string) => ['admin', 'groups', groupId, 'templates'] as const,
 };
 
 export const protectedQueryPrefixes = [

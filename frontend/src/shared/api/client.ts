@@ -88,7 +88,16 @@ export class ApiClient {
   getAdminPolls() { return this.request<Poll[]>('/admin/polls'); }
   createPoll(poll: CreatePoll) { return this.request<Poll>('/admin/polls', { method: 'POST', body: poll }); }
   getTemplates() { return this.request<Template[]>('/admin/template-catalog/templates'); }
+  createTemplate(name: string) { return this.request<Template>('/admin/template-catalog/templates', { method: 'POST', body: { name } }); }
+  renameTemplate(templateId: string, name: string) { return this.request<Template>(`/admin/template-catalog/templates/${encodeURIComponent(templateId)}`, { method: 'PATCH', body: { name } }); }
+  deleteTemplate(templateId: string) { return this.request<void>(`/admin/template-catalog/templates/${encodeURIComponent(templateId)}`, { method: 'DELETE' }); }
   getGroups() { return this.request<TemplateGroup[]>('/admin/template-catalog/groups'); }
+  createGroup(group: { name: string; description: string }) { return this.request<TemplateGroup>('/admin/template-catalog/groups', { method: 'POST', body: group }); }
+  renameGroup(groupId: string, name: string) { return this.request<TemplateGroup>(`/admin/template-catalog/groups/${encodeURIComponent(groupId)}`, { method: 'PATCH', body: { name } }); }
+  deleteGroup(groupId: string) { return this.request<void>(`/admin/template-catalog/groups/${encodeURIComponent(groupId)}`, { method: 'DELETE' }); }
+  getTemplatesInGroup(groupId: string) { return this.request<Template[]>(`/admin/template-catalog/groups/${encodeURIComponent(groupId)}/templates`); }
+  assignTemplateToGroup(groupId: string, templateId: string) { return this.request<void>(`/admin/template-catalog/groups/${encodeURIComponent(groupId)}/templates/${encodeURIComponent(templateId)}`, { method: 'PUT' }); }
+  removeTemplateFromGroup(groupId: string, templateId: string) { return this.request<void>(`/admin/template-catalog/groups/${encodeURIComponent(groupId)}/templates/${encodeURIComponent(templateId)}`, { method: 'DELETE' }); }
 
   invalidateCsrf() {
     this.csrf = null;

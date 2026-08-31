@@ -41,7 +41,7 @@ public class TemplateCatalogAdministration implements ManageTemplateCatalog, Vie
         return Try.of(() -> OptionTemplate.OptionTemplateId.of(templateId))
                 .map(this::template)
                 .andThen(template -> ensureNameIsAvailable(name, template.id(), null))
-                .map(template -> template.rename(name))
+                .map(template -> template.rename(normalizedName(name)))
                 .map(templates::save)
                 .get();
     }
@@ -73,7 +73,7 @@ public class TemplateCatalogAdministration implements ManageTemplateCatalog, Vie
         return Try.of(() -> OptionTemplateGroup.OptionTemplateGroupId.of(groupId))
                 .map(this::group)
                 .andThen(group -> ensureNameIsAvailable(name, null, group.id()))
-                .map(group -> group.rename(name))
+                .map(group -> group.rename(normalizedName(name)))
                 .map(groups::save)
                 .get();
     }

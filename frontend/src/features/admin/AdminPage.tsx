@@ -10,6 +10,7 @@ import { useI18n } from '../../shared/i18n/I18nProvider';
 import { PageFrame } from '../../shared/ui/PageFrame';
 import { QueryState } from '../../shared/ui/QueryState';
 import { RouteState } from '../../shared/ui/RouteState';
+import { TemplateCatalogGroups, TemplateCatalogTemplates } from './TemplateCatalog';
 
 type AdminSectionName = 'votes' | 'polls' | 'groups' | 'templates' | 'create';
 
@@ -111,8 +112,8 @@ function AdminShell({ section }: { section: AdminSectionName }) {
 function AdminSectionView({ section }: { section: AdminSectionName }) {
   if (section === 'votes') return <AdminVotes />;
   if (section === 'polls') return <AdminPolls />;
-  if (section === 'groups') return <AdminGroups />;
-  if (section === 'templates') return <AdminTemplates />;
+  if (section === 'groups') return <TemplateCatalogGroups />;
+  if (section === 'templates') return <TemplateCatalogTemplates />;
   return <CreatePoll />;
 }
 
@@ -126,18 +127,6 @@ function AdminPolls() {
   const { t } = useI18n();
   const query = useApiQuery(queryKeys.adminPolls, () => apiClient.getAdminPolls());
   return <QueryState query={query}>{(polls) => <section className="admin-panel"><h3>{t('admin.polls')}</h3>{polls.length === 0 ? <RouteState status="empty" /> : <ul className="data-list">{polls.map((poll) => <li key={poll.id}><strong>{poll.title}</strong> <span>{poll.state}</span> <span>{poll.totalVotes}</span></li>)}</ul>}</section>}</QueryState>;
-}
-
-function AdminGroups() {
-  const { t } = useI18n();
-  const query = useApiQuery(queryKeys.groups, () => apiClient.getGroups());
-  return <QueryState query={query}>{(groups) => <section className="admin-panel"><h3>{t('admin.groups')}</h3>{groups.length === 0 ? <RouteState status="empty" /> : <ul className="data-list">{groups.map((group) => <li key={group.id}><strong>{group.name}</strong><span> {group.description}</span></li>)}</ul>}</section>}</QueryState>;
-}
-
-function AdminTemplates() {
-  const { t } = useI18n();
-  const query = useApiQuery(queryKeys.templates, () => apiClient.getTemplates());
-  return <QueryState query={query}>{(templates) => <section className="admin-panel"><h3>{t('admin.templates')}</h3>{templates.length === 0 ? <RouteState status="empty" /> : <ul className="data-list">{templates.map((template) => <li key={template.id}>{template.name}</li>)}</ul>}</section>}</QueryState>;
 }
 
 function CreatePoll() {

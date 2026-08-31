@@ -97,4 +97,24 @@ describe('ApiClient', () => {
 
     expect(session.consumeReturnRoute()).toBe('/admin/polls');
   });
+
+  it('uses separate endpoints for membership changes and global template deletion', async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(jsonResponse(200, { token: 'catalog-token', headerName: 'X-XSRF-TOKEN' }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const client = new ApiClient({ fetcher });
+
+    await client.assignTemplateToGroup('g_v1_group', 't_v1_template');
+    await client.removeTemplateFromGroup('g_v1_group', 't_v1_template');
+    await client.deleteTemplate('t_v1_template');
+
+    expect(fetcher.mock.calls[1][0]).toBe('/api/v1/admin/template-catalog/groups/g_v1_group/templates/t_v1_template');
+    expect((fetcher.mock.calls[1][1] as RequestInit).method).toBe('PUT');
+    expect(fetcher.mock.calls[2][0]).toBe('/api/v1/admin/template-catalog/groups/g_v1_group/templates/t_v1_template');
+    expect((fetcher.mock.calls[2][1] as RequestInit).method).toBe('DELETE');
+    expect(fetcher.mock.calls[3][0]).toBe('/api/v1/admin/template-catalog/templates/t_v1_template');
+    expect((fetcher.mock.calls[3][1] as RequestInit).method).toBe('DELETE');
+  });
 });

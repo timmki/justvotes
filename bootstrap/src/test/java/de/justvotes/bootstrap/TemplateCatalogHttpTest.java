@@ -95,7 +95,14 @@ class TemplateCatalogHttpTest {
         assertNoStore(deletedGroup);
         ResponseEntity<String> groupTemplates = admin.get(baseUrl + "/groups/" + secondGroupId + "/templates");
         assertNoStore(groupTemplates);
-        assertTrue(groupTemplates.getBody().contains("Beirat"));
+        assertTrue(groupTemplates.getBody().contains("beirat"));
+
+        ResponseEntity<String> removedMembership = admin.delete(baseUrl + "/groups/" + secondGroupId + "/templates/" + templateId);
+        assertEquals(204, removedMembership.getStatusCode().value());
+        assertNoStore(removedMembership);
+        ResponseEntity<String> emptyAfterMembershipRemoval = admin.get(baseUrl + "/groups/" + secondGroupId + "/templates");
+        assertNoStore(emptyAfterMembershipRemoval);
+        assertEquals("[]", emptyAfterMembershipRemoval.getBody());
 
         ResponseEntity<String> deletedTemplate = admin.delete(baseUrl + "/templates/" + templateId);
         assertEquals(204, deletedTemplate.getStatusCode().value());
