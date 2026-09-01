@@ -217,7 +217,7 @@ test('disables voting for an expired poll and safely handles private or missing 
   await expect(page.getByRole('heading', { name: 'Seite nicht gefunden', level: 3 })).toBeVisible();
 });
 
-test('schützt Results vor Stimmabgabe und gibt sie nach Stimmabgabe oder Ablauf frei', async ({ page }) => {
+test('schützt Poll-Ergebnisse vor Stimmabgabe und gibt sie nach Stimmabgabe oder Ablauf frei', async ({ page }) => {
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const url = request.url();
@@ -335,7 +335,7 @@ test('loads a direct option link with the complete current voter list', async ({
   await expect(page.locator('time').first()).toHaveAttribute('datetime', '2026-08-31T12:01:00.000Z');
 });
 
-test('renders zero percentages and tied winners in results', async ({ page }) => {
+test('zeigt null Prozent und Gleichstände in Poll-Ergebnissen', async ({ page }) => {
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const url = request.url();
