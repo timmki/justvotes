@@ -195,7 +195,7 @@ describe('PollPage', () => {
     ] as const)('handles a %s vote result and sends the stable option number', async (status, initialOption, targetOption, feedback) => {
         if (initialOption === null) {
             vi.spyOn(apiClient, 'getPollResults')
-                .mockRejectedValueOnce(problemError({}, 403))
+                .mockRejectedValueOnce(problemError({code: 'results-not-available'}, 403))
                 .mockResolvedValue(resultsFor(targetOption));
         } else {
             vi.spyOn(apiClient, 'getPollResults')
@@ -232,7 +232,7 @@ describe('PollPage', () => {
     });
 
     it('treats an active poll results 403 as not voted instead of a page error', async () => {
-        vi.spyOn(apiClient, 'getPollResults').mockRejectedValue(problemError({}, 403));
+        vi.spyOn(apiClient, 'getPollResults').mockRejectedValue(problemError({code: 'results-not-available'}, 403));
 
         renderPollPage();
 
@@ -240,6 +240,15 @@ describe('PollPage', () => {
         expect(screen.getByRole('heading', {name: 'Team-Ausflug', level: 3})).toBeVisible();
         expect(screen.queryByText('Daten konnten nicht geladen werden')).toBeNull();
         expect(screen.queryByRole('link', {name: 'Poll-Ergebnisse'})).toBeNull();
+    });
+
+    it('does not hide a non-results-forbidden error behind the not-voted state', async () => {
+        vi.spyOn(apiClient, 'getPollResults').mockRejectedValue(problemError({code: 'forbidden'}, 403));
+
+        renderPollPage();
+
+        expect(await screen.findByRole('heading', {name: 'Diese Aktion ist nicht erlaubt.', level: 3})).toBeVisible();
+        expect(screen.queryByText('Ergebnisse werden nach der ersten Stimme freigegeben.')).toBeNull();
     });
 
     it('disables voting for an expired poll but keeps released results available', async () => {

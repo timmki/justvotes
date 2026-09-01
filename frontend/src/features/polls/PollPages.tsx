@@ -51,7 +51,7 @@ function PollDetail({poll}: { poll: Poll }) {
     const identityQuery = useApiQuery(queryKeys.identity, () => apiClient.getIdentity());
     const resultsQuery = useApiQuery(queryKeys.pollResults(poll.id), () => apiClient.getPollResults(poll.id));
     const identity = identityQuery.data?.userID ?? null;
-    const currentOptionNumber = currentOption(resultsQuery.data, identity);
+    const currentOptionNumber = currentOptionNumberFromResults(resultsQuery.data, identity);
     const [confirmedOptionNumber, setConfirmedOptionNumber] = useState<number | null>(currentOptionNumber);
     const [selectedOptionNumber, setSelectedOptionNumber] = useState<number | null>(currentOptionNumber);
     const [feedback, setFeedback] = useState<string | null>(null);
@@ -90,7 +90,7 @@ function PollDetail({poll}: { poll: Poll }) {
 
     const sortedOptions = [...poll.options].sort((left, right) => left.text.localeCompare(right.text, locale));
     const canVote = poll.visibility === 'public' && poll.state === 'active' && Boolean(identity) && !identityQuery.isPending && !identityQuery.isError;
-    const resultForbiddenBeforeVote = poll.state === 'active' && isForbidden(resultsQuery.error);
+    const resultForbiddenBeforeVote = poll.state === 'active' && isResultsUnavailable(resultsQuery.error);
 
     return <section className="data-card poll-detail-card"><div className="poll-detail-heading"><h3>{poll.title}</h3>
         <span className="poll-state">{t(poll.state === 'active' ? 'polls.stateActive' : 'polls.stateClosed')}</span></div>
@@ -137,13 +137,13 @@ function ResultsState({poll, query, forbiddenBeforeVote}: {
     return null;
 }
 
-function currentOption(results: PollResults | undefined, identity: string | null) {
+function currentOptionNumberFromResults(results: PollResults | undefined, identity: string | null) {
     if (!results || !identity) return null;
     return results.options.find((option) => option.votes.some((vote) => vote.userID === identity))?.number ?? null;
 }
 
-function isForbidden(error: unknown) {
-    return error instanceof ApiError && error.frontend.status === 403;
+function isResultsUnavailable(error: unknown) {
+    return error instanceof ApiError && error.frontend.status === 403 && error.frontend.code === 'results-not-available';
 }
 
 function frontendError(cause: unknown) {
