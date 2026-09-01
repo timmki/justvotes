@@ -25,7 +25,7 @@ export function PollsPage() {
                 <span className="poll-card-heading"><strong>{poll.title}</strong><span className="poll-vote-badge"
                                                                                        aria-label={`${poll.totalVotes} ${t('polls.votes')}`}>{poll.totalVotes}</span></span>
                 <span className="poll-card-meta"><span>{t('polls.createdBy')} {t('common.admin')}</span><time
-                    dateTime={poll.createdAt}>{formatCreatedAt(poll.createdAt, locale)}</time><span
+                                                                                    dateTime={poll.createdAt}>{formatTimestamp(poll.createdAt, locale)}</time><span
                     className="poll-id">{poll.id}</span></span>
             </Link></li>)}</ul>}</QueryState>
     </DataPage>;
@@ -91,6 +91,7 @@ function PollDetail({poll}: { poll: Poll }) {
     const sortedOptions = [...poll.options].sort((left, right) => left.text.localeCompare(right.text, locale));
     const canVote = poll.visibility === 'public' && poll.state === 'active' && Boolean(identity) && !identityQuery.isPending && !identityQuery.isError;
     const resultForbiddenBeforeVote = poll.state === 'active' && isResultsUnavailable(resultsQuery.error);
+    const resultsLinkAvailable = Boolean(resultsQuery.data && !resultsQuery.isError && !resultsQuery.isFetching);
 
     return <section className="data-card poll-detail-card"><div className="poll-detail-heading"><h3>{poll.title}</h3>
         <span className="poll-state">{t(pollStateTranslationKey(poll.state))}</span></div>
@@ -112,12 +113,12 @@ function PollDetail({poll}: { poll: Poll }) {
         </fieldset>
         {identityQuery.isError && <p className="form-error" role="alert">{t('errors.generic')}</p>}
         {!identityQuery.isPending && !identityQuery.isError && !identity && <p className="poll-notice">{t('polls.identityRequired')}</p>}
-        {poll.state !== 'active' && <p className="poll-notice">{t('polls.votingClosed')} ({t(pollStateTranslationKey(poll.state))}{poll.endsAt && `, ${formatCreatedAt(poll.endsAt, locale)}`})</p>}
+        {poll.state !== 'active' && <p className="poll-notice">{t('polls.voteUnavailable')} ({t(pollStateTranslationKey(poll.state))}{poll.endsAt && `, ${formatTimestamp(poll.endsAt, locale)}`})</p>}
         {mutationError && <p className="form-error" role="alert">{t(mutationError.messageKey)}</p>}
         {feedback && <p className="poll-feedback" role="status">{feedback}</p>}
         <ResultsState poll={poll} query={resultsQuery} forbiddenBeforeVote={resultForbiddenBeforeVote}/>
-        <p className="poll-detail-links"><>{resultsQuery.data && !resultsQuery.isError && !resultsQuery.isFetching && <Link
-            to={`/poll/results/${encodeURIComponent(poll.id)}`}>{t('polls.results')}</Link>}{resultsQuery.data && !resultsQuery.isError && !resultsQuery.isFetching && ' | '}<Link
+        <p className="poll-detail-links"><>{resultsLinkAvailable && <Link
+            to={`/poll/results/${encodeURIComponent(poll.id)}`}>{t('polls.results')}</Link>}{resultsLinkAvailable && ' | '}<Link
             to={`/poll/audit/${encodeURIComponent(poll.id)}`}>{t('audit.title')}</Link></></p>
     </section>;
 }
@@ -239,7 +240,7 @@ function DataPage({eyebrow, title, description, children}: {
     return <PageFrame eyebrow={eyebrow} title={title} description={description}>{children}</PageFrame>;
 }
 
-function formatCreatedAt(value: string, locale: Locale) {
+function formatTimestamp(value: string, locale: Locale) {
     return new Intl.DateTimeFormat(locale, {dateStyle: 'medium', timeStyle: 'short'}).format(new Date(value));
 }
 
