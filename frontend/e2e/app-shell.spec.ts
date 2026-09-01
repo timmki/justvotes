@@ -314,21 +314,30 @@ test('renders zero percentages and tied winners in results', async ({ page }) =>
     if (url.endsWith('/polls/p_tie_results/results')) return route.fulfill({ json: {
       id: 'p_tie_results', title: 'Tie results poll', visibility: 'public', state: 'expired',
       createdAt: '2026-08-31T12:00:00.000Z', endsAt: '2026-08-31T13:00:00.000Z', totalVotes: 2,
-      options: [{ number: 1, text: 'No', voteCount: 1, votes: [] }, { number: 2, text: 'Yes', voteCount: 1, votes: [] }],
+      options: [
+        { number: 1, text: 'Zulu', voteCount: 1, votes: [] },
+        { number: 2, text: 'Alpha', voteCount: 1, votes: [] },
+        { number: 3, text: 'Zebra', voteCount: 0, votes: [] },
+        { number: 4, text: 'Beta', voteCount: 0, votes: [] },
+      ],
     } });
     return route.fulfill({ json: [] });
   });
 
   await page.goto('/poll/results/p_zero_results');
   await expect(page.getByText('0 %')).toHaveCount(2);
+  await expect(page.locator('.results-total dd')).toHaveText('0');
+  await expect(page.locator('.result-option-meta')).toHaveText(['0 %0 Stimmen', '0 %0 Stimmen']);
   await page.goto('/poll/results/p_tie_results');
   await expect(page.getByText('Gleichstand')).toHaveCount(2);
+  await expect(page.locator('.result-option-heading a')).toHaveText(['Alpha', 'Zulu', 'Beta', 'Zebra']);
 });
 
 test('confirms vote withdrawal and returns to the poll detail', async ({ page }) => {
   let withdrawn = false;
   let deleteRequests = 0;
   let csrfHeader: string | undefined;
+  let confirmationMessage = '';
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const url = request.url();
@@ -355,9 +364,16 @@ test('confirms vote withdrawal and returns to the poll detail', async ({ page })
     if (url.endsWith('/csrf')) return route.fulfill({ json: { token: 'csrf-token', headerName: 'X-XSRF-TOKEN' } });
     return route.fulfill({ json: [] });
   });
-  page.on('dialog', async (dialog) => { await dialog.accept(); });
-
   await page.goto('/poll/results/p_withdrawal');
+  page.once('dialog', async (dialog) => {
+    confirmationMessage = dialog.message();
+    await dialog.dismiss();
+  });
+  await page.getByRole('button', { name: 'Stimme zurücknehmen' }).click();
+  expect(confirmationMessage).toBe('Eigene Stimme wirklich zurücknehmen?');
+  expect(deleteRequests).toBe(0);
+
+  page.once('dialog', async (dialog) => { await dialog.accept(); });
   await page.getByRole('button', { name: 'Stimme zurücknehmen' }).click();
   await expect(page.getByRole('heading', { name: 'Withdrawal poll', level: 3 })).toBeVisible();
   await expect(page.getByText('Ergebnisse werden nach der ersten Stimme freigegeben.')).toBeVisible();
