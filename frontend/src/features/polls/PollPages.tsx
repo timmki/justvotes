@@ -308,7 +308,7 @@ function ResultsDetail({results, identity, locale}: { results: PollResults; iden
 
 function OptionDetail({results, option, locale}: { results: PollResults; option: PollResults['options'][number]; locale: Locale }) {
     const {t} = useI18n();
-    return <section className="data-card option-detail"><h3>{option.text}</h3>
+    return <section className="data-card option-detail"><p className="option-poll-title">{results.title}</p><h3>{option.text}</h3>
         <p className="option-detail-meta">{t('polls.optionNumber')} {option.number} · {t('polls.votes')}: {option.voteCount}</p>
         {option.votes.length === 0 ? <RouteState status="empty"/> : <ol className="voter-list" aria-label={t('polls.voters')}>
             {option.votes.map((vote, index) => <li key={`${vote.userID}-${vote.votedAt}`}><span className="voter-number">{index + 1}</span>

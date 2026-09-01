@@ -302,9 +302,33 @@ test('loads a direct option link with the complete current voter list', async ({
   await expect(page.locator('time').first()).toHaveAttribute('datetime', '2026-08-31T12:01:00.000Z');
 });
 
+test('renders zero percentages and tied winners in results', async ({ page }) => {
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request();
+    const url = request.url();
+    if (url.endsWith('/polls/p_zero_results/results')) return route.fulfill({ json: {
+      id: 'p_zero_results', title: 'Zero results poll', visibility: 'public', state: 'expired',
+      createdAt: '2026-08-31T12:00:00.000Z', endsAt: '2026-08-31T13:00:00.000Z', totalVotes: 0,
+      options: [{ number: 1, text: 'No', voteCount: 0, votes: [] }, { number: 2, text: 'Yes', voteCount: 0, votes: [] }],
+    } });
+    if (url.endsWith('/polls/p_tie_results/results')) return route.fulfill({ json: {
+      id: 'p_tie_results', title: 'Tie results poll', visibility: 'public', state: 'expired',
+      createdAt: '2026-08-31T12:00:00.000Z', endsAt: '2026-08-31T13:00:00.000Z', totalVotes: 2,
+      options: [{ number: 1, text: 'No', voteCount: 1, votes: [] }, { number: 2, text: 'Yes', voteCount: 1, votes: [] }],
+    } });
+    return route.fulfill({ json: [] });
+  });
+
+  await page.goto('/poll/results/p_zero_results');
+  await expect(page.getByText('0 %')).toHaveCount(2);
+  await page.goto('/poll/results/p_tie_results');
+  await expect(page.getByText('Gleichstand')).toHaveCount(2);
+});
+
 test('confirms vote withdrawal and returns to the poll detail', async ({ page }) => {
   let withdrawn = false;
   let deleteRequests = 0;
+  let csrfHeader: string | undefined;
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const url = request.url();
@@ -324,6 +348,7 @@ test('confirms vote withdrawal and returns to the poll detail', async ({ page })
       } });
     if (url.endsWith('/polls/p_withdrawal/votes') && request.method() === 'DELETE') {
       deleteRequests += 1;
+      csrfHeader = request.headers()['x-xsrf-token'];
       withdrawn = true;
       return route.fulfill({ status: 204 });
     }
@@ -337,6 +362,7 @@ test('confirms vote withdrawal and returns to the poll detail', async ({ page })
   await expect(page.getByRole('heading', { name: 'Withdrawal poll', level: 3 })).toBeVisible();
   await expect(page.getByText('Ergebnisse werden nach der ersten Stimme freigegeben.')).toBeVisible();
   expect(deleteRequests).toBe(1);
+  expect(csrfHeader).toBe('csrf-token');
 });
 
 test('logs in, restores the active admin area after reload, and logs out', async ({ page }) => {

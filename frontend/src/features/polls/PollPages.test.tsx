@@ -422,6 +422,7 @@ describe('ResultsPage', () => {
         renderResultsPage('/poll/results/poll-1/option/7');
 
         expect(await screen.findByRole('heading', {name: 'Apfel', level: 3})).toBeVisible();
+        expect(screen.getByText('Team-Ausflug')).toBeVisible();
         expect(screen.getByText('1')).toBeVisible();
         expect(screen.getByText('alice')).toBeVisible();
         expect(screen.getByText(/01\.08\.2026/)).toBeVisible();
