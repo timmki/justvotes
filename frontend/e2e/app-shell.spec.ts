@@ -217,7 +217,7 @@ test('disables voting for an expired poll and safely handles private or missing 
   await expect(page.getByRole('heading', { name: 'Seite nicht gefunden', level: 3 })).toBeVisible();
 });
 
-test('guards results before voting and releases them after voting or expiry', async ({ page }) => {
+test('schützt Results vor Stimmabgabe und gibt sie nach Stimmabgabe oder Ablauf frei', async ({ page }) => {
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const url = request.url();
