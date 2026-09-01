@@ -116,8 +116,8 @@ function PollDetail({poll}: { poll: Poll }) {
         {mutationError && <p className="form-error" role="alert">{t(mutationError.messageKey)}</p>}
         {feedback && <p className="poll-feedback" role="status">{feedback}</p>}
         <ResultsState poll={poll} query={resultsQuery} forbiddenBeforeVote={resultForbiddenBeforeVote}/>
-        <p className="poll-detail-links"><>{resultsQuery.data && <Link
-            to={`/poll/results/${encodeURIComponent(poll.id)}`}>{t('polls.results')}</Link>}{resultsQuery.data && ' | '}<Link
+        <p className="poll-detail-links"><>{resultsQuery.data && !resultsQuery.isError && <Link
+            to={`/poll/results/${encodeURIComponent(poll.id)}`}>{t('polls.results')}</Link>}{resultsQuery.data && !resultsQuery.isError && ' | '}<Link
             to={`/poll/audit/${encodeURIComponent(poll.id)}`}>{t('audit.title')}</Link></></p>
     </section>;
 }

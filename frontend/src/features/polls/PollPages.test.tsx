@@ -6,6 +6,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {apiClient} from '../../shared/api/client';
 import {problemError} from '../../shared/api/errors';
 import {queryClient} from '../../shared/api/queryClient';
+import {queryKeys} from '../../shared/api/queryKeys';
 import {I18nProvider} from '../../shared/i18n/I18nProvider';
 import {PollPage, PollsPage} from './PollPages';
 
@@ -249,6 +250,21 @@ describe('PollPage', () => {
 
         expect(await screen.findByRole('heading', {name: 'Diese Aktion ist nicht erlaubt.', level: 3})).toBeVisible();
         expect(screen.queryByText('Ergebnisse werden nach der ersten Stimme freigegeben.')).toBeNull();
+    });
+
+    it('hides stale results links while a released-results refetch is forbidden', async () => {
+        const getPollResults = vi.spyOn(apiClient, 'getPollResults')
+            .mockResolvedValueOnce(resultsFor(7))
+            .mockRejectedValueOnce(problemError({code: 'results-not-available'}, 403));
+
+        renderPollPage();
+
+        expect(await screen.findByRole('link', {name: 'Poll-Ergebnisse'})).toBeVisible();
+        await queryClient.invalidateQueries({queryKey: queryKeys.pollResults(poll.id)});
+
+        expect(await screen.findByText('Ergebnisse werden nach der ersten Stimme freigegeben.')).toBeVisible();
+        expect(screen.queryByRole('link', {name: 'Poll-Ergebnisse'})).toBeNull();
+        expect(getPollResults).toHaveBeenCalledTimes(2);
     });
 
     it('disables voting for an expired poll but keeps released results available', async () => {
