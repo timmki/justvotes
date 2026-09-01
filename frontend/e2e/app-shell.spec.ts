@@ -162,6 +162,61 @@ test('casts, replaces, repeats and restores a public poll vote', async ({ page }
   expect(requestMethods).not.toContain('DELETE');
 });
 
+test('disables voting for an expired poll and safely handles private or missing polls', async ({ page }) => {
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request();
+    const url = request.url();
+    if (url.endsWith('/identity')) return route.fulfill({ json: { userID: null } });
+    if (url.endsWith('/polls/p_expired')) return route.fulfill({ json: {
+      id: 'p_expired',
+      title: 'Expired browser poll',
+      visibility: 'public',
+      state: 'expired',
+      createdAt: '2026-08-31T12:00:00.000Z',
+      endsAt: '2026-08-31T13:00:00.000Z',
+      totalVotes: 1,
+      templateGroup: { id: 'g_expired', name: 'Expired group', description: '' },
+      templateSnapshotOptions: [{ number: 1, text: 'Yes' }],
+      options: [{ number: 1, text: 'Yes' }],
+    } });
+    if (url.endsWith('/polls/p_expired/results')) return route.fulfill({ json: {
+      id: 'p_expired',
+      title: 'Expired browser poll',
+      visibility: 'public',
+      state: 'expired',
+      createdAt: '2026-08-31T12:00:00.000Z',
+      endsAt: '2026-08-31T13:00:00.000Z',
+      totalVotes: 1,
+      options: [{ number: 1, text: 'Yes', voteCount: 1, votes: [] }],
+    } });
+    if (url.endsWith('/polls/p_private')) return route.fulfill({ json: {
+      id: 'p_private',
+      title: 'Private browser poll',
+      visibility: 'private',
+      state: 'draft',
+      createdAt: '2026-08-31T12:00:00.000Z',
+      endsAt: null,
+      totalVotes: 0,
+      templateGroup: { id: 'g_private', name: 'Private group', description: '' },
+      templateSnapshotOptions: [{ number: 1, text: 'Yes' }],
+      options: [{ number: 1, text: 'Yes' }],
+    } });
+    if (url.endsWith('/polls/p_missing')) return route.fulfill({ status: 404, json: { status: 404, code: 'not_found' } });
+    return route.fulfill({ json: [] });
+  });
+
+  await page.goto('/poll/p_expired');
+  await expect(page.getByRole('heading', { name: 'Expired browser poll', level: 3 })).toBeVisible();
+  await expect(page.getByText(/Dieser Poll ist nicht mehr aktiv.*abgelaufen/)).toBeVisible();
+  await expect(page.getByRole('radio', { name: 'Yes' })).toBeDisabled();
+  await expect(page.getByRole('link', { name: 'Poll-Ergebnisse' })).toBeVisible();
+
+  await page.goto('/poll/p_private');
+  await expect(page.getByRole('heading', { name: 'Seite nicht gefunden', level: 3 })).toBeVisible();
+  await page.goto('/poll/p_missing');
+  await expect(page.getByRole('heading', { name: 'Seite nicht gefunden', level: 3 })).toBeVisible();
+});
+
 test('logs in, restores the active admin area after reload, and logs out', async ({ page }) => {
   let authenticated = false;
   await page.route('**/api/v1/**', async (route) => {

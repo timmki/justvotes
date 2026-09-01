@@ -5,6 +5,7 @@ import de.justvotes.pollmanagement.core.event.PollPublished;
 import de.justvotes.pollmanagement.core.model.Poll;
 import de.justvotes.pollmanagement.core.model.TemplateGroupSnapshot;
 import de.justvotes.pollmanagement.core.ports.out.PollRepository;
+import de.justvotes.pollmanagement.core.ports.out.UtcClock;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -20,7 +21,7 @@ class PollManagementTest {
     void createsAPrivateDraftWithAnAlphabeticallySortedTemplateGroupSnapshot() {
         var polls = new InMemoryPollRepository();
         var management = new PollManagement(polls, groupId -> new TemplateGroupSnapshot(groupId, "Gremium", "Die gewaehlte Leitung", List.of("Zeta", "Alpha")), event -> {
-        });
+        }, Instant::now);
 
         Poll poll = management.createDraft("Mitgliederwahl", Poll.TemplateGroupId.of(7), "systemadmin");
 
@@ -35,12 +36,12 @@ class PollManagementTest {
     @Test
     void rejectsAnEmptyTemplateGroupAndDuplicateNormalizedDraftOptions() {
         var emptyGroupManagement = new PollManagement(new InMemoryPollRepository(), groupId -> new TemplateGroupSnapshot(groupId, "Leer", "", List.of()), event -> {
-        });
+        }, Instant::now);
 
         assertThrows(IllegalArgumentException.class, () -> emptyGroupManagement.createDraft("Mitgliederwahl", Poll.TemplateGroupId.of(7), "systemadmin"));
 
         var management = new PollManagement(new InMemoryPollRepository(), groupId -> new TemplateGroupSnapshot(groupId, "Gremium", "", List.of("Ja")), event -> {
-        });
+        }, Instant::now);
         Poll poll = management.createDraft("Mitgliederwahl", Poll.TemplateGroupId.of(7), "systemadmin");
         assertThrows(IllegalArgumentException.class, () -> management.replaceDraftOptions(poll.id(), List.of(" Ja ", "ja")));
         management.replaceDraftOptions(poll.id(), List.of("Nein"));
@@ -51,7 +52,7 @@ class PollManagementTest {
     void publishesADraftAsAnActivePublicPollAndEmitsAPublishedDomainEvent() {
         var publishedEvents = new ArrayList<PollDomainEvent>();
         var management = new PollManagement(new InMemoryPollRepository(),
-                groupId -> new TemplateGroupSnapshot(groupId, "Gremium", "", List.of("Ja")), publishedEvents::add);
+                groupId -> new TemplateGroupSnapshot(groupId, "Gremium", "", List.of("Ja")), publishedEvents::add, Instant::now);
         Poll draft = management.createDraft("Mitgliederwahl", Poll.TemplateGroupId.of(7), "systemadmin");
 
         Poll published = management.publish(draft.id(), "systemadmin", Instant.parse("2099-01-01T00:00:00Z"));
@@ -65,7 +66,7 @@ class PollManagementTest {
     void expiresDuePollsIdempotentlyAndArchivesThenRestoresThemAsExpired() {
         var events = new ArrayList<PollDomainEvent>();
         var repository = new InMemoryPollRepository();
-        var management = new PollManagement(repository, groupId -> new TemplateGroupSnapshot(groupId, "Gremium", "", List.of("Ja")), events::add);
+        var management = new PollManagement(repository, groupId -> new TemplateGroupSnapshot(groupId, "Gremium", "", List.of("Ja")), events::add, Instant::now);
         Poll draft = management.createDraft("Mitgliederwahl", Poll.TemplateGroupId.of(7), "systemadmin");
         Instant expiry = Instant.parse("2026-08-16T10:00:00Z");
         management.publish(draft.id(), "systemadmin", expiry);
@@ -75,6 +76,23 @@ class PollManagementTest {
         assertEquals(Poll.State.EXPIRED, draft.state());
         assertEquals(Poll.State.ARCHIVED, management.archive(draft.id(), "systemadmin").state());
         assertEquals(Poll.State.EXPIRED, management.restoreFromArchive(draft.id(), "systemadmin").state());
+        assertEquals("PollExpired", events.get(1).eventType());
+    }
+
+    @Test
+    void expiresDuePollWhenItsPublicDetailIsRead() {
+        var events = new ArrayList<PollDomainEvent>();
+        var repository = new InMemoryPollRepository();
+        Instant expiry = Instant.parse("2026-08-16T10:00:00Z");
+        UtcClock clock = () -> expiry;
+        var management = new PollManagement(repository, groupId -> new TemplateGroupSnapshot(groupId, "Gremium", "", List.of("Ja")), events::add, clock);
+        Poll draft = management.createDraft("Mitgliederwahl", Poll.TemplateGroupId.of(7), "systemadmin");
+        management.publish(draft.id(), "systemadmin", expiry);
+
+        Poll publicPoll = management.publicPoll(draft.id());
+
+        assertEquals(Poll.State.EXPIRED, publicPoll.state());
+        assertEquals(Poll.State.EXPIRED, repository.findById(draft.id()).orElseThrow().state());
         assertEquals("PollExpired", events.get(1).eventType());
     }
 

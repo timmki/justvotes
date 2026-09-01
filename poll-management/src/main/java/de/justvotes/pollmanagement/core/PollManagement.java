@@ -9,6 +9,7 @@ import de.justvotes.pollmanagement.core.ports.in.ViewPolls;
 import de.justvotes.pollmanagement.core.ports.out.PollEventPublisher;
 import de.justvotes.pollmanagement.core.ports.out.PollRepository;
 import de.justvotes.pollmanagement.core.ports.out.TemplateGroupSnapshotProvider;
+import de.justvotes.pollmanagement.core.ports.out.UtcClock;
 import io.vavr.control.Try;
 
 import java.time.Instant;
@@ -19,11 +20,13 @@ public final class PollManagement implements ManagePolls, ViewPolls {
     private final PollRepository polls;
     private final TemplateGroupSnapshotProvider templateGroups;
     private final PollEventPublisher events;
+    private final UtcClock clock;
 
-    public PollManagement(PollRepository polls, TemplateGroupSnapshotProvider templateGroups, PollEventPublisher events) {
+    public PollManagement(PollRepository polls, TemplateGroupSnapshotProvider templateGroups, PollEventPublisher events, UtcClock clock) {
         this.polls = polls;
         this.templateGroups = templateGroups;
         this.events = events;
+        this.clock = clock;
     }
 
     @Override
@@ -119,7 +122,7 @@ public final class PollManagement implements ManagePolls, ViewPolls {
 
     @Override
     public Poll publicPoll(Poll.PollId pollId) {
-        Poll poll = poll(pollId);
+        Poll poll = loadAndExpireIfDue(pollId);
         if (!poll.isPubliclyReadable()) {
             throw new PollNotFoundException(pollId);
         }
@@ -139,5 +142,14 @@ public final class PollManagement implements ManagePolls, ViewPolls {
 
     private Poll poll(Poll.PollId id) {
         return polls.findById(id).orElseThrow(() -> new PollNotFoundException(id));
+    }
+
+    private Poll loadAndExpireIfDue(Poll.PollId pollId) {
+        Poll poll = poll(pollId);
+        if (poll.expireIfDue(clock.now())) {
+            events.publish(new PollLifecycleChanged(poll.id(), "System", PollLifecycleChanged.Type.PollExpired, null));
+            polls.save(poll);
+        }
+        return poll;
     }
 }

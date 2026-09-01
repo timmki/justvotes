@@ -45,8 +45,9 @@ class PollManagementConfiguration {
     }
 
     @Bean
-    PollManagement pollManagement(PollRepository polls, TemplateGroupSnapshotProvider groups, PollEventPublisher events) {
-        return new PollManagement(polls, groups, events);
+    PollManagement pollManagement(PollRepository polls, TemplateGroupSnapshotProvider groups, PollEventPublisher events,
+                                  UtcClock clock) {
+        return new PollManagement(polls, groups, events, clock);
     }
 
     @Bean
