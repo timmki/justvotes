@@ -169,6 +169,24 @@ class VoteManagementTest {
     }
 
     @Test
+    void expiresDuePollBeforeReleasingItsResults() {
+        Instant expiry = Instant.parse("2026-08-16T10:00:00Z");
+        Poll due = Poll.reconstitue(
+                Poll.PollId.newId(), "Faellige Wahl", "systemadmin", Poll.Visibility.PUBLIC, Poll.State.ACTIVE,
+                Instant.parse("2026-08-01T10:00:00Z"), expiry, group(), List.of("Ja"), List.of("Ja"), List.of()
+        );
+        var polls = new InMemoryPollRepository(due);
+        VoteManagement management = new VoteManagement(polls, pollId -> List.of(), ignored -> {
+        }, () -> expiry);
+
+        PollResults results = management.results(due.id(), null);
+
+        assertEquals(due.id(), results.id());
+        assertEquals(Poll.State.EXPIRED, due.state());
+        assertEquals(List.of(due), polls.saved());
+    }
+
+    @Test
     void removesTheAddressedCurrentVoteWithAnImmutableAdminAuditEvent() {
         Poll poll = Poll.reconstitue(
                 Poll.PollId.newId(), "Aktuelle Wahl", "systemadmin", Poll.Visibility.PUBLIC, Poll.State.ACTIVE,

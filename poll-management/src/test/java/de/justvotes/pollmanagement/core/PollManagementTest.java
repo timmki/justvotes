@@ -96,6 +96,20 @@ class PollManagementTest {
         assertEquals("PollExpired", events.get(1).eventType());
     }
 
+    @Test
+    void expiresDuePollWhenThePublicListIsRead() {
+        var events = new ArrayList<PollDomainEvent>();
+        var repository = new InMemoryPollRepository();
+        Instant expiry = Instant.parse("2026-08-16T10:00:00Z");
+        var management = new PollManagement(repository, groupId -> new TemplateGroupSnapshot(groupId, "Gremium", "", List.of("Ja")), events::add, () -> expiry);
+        Poll draft = management.createDraft("Mitgliederwahl", Poll.TemplateGroupId.of(7), "systemadmin");
+        management.publish(draft.id(), "systemadmin", expiry);
+
+        List<de.justvotes.pollmanagement.core.model.PollSummary> summaries = management.publicPolls();
+
+        assertEquals(Poll.State.EXPIRED, summaries.get(0).state());
+    }
+
     private static final class InMemoryPollRepository implements PollRepository {
         private Poll poll;
 
@@ -122,7 +136,9 @@ class PollManagementTest {
 
         @Override
         public List<de.justvotes.pollmanagement.core.model.PollSummary> findAllPublicSummaries() {
-            return List.of();
+            return poll == null || poll.visibility() != Poll.Visibility.PUBLIC ? List.of() : List.of(new de.justvotes.pollmanagement.core.model.PollSummary(
+                    poll.id(), poll.title(), poll.visibility(), poll.state(), poll.createdAt(), poll.endsAt(), poll.templateGroup(),
+                    poll.templateSnapshotOptions(), poll.options(), poll.votes().size()));
         }
 
         @Override

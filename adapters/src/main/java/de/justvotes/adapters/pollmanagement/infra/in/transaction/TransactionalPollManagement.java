@@ -97,7 +97,7 @@ public class TransactionalPollManagement implements ManagePolls, ViewPolls {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public List<PollSummary> publicPolls() {
         return queries.publicPolls();
     }

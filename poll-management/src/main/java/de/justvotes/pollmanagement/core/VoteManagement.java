@@ -155,7 +155,7 @@ public final class VoteManagement implements ManageVotes, ViewVotes, ManageAdmin
     }
 
     private Poll publiclyReadable(Poll.PollId pollId) {
-        Poll poll = polls.findById(pollId).orElseThrow(() -> new PollNotFoundException(pollId));
+        Poll poll = loadAndExpireIfDue(pollId);
         if (!poll.isPubliclyReadable()) {
             throw new PollNotFoundException(pollId);
         }

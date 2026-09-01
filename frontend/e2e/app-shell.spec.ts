@@ -217,6 +217,36 @@ test('disables voting for an expired poll and safely handles private or missing 
   await expect(page.getByRole('heading', { name: 'Seite nicht gefunden', level: 3 })).toBeVisible();
 });
 
+test('rolls back the selected option after a failed vote mutation', async ({ page }) => {
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request();
+    const url = request.url();
+    if (url.endsWith('/identity')) return route.fulfill({ json: { userID: 'alice' } });
+    if (url.endsWith('/polls/p_failed_vote') && request.method() === 'GET') return route.fulfill({ json: {
+      id: 'p_failed_vote', title: 'Failed vote poll', visibility: 'public', state: 'active',
+      createdAt: '2026-08-31T12:00:00.000Z', endsAt: '2099-01-01T00:00:00.000Z', totalVotes: 1,
+      templateGroup: { id: 'g_failed_vote', name: 'Vote group', description: '' },
+      templateSnapshotOptions: [{ number: 2, text: 'Zebra' }, { number: 7, text: 'Apfel' }],
+      options: [{ number: 2, text: 'Zebra' }, { number: 7, text: 'Apfel' }],
+    } });
+    if (url.endsWith('/polls/p_failed_vote/results')) return route.fulfill({ json: {
+      id: 'p_failed_vote', title: 'Failed vote poll', visibility: 'public', state: 'active',
+      createdAt: '2026-08-31T12:00:00.000Z', endsAt: '2099-01-01T00:00:00.000Z', totalVotes: 1,
+      options: [{ number: 2, text: 'Zebra', voteCount: 1, votes: [{ userID: 'alice', votedAt: '2026-08-31T12:00:00.000Z' }] }, { number: 7, text: 'Apfel', voteCount: 0, votes: [] }],
+    } });
+    if (url.endsWith('/polls/p_failed_vote/votes') && request.method() === 'POST') return route.fulfill({ status: 500, json: { status: 500, code: 'server_error' } });
+    return route.fulfill({ json: [] });
+  });
+
+  await page.goto('/poll/p_failed_vote');
+  await expect(page.getByRole('radio', { name: 'Zebra' })).toBeChecked();
+  await page.getByRole('radio', { name: 'Apfel' }).click();
+
+  await expect(page.getByRole('alert')).toHaveText('Die Anfrage konnte nicht verarbeitet werden.');
+  await expect(page.getByRole('radio', { name: 'Zebra' })).toBeChecked();
+  await expect(page.getByRole('radio', { name: 'Apfel' })).not.toBeChecked();
+});
+
 test('logs in, restores the active admin area after reload, and logs out', async ({ page }) => {
   let authenticated = false;
   await page.route('**/api/v1/**', async (route) => {

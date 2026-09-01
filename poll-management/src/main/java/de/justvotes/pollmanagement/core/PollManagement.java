@@ -117,6 +117,7 @@ public final class PollManagement implements ManagePolls, ViewPolls {
 
     @Override
     public List<PollSummary> publicPolls() {
+        expireDuePolls(clock.now());
         return polls.findAllPublicSummaries();
     }
 
