@@ -751,6 +751,124 @@ main {
     background: var(--surface);
 }
 
+.results-card, .option-detail {
+    display: grid;
+    gap: 1rem;
+}
+
+.results-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.results-heading h3, .option-detail h3 {
+    min-width: 0;
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.results-total {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.result-list, .voter-list {
+    display: grid;
+    gap: .65rem;
+    padding: 0;
+    margin: 0;
+    list-style: none;
+}
+
+.result-option {
+    display: grid;
+    gap: .45rem;
+    padding: .9rem;
+    border: 1px solid var(--separator);
+    border-radius: .8rem;
+    background: var(--raised);
+}
+
+.result-option.winner {
+    border-color: var(--accent-text);
+}
+
+.result-option.current {
+    box-shadow: inset .25rem 0 var(--accent-text);
+}
+
+.result-option-heading, .result-option-meta {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: .75rem;
+}
+
+.result-option-heading a {
+    min-width: 0;
+    color: var(--accent-text);
+    font-weight: 800;
+    overflow-wrap: anywhere;
+}
+
+.result-option-heading strong, .result-option small {
+    color: var(--accent-text);
+    font-weight: 700;
+}
+
+.result-option-progress {
+    height: .45rem;
+    overflow: hidden;
+    border-radius: 999px;
+    background: var(--separator);
+}
+
+.result-option-progress span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--accent-text);
+}
+
+.result-option.winner .result-option-progress span {
+    background: #34c759;
+}
+
+.result-option-meta, .option-detail-meta {
+    color: var(--muted);
+    font-size: .86rem;
+}
+
+.option-detail-meta {
+    margin: 0;
+}
+
+.voter-list li {
+    display: grid;
+    grid-template-columns: 2rem minmax(0, 1fr) auto;
+    align-items: baseline;
+    gap: .65rem;
+    padding: .75rem .8rem;
+    border-bottom: 1px solid var(--separator);
+}
+
+.voter-list li:last-child {
+    border-bottom: 0;
+}
+
+.voter-number {
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+}
+
+.voter-list time {
+    color: var(--muted);
+    font-size: .85rem;
+    text-align: right;
+}
+
 .poll-detail-card {
     display: grid;
     gap: 1rem;

@@ -247,6 +247,98 @@ test('rolls back the selected option after a failed vote mutation', async ({ pag
   await expect(page.getByRole('radio', { name: 'Apfel' })).not.toBeChecked();
 });
 
+test('refreshes active results on schedule and stops after the poll expires', async ({ page }) => {
+  let resultsRequest = 0;
+  await page.clock.install();
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request();
+    const url = request.url();
+    if (url.endsWith('/identity')) return route.fulfill({ json: { userID: 'alice' } });
+    if (url.endsWith('/polls/p_live_results/results')) {
+      resultsRequest += 1;
+      const active = resultsRequest < 3;
+      return route.fulfill({ json: {
+        id: 'p_live_results', title: 'Live results poll', visibility: 'public', state: active ? 'active' : 'expired',
+        createdAt: '2026-08-31T12:00:00.000Z', endsAt: '2099-01-01T00:00:00.000Z', totalVotes: resultsRequest,
+        options: [{ number: 1, text: 'Yes', voteCount: resultsRequest, votes: [{ userID: 'alice', votedAt: '2026-08-31T12:00:00.000Z' }] }],
+      } });
+    }
+    return route.fulfill({ json: [] });
+  });
+
+  await page.goto('/poll/results/p_live_results');
+  await expect(page.getByRole('heading', { name: 'Live results poll', level: 3 })).toBeVisible();
+  expect(resultsRequest).toBe(1);
+  await page.clock.fastForward(5_000);
+  await expect(page.getByText('2 Stimmen')).toBeVisible();
+  expect(resultsRequest).toBe(2);
+  await page.clock.fastForward(5_000);
+  await expect(page.getByText('3 Stimmen')).toBeVisible();
+  expect(resultsRequest).toBe(3);
+  await page.clock.fastForward(10_000);
+  expect(resultsRequest).toBe(3);
+});
+
+test('loads a direct option link with the complete current voter list', async ({ page }) => {
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request();
+    const url = request.url();
+    if (url.endsWith('/polls/p_option_details/results')) return route.fulfill({ json: {
+      id: 'p_option_details', title: 'Option details poll', visibility: 'public', state: 'expired',
+      createdAt: '2026-08-31T12:00:00.000Z', endsAt: '2026-08-31T13:00:00.000Z', totalVotes: 2,
+      options: [{ number: 7, text: 'Apfel', voteCount: 2, votes: [
+        { userID: 'alice', votedAt: '2026-08-31T12:01:00.000Z' },
+        { userID: 'bob', votedAt: '2026-08-31T12:02:00.000Z' },
+      ] }],
+    } });
+    return route.fulfill({ json: [] });
+  });
+
+  await page.goto('/poll/results/p_option_details/option/7');
+  await expect(page.getByRole('heading', { name: 'Apfel', level: 3 })).toBeVisible();
+  await expect(page.getByText('alice')).toBeVisible();
+  await expect(page.getByText('bob')).toBeVisible();
+  await expect(page.locator('time').first()).toContainText('31.08.2026');
+  await expect(page.locator('time').first()).toHaveAttribute('datetime', '2026-08-31T12:01:00.000Z');
+});
+
+test('confirms vote withdrawal and returns to the poll detail', async ({ page }) => {
+  let withdrawn = false;
+  let deleteRequests = 0;
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request();
+    const url = request.url();
+    if (url.endsWith('/identity')) return route.fulfill({ json: { userID: 'alice' } });
+    if (url.endsWith('/polls/p_withdrawal') && request.method() === 'GET') return route.fulfill({ json: {
+      id: 'p_withdrawal', title: 'Withdrawal poll', visibility: 'public', state: 'active',
+      createdAt: '2026-08-31T12:00:00.000Z', endsAt: '2099-01-01T00:00:00.000Z', totalVotes: withdrawn ? 0 : 1,
+      templateGroup: { id: 'g_withdrawal', name: 'Vote group', description: '' },
+      templateSnapshotOptions: [{ number: 7, text: 'Apfel' }], options: [{ number: 7, text: 'Apfel' }],
+    } });
+    if (url.endsWith('/polls/p_withdrawal/results')) return withdrawn
+      ? route.fulfill({ status: 403, json: { status: 403, code: 'results-not-available' } })
+      : route.fulfill({ json: {
+        id: 'p_withdrawal', title: 'Withdrawal poll', visibility: 'public', state: 'active',
+        createdAt: '2026-08-31T12:00:00.000Z', endsAt: '2099-01-01T00:00:00.000Z', totalVotes: 1,
+        options: [{ number: 7, text: 'Apfel', voteCount: 1, votes: [{ userID: 'alice', votedAt: '2026-08-31T12:00:00.000Z' }] }],
+      } });
+    if (url.endsWith('/polls/p_withdrawal/votes') && request.method() === 'DELETE') {
+      deleteRequests += 1;
+      withdrawn = true;
+      return route.fulfill({ status: 204 });
+    }
+    if (url.endsWith('/csrf')) return route.fulfill({ json: { token: 'csrf-token', headerName: 'X-XSRF-TOKEN' } });
+    return route.fulfill({ json: [] });
+  });
+  page.on('dialog', async (dialog) => { await dialog.accept(); });
+
+  await page.goto('/poll/results/p_withdrawal');
+  await page.getByRole('button', { name: 'Stimme zurücknehmen' }).click();
+  await expect(page.getByRole('heading', { name: 'Withdrawal poll', level: 3 })).toBeVisible();
+  await expect(page.getByText('Ergebnisse werden nach der ersten Stimme freigegeben.')).toBeVisible();
+  expect(deleteRequests).toBe(1);
+});
+
 test('logs in, restores the active admin area after reload, and logs out', async ({ page }) => {
   let authenticated = false;
   await page.route('**/api/v1/**', async (route) => {
@@ -324,7 +416,10 @@ test('removes an administrative vote through the browser flow', async ({ page })
 
   await page.goto('/poll/results/p_v1_browser');
   await expect(page.getByRole('heading', { name: 'Browser poll', level: 3 })).toBeVisible();
-  await expect(page.getByText('Yes 0')).toBeVisible();
+  await expect(page.getByText('0 %')).toBeVisible();
+  await page.goto('/poll/results/p_v1_browser/option/1');
+  await expect(page.getByText('Noch keine Daten vorhanden')).toBeVisible();
+  await expect(page.getByText('alice')).toHaveCount(0);
   await page.goto('/poll/audit/p_v1_browser');
   await expect(page.getByText('VoteRemovedByAdmin')).toBeVisible();
 });

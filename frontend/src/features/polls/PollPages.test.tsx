@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest';
 import {QueryClientProvider} from '@tanstack/react-query';
-import {cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react';
+import {act, cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {MemoryRouter, Route, Routes} from 'react-router-dom';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {apiClient} from '../../shared/api/client';
@@ -8,7 +8,7 @@ import {problemError} from '../../shared/api/errors';
 import {queryClient} from '../../shared/api/queryClient';
 import {queryKeys} from '../../shared/api/queryKeys';
 import {I18nProvider} from '../../shared/i18n/I18nProvider';
-import {PollPage, PollsPage} from './PollPages';
+import {OptionPage, PollPage, PollsPage, ResultsPage} from './PollPages';
 
 const polls = [
     {
@@ -101,6 +101,22 @@ function renderPollPage() {
                 </I18nProvider>
             </QueryClientProvider>
         </MemoryRouter>,
+    );
+}
+
+function renderResultsPage(initialEntry = '/poll/results/poll-1') {
+    return render(
+        <MemoryRouter initialEntries={[initialEntry]}>
+            <QueryClientProvider client={queryClient}>
+                <I18nProvider>
+                    <Routes>
+                        <Route path="/poll/results/:pollId" element={<ResultsPage/>}/>
+                        <Route path="/poll/results/:pollId/option/:optionNumber" element={<OptionPage/>}/>
+                        <Route path="/poll/:pollId" element={<p>Poll detail</p>}/>
+                    </Routes>
+                </I18nProvider>
+            </QueryClientProvider>
+        </MemoryRouter>
     );
 }
 
@@ -305,5 +321,205 @@ describe('PollPage', () => {
 
         expect(await screen.findByRole('heading', {name: 'Seite nicht gefunden', level: 3})).toBeVisible();
         expect(screen.queryByRole('radio')).toBeNull();
+    });
+});
+
+describe('ResultsPage', () => {
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    it('shows totals, zero-safe percentages, winners first, and current voters', async () => {
+        const result = {
+            ...resultsFor(null),
+            totalVotes: 3,
+            options: [
+                {...poll.options[0], voteCount: 1, votes: [{userID: 'alice', votedAt: '2026-08-01T10:01:00Z'}]},
+                {...poll.options[1], voteCount: 2, votes: [{userID: 'bob', votedAt: '2026-08-01T10:02:00Z'}, {userID: 'carol', votedAt: '2026-08-01T10:03:00Z'}]},
+            ],
+        };
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(result);
+        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
+
+        renderResultsPage();
+
+        expect(await screen.findByRole('heading', {name: 'Team-Ausflug', level: 3})).toBeVisible();
+        expect(screen.getByText('3')).toBeVisible();
+        expect(screen.getByText('67 %')).toBeVisible();
+        expect(screen.getByText('33 %')).toBeVisible();
+        expect(screen.getByText('Gewinner')).toBeVisible();
+        expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual(['Apfel', 'Zebra', 'Polls', 'Audit Log']);
+
+        const zeroResult = {...result, totalVotes: 0, options: result.options.map((option) => ({...option, voteCount: 0, votes: []}))};
+        vi.mocked(apiClient.getPollResults).mockResolvedValue(zeroResult);
+        await act(async () => {
+            await queryClient.invalidateQueries({queryKey: queryKeys.pollResults(poll.id)});
+        });
+        await waitFor(() => expect(screen.getAllByText('0 %')).toHaveLength(2));
+    });
+
+    it('marks all tied positive options as winners and polls only while visible and active', async () => {
+        vi.useFakeTimers();
+        const result = {...resultsFor(null), totalVotes: 2, options: poll.options.map((option) => ({
+            ...option,
+            voteCount: 1,
+            votes: [{userID: 'alice', votedAt: '2026-08-01T10:01:00Z'}],
+        }))};
+        const getPollResults = vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(result);
+        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
+
+        renderResultsPage();
+        await act(async () => {
+            await Promise.resolve();
+        });
+        await act(async () => {
+            await Promise.resolve();
+            await Promise.resolve();
+            vi.advanceTimersByTime(0);
+            await Promise.resolve();
+        });
+        expect(screen.getAllByText('Gleichstand')).toHaveLength(2);
+
+        await act(async () => {
+            vi.advanceTimersByTime(4_999);
+        });
+        expect(getPollResults).toHaveBeenCalledTimes(1);
+        await act(async () => {
+            vi.advanceTimersByTime(1_001);
+            await Promise.resolve();
+        });
+        expect(getPollResults).toHaveBeenCalledTimes(2);
+
+        Object.defineProperty(document, 'visibilityState', {configurable: true, value: 'hidden'});
+        await act(async () => {
+            document.dispatchEvent(new Event('visibilitychange'));
+            await Promise.resolve();
+        });
+        await act(async () => {
+            vi.advanceTimersByTime(10_000);
+        });
+        expect(getPollResults).toHaveBeenCalledTimes(2);
+
+        Object.defineProperty(document, 'visibilityState', {configurable: true, value: 'visible'});
+        await act(async () => {
+            document.dispatchEvent(new Event('visibilitychange'));
+            await Promise.resolve();
+        });
+        await act(async () => {
+            vi.advanceTimersByTime(5_001);
+            await Promise.resolve();
+        });
+        expect(getPollResults).toHaveBeenCalledTimes(3);
+    });
+
+    it('shows a direct option link with a running voter number and localized timestamp', async () => {
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue({...resultsFor(7), options: [{
+            ...poll.options[1],
+            voteCount: 1,
+            votes: [{userID: 'alice', votedAt: '2026-08-01T10:01:00Z'}],
+        }]});
+
+        renderResultsPage('/poll/results/poll-1/option/7');
+
+        expect(await screen.findByRole('heading', {name: 'Apfel', level: 3})).toBeVisible();
+        expect(screen.getByText('1')).toBeVisible();
+        expect(screen.getByText('alice')).toBeVisible();
+        expect(screen.getByText(/01\.08\.2026/)).toBeVisible();
+    });
+
+    it('confirms withdrawal, invalidates affected views, and returns to the poll', async () => {
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(resultsFor(7));
+        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
+        const withdrawVote = vi.spyOn(apiClient, 'withdrawVote').mockResolvedValue(undefined);
+        const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries');
+        vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+        renderResultsPage();
+
+        await screen.findByRole('button', {name: 'Stimme zurücknehmen'});
+        fireEvent.click(screen.getByRole('button', {name: 'Stimme zurücknehmen'}));
+
+        await waitFor(() => expect(withdrawVote).toHaveBeenCalledWith(poll.id));
+        expect(invalidateQueries).toHaveBeenCalledWith({queryKey: queryKeys.publicPolls});
+        expect(invalidateQueries).toHaveBeenCalledWith({queryKey: queryKeys.poll(poll.id)});
+        expect(invalidateQueries).toHaveBeenCalledWith({queryKey: queryKeys.pollResults(poll.id)});
+        expect(invalidateQueries).toHaveBeenCalledWith({queryKey: queryKeys.pollAudit(poll.id)});
+        expect(await screen.findByText('Poll detail')).toBeVisible();
+    });
+
+    it('keeps the confirmed vote and shows an error when withdrawal fails', async () => {
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(resultsFor(7));
+        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
+        vi.spyOn(apiClient, 'withdrawVote').mockRejectedValue(new Error('offline'));
+        vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+        renderResultsPage();
+
+        await screen.findByRole('button', {name: 'Stimme zurücknehmen'});
+        fireEvent.click(screen.getByRole('button', {name: 'Stimme zurücknehmen'}));
+
+        expect(await screen.findByRole('alert')).toHaveTextContent('Die Anfrage konnte nicht verarbeitet werden');
+        expect(screen.getByText('Eigene Stimme')).toBeVisible();
+        expect(screen.getByRole('button', {name: 'Stimme zurücknehmen'})).toBeVisible();
+    });
+
+    it('stops polling while offline and resumes when the tab comes online', async () => {
+        vi.useFakeTimers();
+        const result = {...resultsFor(7), state: 'active' as const};
+        const getPollResults = vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(result);
+        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
+
+        renderResultsPage();
+        await act(async () => {
+            await Promise.resolve();
+            await Promise.resolve();
+            vi.advanceTimersByTime(0);
+            await Promise.resolve();
+        });
+        await act(async () => {
+            window.dispatchEvent(new Event('offline'));
+            await Promise.resolve();
+        });
+        await act(async () => {
+            vi.advanceTimersByTime(10_000);
+        });
+        expect(getPollResults).toHaveBeenCalledTimes(1);
+
+        await act(async () => {
+            window.dispatchEvent(new Event('online'));
+            await Promise.resolve();
+        });
+        await act(async () => {
+            vi.advanceTimersByTime(5_000);
+            await Promise.resolve();
+        });
+        expect(getPollResults).toHaveBeenCalledTimes(2);
+    });
+
+    it('stops polling after a refresh error', async () => {
+        vi.useFakeTimers();
+        const result = {...resultsFor(7), state: 'active' as const};
+        const getPollResults = vi.spyOn(apiClient, 'getPollResults')
+            .mockResolvedValueOnce(result)
+            .mockRejectedValueOnce(new Error('offline'));
+        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
+
+        renderResultsPage();
+        await act(async () => {
+            await Promise.resolve();
+            await Promise.resolve();
+            vi.advanceTimersByTime(0);
+            await Promise.resolve();
+        });
+        await act(async () => {
+            vi.advanceTimersByTime(5_000);
+            await Promise.resolve();
+            await Promise.resolve();
+        });
+        expect(getPollResults).toHaveBeenCalledTimes(2);
+        await act(async () => {
+            vi.advanceTimersByTime(10_000);
+        });
+        expect(getPollResults).toHaveBeenCalledTimes(2);
     });
 });
