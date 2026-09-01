@@ -564,7 +564,7 @@ describe('ResultsPage', () => {
 });
 
 describe('AuditPage', () => {
-    it('renders known events in API order with localized details and navigation', async () => {
+    it('rendert bekannte Domaenenereignisse in API-Reihenfolge mit lokalisierten Details und Navigation', async () => {
         vi.spyOn(apiClient, 'getPollAudit').mockResolvedValue([
             {event: 'PollPublished', actor: 'admin', occurredAt: '2026-08-01T10:00:00Z'},
             {event: 'VoteCast', actor: 'alice', occurredAt: '2026-08-01T10:01:00Z', selection: 'Ja', userID: 'alice', optionNumber: 1, votedAt: '2026-08-01T10:01:00Z'},
@@ -587,7 +587,7 @@ describe('AuditPage', () => {
         expect(screen.getByRole('link', {name: 'Poll-Ergebnisse'})).toHaveAttribute('href', '/poll/results/poll-1');
     });
 
-    it('localizes every contract event and safely labels an unknown future event', async () => {
+    it('lokalisiert jedes Vertrags-Domaenenereignis und behandelt unbekannte zukuenftige Werte sicher', async () => {
         const knownEvents = [
             ['PollPublished', 'Poll veröffentlicht', 'Poll published'],
             ['PollExpired', 'Poll abgelaufen', 'Poll expired'],

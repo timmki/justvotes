@@ -335,7 +335,7 @@ test('loads a direct option link with the complete current voter list', async ({
   await expect(page.locator('time').first()).toHaveAttribute('datetime', '2026-08-31T12:01:00.000Z');
 });
 
-test('renders a localized, accessible public audit timeline', async ({ page }) => {
+test('zeigt eine lokalisierte, zugaengliche oeffentliche Domaenenereignis-Timeline', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 800 });
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
