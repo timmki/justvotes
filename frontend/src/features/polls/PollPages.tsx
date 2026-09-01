@@ -46,6 +46,7 @@ type Poll = components['schemas']['Poll'];
 type PollResults = components['schemas']['PollResults'];
 type AuditEntry = components['schemas']['AuditEntry'];
 type AuditEventType = components['schemas']['AuditEventType'];
+type VoteAuditEventType = components['schemas']['VoteAuditEventType'];
 type Vote = components['schemas']['Vote'];
 
 function PollDetail({poll}: { poll: Poll }) {
@@ -339,17 +340,19 @@ export function AuditPage() {
     return <DataPage eyebrow={`${t('common.pollLabel')} ${pollId}`} title={t('audit.title')}
                      description={t('common.auditDescription')}>
         <QueryState query={query}>{(entries) => entries.length === 0 ? <RouteState status="empty"/> :
-            <ol className="audit-timeline" aria-label={t('audit.timeline')}>{entries.map((entry, index) => <li
-                className="audit-entry" key={`${entry.occurredAt}-${entry.event}-${index}`}><article>
+            <ol className="audit-timeline" aria-label={t('audit.timeline')}>{entries.map((entry, index) => {
+                const optionLabel = auditOptionLabel(entry, t);
+                return <li className="audit-entry" key={`${entry.occurredAt}-${entry.event}-${index}`}><article>
                 <div className="audit-entry-heading"><h3>{auditEventLabel(entry.event, t)}</h3></div>
                 <dl className="audit-entry-meta"><div><dt>{t('audit.actor')}</dt><dd>{entry.actor}</dd></div><div><dt>{t('audit.occurredAt')}</dt><dd>
                     <time dateTime={entry.occurredAt}>{formatTimestamp(entry.occurredAt, locale)}</time></dd></div></dl>
-                {auditOptionLabel(entry, t) && <p className="audit-entry-detail"><strong>{t('audit.option')}:</strong> {auditOptionLabel(entry, t)}</p>}
+                {optionLabel && <p className="audit-entry-detail"><strong>{t('audit.option')}:</strong> {optionLabel}</p>}
                 {entry.userID && <p className="audit-entry-detail"><strong>{t('audit.identity')}:</strong> {entry.userID}</p>}
                 {entry.reason && <p className="audit-entry-detail"><strong>{t('audit.reason')}:</strong> {entry.reason}</p>}
                 {entry.votedAt && <p className="audit-entry-detail"><strong>{t('audit.votedAt')}:</strong> <time dateTime={entry.votedAt}>
                     {formatTimestamp(entry.votedAt, locale)}</time></p>}
-            </article></li>)}</ol>}</QueryState>
+            </article></li>;
+            })}</ol>}</QueryState>
         <p className="poll-detail-links"><Link to={`/poll/${encodeURIComponent(pollId)}`}>{t('common.polls')}</Link> | <Link
             to={`/poll/results/${encodeURIComponent(pollId)}`}>{t('polls.results')}</Link></p>
     </DataPage>;
@@ -372,13 +375,23 @@ const auditEventTranslationKeys: Record<AuditEventType, TranslationKey> = {
 };
 
 function auditEventLabel(event: AuditEntry['event'], t: (key: TranslationKey) => string) {
-    return auditEventTranslationKeys[event as AuditEventType] ? t(auditEventTranslationKeys[event as AuditEventType]) : t('audit.unknownEvent');
+    if (!Object.prototype.hasOwnProperty.call(auditEventTranslationKeys, event)) return t('audit.unknownEvent');
+    return t(auditEventTranslationKeys[event as AuditEventType]);
 }
 
 function auditOptionLabel(entry: AuditEntry, t: (key: TranslationKey) => string) {
+    if (!voteAuditEvents.has(entry.event)) return null;
     if (entry.selection) return entry.selection;
     return entry.optionNumber == null ? null : `${t('audit.optionNumber')} ${entry.optionNumber}`;
 }
+
+const voteAuditEvents: ReadonlySet<AuditEventType> = new Set<VoteAuditEventType>([
+    'VoteCast',
+    'VoteReplaced',
+    'VoteWithdrawn',
+    'VoteRemovedForIdentityChange',
+    'VoteRemovedByAdmin',
+]);
 
 function DataPage({eyebrow, title, description, children}: {
     eyebrow: string;

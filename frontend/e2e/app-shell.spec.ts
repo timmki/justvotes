@@ -347,7 +347,7 @@ test('renders a localized, accessible public audit timeline', async ({ page }) =
   });
 
   await page.goto('/poll/audit/p_audit_browser');
-  const timeline = page.getByRole('list', { name: 'Audit-Timeline' });
+  const timeline = page.getByRole('list', { name: 'Domänenereignis-Timeline' });
   await expect(timeline.getByRole('heading', { name: 'Poll veröffentlicht', level: 3 })).toBeVisible();
   await expect(timeline.getByRole('heading', { name: 'Stimme abgegeben', level: 3 })).toBeVisible();
   await expect(timeline).toContainText('An equally long poll option text that remains readable');

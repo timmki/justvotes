@@ -580,6 +580,7 @@ describe('AuditPage', () => {
         ]);
         expect(screen.getAllByText('alice')).toHaveLength(3);
         expect(screen.getByText('Ja')).toBeVisible();
+        expect(screen.getByText('Optionsnummer 1')).toBeVisible();
         expect(screen.getByText('Korrektur')).toBeVisible();
         expect(screen.getAllByText(/01\.08\.2026/).length).toBeGreaterThan(0);
         expect(screen.getByRole('link', {name: 'Polls'})).toHaveAttribute('href', '/poll/poll-1');
@@ -602,26 +603,24 @@ describe('AuditPage', () => {
             ['VoteRemovedForIdentityChange', 'Stimme wegen Identitätswechsel entfernt', 'Vote removed for identity change'],
             ['VoteRemovedByAdmin', 'Stimme administrativ entfernt', 'Vote removed by admin'],
         ] as const;
-        vi.spyOn(apiClient, 'getPollAudit').mockResolvedValue([
+        const auditEntries = [
             ...knownEvents.map(([event]) => ({event, actor: 'admin', occurredAt: '2026-08-01T10:00:00Z'})),
             {event: 'FutureEvent', actor: 'system', occurredAt: '2026-08-01T10:01:00Z'} as never,
-        ]);
+        ];
+        vi.spyOn(apiClient, 'getPollAudit').mockResolvedValue(auditEntries);
 
         renderAuditPage();
 
         for (const [, label] of knownEvents) expect(await screen.findByText(label)).toBeVisible();
-        expect(screen.getByText('Unbekanntes Ereignis')).toBeVisible();
+        expect(screen.getByText('Unbekanntes Domänenereignis')).toBeVisible();
 
         cleanup();
         queryClient.clear();
         window.localStorage.setItem('justvotes-locale', 'en');
-        vi.mocked(apiClient.getPollAudit).mockResolvedValue([
-            ...knownEvents.map(([event]) => ({event, actor: 'admin', occurredAt: '2026-08-01T10:00:00Z'})),
-            {event: 'FutureEvent', actor: 'system', occurredAt: '2026-08-01T10:01:00Z'} as never,
-        ]);
+        vi.mocked(apiClient.getPollAudit).mockResolvedValue(auditEntries);
         renderAuditPage();
         for (const [, , label] of knownEvents) expect(await screen.findByText(label)).toBeVisible();
-        expect(screen.getByText('Unknown event')).toBeVisible();
+        expect(screen.getByText('Unknown domain event')).toBeVisible();
     });
 
     it('shows explicit empty and safe not-found states', async () => {
