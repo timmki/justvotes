@@ -51,7 +51,7 @@ function PollDetail({poll}: { poll: Poll }) {
     const identityQuery = useApiQuery(queryKeys.identity, () => apiClient.getIdentity());
     const resultsQuery = useApiQuery(queryKeys.pollResults(poll.id), () => apiClient.getPollResults(poll.id));
     const identity = identityQuery.data?.userID ?? null;
-    const currentOptionNumber = currentOptionNumberFromResults(resultsQuery.data, identity);
+    const currentOptionNumber = currentOptionNumberFromResults(resultsQuery.isError ? undefined : resultsQuery.data, identity);
     const [confirmedOptionNumber, setConfirmedOptionNumber] = useState<number | null>(currentOptionNumber);
     const [selectedOptionNumber, setSelectedOptionNumber] = useState<number | null>(currentOptionNumber);
     const [feedback, setFeedback] = useState<string | null>(null);
@@ -205,10 +205,7 @@ export function ResultsPage() {
 export function OptionPage() {
     const {t, locale} = useI18n();
     const {pollId = '', optionNumber = ''} = useParams();
-    const query = useApiQuery(queryKeys.pollResults(pollId), () => apiClient.getPollResults(pollId), {
-        refetchOnWindowFocus: false,
-        refetchOnReconnect: false,
-    });
+    const query = usePollingResultsQuery(pollId);
     return <DataPage eyebrow={`${t('common.optionLabel')} ${optionNumber}`} title={t('polls.option')}
                      description={t('common.optionDescription')}>
         <QueryState query={query}>{(results) => {

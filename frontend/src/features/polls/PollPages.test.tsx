@@ -286,6 +286,7 @@ describe('PollPage', () => {
         await invalidation;
 
         expect(await screen.findByText('Ergebnisse werden nach der ersten Stimme freigegeben.')).toBeVisible();
+        expect(screen.getByRole('radio', {name: 'Apfel'})).not.toBeChecked();
         expect(screen.queryByRole('link', {name: 'Poll-Ergebnisse'})).toBeNull();
         expect(getPollResults).toHaveBeenCalledTimes(2);
     });
@@ -426,6 +427,27 @@ describe('ResultsPage', () => {
         expect(screen.getByText('1')).toBeVisible();
         expect(screen.getByText('alice')).toBeVisible();
         expect(screen.getByText(/01\.08\.2026/)).toBeVisible();
+    });
+
+    it('polls active option details while the tab is visible', async () => {
+        vi.useFakeTimers();
+        const result = {...resultsFor(7), state: 'active' as const};
+        const getPollResults = vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(result);
+
+        renderResultsPage('/poll/results/poll-1/option/7');
+        await act(async () => {
+            await Promise.resolve();
+            await Promise.resolve();
+            vi.advanceTimersByTime(0);
+            await Promise.resolve();
+        });
+        expect(getPollResults).toHaveBeenCalledTimes(1);
+
+        await act(async () => {
+            vi.advanceTimersByTime(5_001);
+            await Promise.resolve();
+        });
+        expect(getPollResults).toHaveBeenCalledTimes(2);
     });
 
     it('confirms withdrawal, invalidates affected views, and returns to the poll', async () => {

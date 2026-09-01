@@ -217,6 +217,39 @@ test('disables voting for an expired poll and safely handles private or missing 
   await expect(page.getByRole('heading', { name: 'Seite nicht gefunden', level: 3 })).toBeVisible();
 });
 
+test('guards results before voting and releases them after voting or expiry', async ({ page }) => {
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request();
+    const url = request.url();
+    if (url.endsWith('/identity')) return route.fulfill({ json: { userID: 'alice' } });
+    if (url.endsWith('/polls/p_results_before/results')) {
+      return route.fulfill({ status: 403, json: { status: 403, code: 'results-not-available' } });
+    }
+    if (url.endsWith('/polls/p_results_after/results')) return route.fulfill({ json: {
+      id: 'p_results_after', title: 'Released results poll', visibility: 'public', state: 'active',
+      createdAt: '2026-08-31T12:00:00.000Z', endsAt: '2099-01-01T00:00:00.000Z', totalVotes: 1,
+      options: [{ number: 1, text: 'Yes', voteCount: 1, votes: [{ userID: 'alice', votedAt: '2026-08-31T12:00:00.000Z' }] }],
+    } });
+    if (url.endsWith('/polls/p_results_expired/results')) return route.fulfill({ json: {
+      id: 'p_results_expired', title: 'Expired results poll', visibility: 'public', state: 'expired',
+      createdAt: '2026-08-31T12:00:00.000Z', endsAt: '2026-08-31T13:00:00.000Z', totalVotes: 0,
+      options: [{ number: 1, text: 'Yes', voteCount: 0, votes: [] }],
+    } });
+    return route.fulfill({ json: [] });
+  });
+
+  await page.goto('/poll/results/p_results_before');
+  await expect(page.getByRole('heading', { name: 'Diese Aktion ist nicht erlaubt.', level: 3 })).toBeVisible();
+
+  await page.goto('/poll/results/p_results_after');
+  await expect(page.getByRole('heading', { name: 'Released results poll', level: 3 })).toBeVisible();
+  await expect(page.getByText('Eigene Stimme')).toBeVisible();
+
+  await page.goto('/poll/results/p_results_expired');
+  await expect(page.getByRole('heading', { name: 'Expired results poll', level: 3 })).toBeVisible();
+  await expect(page.getByText('Abgelaufen')).toBeVisible();
+});
+
 test('rolls back the selected option after a failed vote mutation', async ({ page }) => {
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
