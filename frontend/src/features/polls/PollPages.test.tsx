@@ -8,7 +8,7 @@ import {problemError} from '../../shared/api/errors';
 import {queryClient} from '../../shared/api/queryClient';
 import {queryKeys} from '../../shared/api/queryKeys';
 import {I18nProvider} from '../../shared/i18n/I18nProvider';
-import {OptionPage, PollPage, PollsPage, ResultsPage} from './PollPages';
+import {AuditPage, OptionPage, PollPage, PollsPage, ResultsPage} from './PollPages';
 
 const polls = [
     {
@@ -117,6 +117,22 @@ function renderResultsPage(initialEntry = '/poll/results/poll-1') {
                 </I18nProvider>
             </QueryClientProvider>
         </MemoryRouter>
+    );
+}
+
+function renderAuditPage(initialEntry = '/poll/audit/poll-1') {
+    return render(
+        <MemoryRouter initialEntries={[initialEntry]}>
+            <QueryClientProvider client={queryClient}>
+                <I18nProvider>
+                    <Routes>
+                        <Route path="/poll/audit/:pollId" element={<AuditPage/>}/>
+                        <Route path="/poll/:pollId" element={<p>Poll detail</p>}/>
+                        <Route path="/poll/results/:pollId" element={<p>Poll results</p>}/>
+                    </Routes>
+                </I18nProvider>
+            </QueryClientProvider>
+        </MemoryRouter>,
     );
 }
 
@@ -544,5 +560,80 @@ describe('ResultsPage', () => {
             vi.advanceTimersByTime(10_000);
         });
         expect(getPollResults).toHaveBeenCalledTimes(2);
+    });
+});
+
+describe('AuditPage', () => {
+    it('renders known events in API order with localized details and navigation', async () => {
+        vi.spyOn(apiClient, 'getPollAudit').mockResolvedValue([
+            {event: 'PollPublished', actor: 'admin', occurredAt: '2026-08-01T10:00:00Z'},
+            {event: 'VoteCast', actor: 'alice', occurredAt: '2026-08-01T10:01:00Z', selection: 'Ja', userID: 'alice', optionNumber: 1, votedAt: '2026-08-01T10:01:00Z'},
+            {event: 'VoteRemovedByAdmin', actor: 'admin', occurredAt: '2026-08-01T10:02:00Z', selection: null, reason: 'Korrektur', userID: 'alice', optionNumber: 1, votedAt: '2026-08-01T10:01:00Z'},
+        ]);
+
+        renderAuditPage();
+
+        expect(await screen.findByRole('heading', {name: 'Audit Log', level: 2})).toBeVisible();
+        expect(await screen.findByRole('heading', {name: 'Stimme administrativ entfernt', level: 3})).toBeVisible();
+        expect(screen.getAllByRole('heading', {level: 3}).map((heading) => heading.textContent)).toEqual([
+            'Poll veröffentlicht', 'Stimme abgegeben', 'Stimme administrativ entfernt',
+        ]);
+        expect(screen.getAllByText('alice')).toHaveLength(3);
+        expect(screen.getByText('Ja')).toBeVisible();
+        expect(screen.getByText('Korrektur')).toBeVisible();
+        expect(screen.getAllByText(/01\.08\.2026/).length).toBeGreaterThan(0);
+        expect(screen.getByRole('link', {name: 'Polls'})).toHaveAttribute('href', '/poll/poll-1');
+        expect(screen.getByRole('link', {name: 'Poll-Ergebnisse'})).toHaveAttribute('href', '/poll/results/poll-1');
+    });
+
+    it('localizes every contract event and safely labels an unknown future event', async () => {
+        const knownEvents = [
+            ['PollPublished', 'Poll veröffentlicht', 'Poll published'],
+            ['PollExpired', 'Poll abgelaufen', 'Poll expired'],
+            ['PollArchived', 'Poll archiviert', 'Poll archived'],
+            ['PollRestoredFromArchive', 'Poll aus Archiv wiederhergestellt', 'Poll restored from archive'],
+            ['PollExpiryChanged', 'Ablauf geändert', 'Expiry changed'],
+            ['PollReopened', 'Poll wieder geöffnet', 'Poll reopened'],
+            ['PollSoftDeleted', 'Poll soft gelöscht', 'Poll soft-deleted'],
+            ['PollRestored', 'Poll wiederhergestellt', 'Poll restored'],
+            ['VoteCast', 'Stimme abgegeben', 'Vote cast'],
+            ['VoteReplaced', 'Stimme ersetzt', 'Vote replaced'],
+            ['VoteWithdrawn', 'Stimme zurückgenommen', 'Vote withdrawn'],
+            ['VoteRemovedForIdentityChange', 'Stimme wegen Identitätswechsel entfernt', 'Vote removed for identity change'],
+            ['VoteRemovedByAdmin', 'Stimme administrativ entfernt', 'Vote removed by admin'],
+        ] as const;
+        vi.spyOn(apiClient, 'getPollAudit').mockResolvedValue([
+            ...knownEvents.map(([event]) => ({event, actor: 'admin', occurredAt: '2026-08-01T10:00:00Z'})),
+            {event: 'FutureEvent', actor: 'system', occurredAt: '2026-08-01T10:01:00Z'} as never,
+        ]);
+
+        renderAuditPage();
+
+        for (const [, label] of knownEvents) expect(await screen.findByText(label)).toBeVisible();
+        expect(screen.getByText('Unbekanntes Ereignis')).toBeVisible();
+
+        cleanup();
+        queryClient.clear();
+        window.localStorage.setItem('justvotes-locale', 'en');
+        vi.mocked(apiClient.getPollAudit).mockResolvedValue([
+            ...knownEvents.map(([event]) => ({event, actor: 'admin', occurredAt: '2026-08-01T10:00:00Z'})),
+            {event: 'FutureEvent', actor: 'system', occurredAt: '2026-08-01T10:01:00Z'} as never,
+        ]);
+        renderAuditPage();
+        for (const [, , label] of knownEvents) expect(await screen.findByText(label)).toBeVisible();
+        expect(screen.getByText('Unknown event')).toBeVisible();
+    });
+
+    it('shows explicit empty and safe not-found states', async () => {
+        vi.spyOn(apiClient, 'getPollAudit').mockResolvedValue([]);
+        renderAuditPage();
+        expect(await screen.findByText('Noch keine Daten vorhanden')).toBeVisible();
+
+        cleanup();
+        queryClient.clear();
+        vi.restoreAllMocks();
+        vi.spyOn(apiClient, 'getPollAudit').mockRejectedValue(problemError({}, 404));
+        renderAuditPage();
+        expect(await screen.findByRole('heading', {name: 'Seite nicht gefunden', level: 3})).toBeVisible();
     });
 });

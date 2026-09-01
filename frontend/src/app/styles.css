@@ -1000,6 +1000,61 @@ main {
     font-weight: 700;
 }
 
+.audit-timeline {
+    display: grid;
+    gap: .85rem;
+    padding: 0;
+    margin: 0;
+    list-style: none;
+}
+
+.audit-entry {
+    padding: 1rem;
+    border: 1px solid var(--separator);
+    border-radius: 1rem;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+}
+
+.audit-entry article {
+    display: grid;
+    gap: .8rem;
+    min-width: 0;
+}
+
+.audit-entry-heading h3 {
+    margin: 0;
+    overflow-wrap: anywhere;
+    font-size: 1.05rem;
+}
+
+.audit-entry-meta {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .75rem;
+    margin: 0;
+}
+
+.audit-entry-meta > div {
+    min-width: 0;
+}
+
+.audit-entry-meta dt {
+    color: var(--muted);
+    font-size: .78rem;
+    font-weight: 700;
+}
+
+.audit-entry-meta dd {
+    margin: .15rem 0 0;
+    overflow-wrap: anywhere;
+}
+
+.audit-entry-detail {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
 .vote-stat-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));

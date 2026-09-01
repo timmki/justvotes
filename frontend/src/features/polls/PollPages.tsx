@@ -44,6 +44,8 @@ export function PollPage() {
 
 type Poll = components['schemas']['Poll'];
 type PollResults = components['schemas']['PollResults'];
+type AuditEntry = components['schemas']['AuditEntry'];
+type AuditEventType = components['schemas']['AuditEventType'];
 type Vote = components['schemas']['Vote'];
 
 function PollDetail({poll}: { poll: Poll }) {
@@ -331,15 +333,51 @@ function isWinner(option: PollResults['options'][number], options: PollResults['
 }
 
 export function AuditPage() {
-    const {t} = useI18n();
+    const {t, locale} = useI18n();
     const {pollId = ''} = useParams();
     const query = useApiQuery(queryKeys.pollAudit(pollId), () => apiClient.getPollAudit(pollId));
     return <DataPage eyebrow={`${t('common.pollLabel')} ${pollId}`} title={t('audit.title')}
                      description={t('common.auditDescription')}>
         <QueryState query={query}>{(entries) => entries.length === 0 ? <RouteState status="empty"/> :
-            <ol className="data-list">{entries.map((entry, index) => <li
-                key={`${entry.occurredAt}-${index}`}>{entry.event}</li>)}</ol>}</QueryState>
+            <ol className="audit-timeline" aria-label={t('audit.timeline')}>{entries.map((entry, index) => <li
+                className="audit-entry" key={`${entry.occurredAt}-${entry.event}-${index}`}><article>
+                <div className="audit-entry-heading"><h3>{auditEventLabel(entry.event, t)}</h3></div>
+                <dl className="audit-entry-meta"><div><dt>{t('audit.actor')}</dt><dd>{entry.actor}</dd></div><div><dt>{t('audit.occurredAt')}</dt><dd>
+                    <time dateTime={entry.occurredAt}>{formatTimestamp(entry.occurredAt, locale)}</time></dd></div></dl>
+                {auditOptionLabel(entry, t) && <p className="audit-entry-detail"><strong>{t('audit.option')}:</strong> {auditOptionLabel(entry, t)}</p>}
+                {entry.userID && <p className="audit-entry-detail"><strong>{t('audit.identity')}:</strong> {entry.userID}</p>}
+                {entry.reason && <p className="audit-entry-detail"><strong>{t('audit.reason')}:</strong> {entry.reason}</p>}
+                {entry.votedAt && <p className="audit-entry-detail"><strong>{t('audit.votedAt')}:</strong> <time dateTime={entry.votedAt}>
+                    {formatTimestamp(entry.votedAt, locale)}</time></p>}
+            </article></li>)}</ol>}</QueryState>
+        <p className="poll-detail-links"><Link to={`/poll/${encodeURIComponent(pollId)}`}>{t('common.polls')}</Link> | <Link
+            to={`/poll/results/${encodeURIComponent(pollId)}`}>{t('polls.results')}</Link></p>
     </DataPage>;
+}
+
+const auditEventTranslationKeys: Record<AuditEventType, TranslationKey> = {
+    PollPublished: 'audit.pollPublished',
+    PollExpired: 'audit.pollExpired',
+    PollArchived: 'audit.pollArchived',
+    PollRestoredFromArchive: 'audit.pollRestoredFromArchive',
+    PollExpiryChanged: 'audit.pollExpiryChanged',
+    PollReopened: 'audit.pollReopened',
+    PollSoftDeleted: 'audit.pollSoftDeleted',
+    PollRestored: 'audit.pollRestored',
+    VoteCast: 'audit.voteCast',
+    VoteReplaced: 'audit.voteReplaced',
+    VoteWithdrawn: 'audit.voteWithdrawn',
+    VoteRemovedForIdentityChange: 'audit.voteRemovedForIdentityChange',
+    VoteRemovedByAdmin: 'audit.voteRemovedByAdmin',
+};
+
+function auditEventLabel(event: AuditEntry['event'], t: (key: TranslationKey) => string) {
+    return auditEventTranslationKeys[event as AuditEventType] ? t(auditEventTranslationKeys[event as AuditEventType]) : t('audit.unknownEvent');
+}
+
+function auditOptionLabel(entry: AuditEntry, t: (key: TranslationKey) => string) {
+    if (entry.selection) return entry.selection;
+    return entry.optionNumber == null ? null : `${t('audit.optionNumber')} ${entry.optionNumber}`;
 }
 
 function DataPage({eyebrow, title, description, children}: {

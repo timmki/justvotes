@@ -335,6 +335,31 @@ test('loads a direct option link with the complete current voter list', async ({
   await expect(page.locator('time').first()).toHaveAttribute('datetime', '2026-08-31T12:01:00.000Z');
 });
 
+test('renders a localized, accessible public audit timeline', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 800 });
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request();
+    if (request.url().endsWith('/polls/p_audit_browser/audit')) return route.fulfill({ json: [
+      { event: 'PollPublished', actor: 'admin', occurredAt: '2026-08-31T12:00:00.000Z' },
+      { event: 'VoteCast', actor: 'identity-with-a-very-long-name-that-must-break', occurredAt: '2026-08-31T12:01:00.000Z', selection: 'An equally long poll option text that remains readable', userID: 'alice', optionNumber: 1, votedAt: '2026-08-31T12:01:00.000Z' },
+    ] });
+    return route.fulfill({ json: [] });
+  });
+
+  await page.goto('/poll/audit/p_audit_browser');
+  const timeline = page.getByRole('list', { name: 'Audit-Timeline' });
+  await expect(timeline.getByRole('heading', { name: 'Poll veröffentlicht', level: 3 })).toBeVisible();
+  await expect(timeline.getByRole('heading', { name: 'Stimme abgegeben', level: 3 })).toBeVisible();
+  await expect(timeline).toContainText('An equally long poll option text that remains readable');
+  await expect(timeline.locator('time').first()).toHaveAttribute('datetime', '2026-08-31T12:00:00.000Z');
+  await expect(page.locator('#main-content').getByRole('link', { name: 'Polls' })).toHaveAttribute('href', '/poll/p_audit_browser');
+  await expect(page.getByRole('link', { name: 'Poll-Ergebnisse' })).toHaveAttribute('href', '/poll/results/p_audit_browser');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+
+  const accessibility = await new AxeBuilder({ page }).analyze();
+  expect(accessibility.violations.filter(({ impact }) => impact === 'critical')).toEqual([]);
+});
+
 test('zeigt null Prozent und Gleichstände in Poll-Ergebnissen', async ({ page }) => {
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
@@ -496,7 +521,7 @@ test('removes an administrative vote through the browser flow', async ({ page })
   await expect(page.getByText('Noch keine Daten vorhanden')).toBeVisible();
   await expect(page.getByText('alice')).toHaveCount(0);
   await page.goto('/poll/audit/p_v1_browser');
-  await expect(page.getByText('VoteRemovedByAdmin')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Stimme administrativ entfernt', level: 3 })).toBeVisible();
 });
 
 test('shows login on session expiry and restores the previous admin route', async ({ page }) => {
