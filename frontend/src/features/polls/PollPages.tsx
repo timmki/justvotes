@@ -1,10 +1,14 @@
+import {type UseQueryResult, useMutation} from '@tanstack/react-query';
 import {Link, useParams} from 'react-router-dom';
-import type {KeyboardEvent as ReactKeyboardEvent, ReactNode} from 'react';
+import {useEffect, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode} from 'react';
+import type {components} from '../../shared/api/generated/justvotes';
 import {apiClient} from '../../shared/api/client';
+import {ApiError, type FrontendError} from '../../shared/api/errors';
+import {queryClient} from '../../shared/api/queryClient';
 import {queryKeys} from '../../shared/api/queryKeys';
 import {useApiQuery} from '../../shared/api/useApiQuery';
 import {useI18n} from '../../shared/i18n/I18nProvider';
-import type {Locale} from '../../shared/i18n/translations';
+import type {Locale, TranslationKey} from '../../shared/i18n/translations';
 import {PageFrame} from '../../shared/ui/PageFrame';
 import {QueryState} from '../../shared/ui/QueryState';
 import {RouteState} from '../../shared/ui/RouteState';
@@ -33,13 +37,144 @@ export function PollPage() {
     const query = useApiQuery(queryKeys.poll(pollId), () => apiClient.getPoll(pollId));
     return <DataPage eyebrow={`${t('common.pollLabel')} ${pollId}`} title={t('polls.detail')}
                      description={t('common.pollDescription')}>
-        <QueryState query={query}>{(poll) => <section className="data-card"><h3>{poll.title}</h3>
-            <ul className="data-list">{poll.options.map((option) => <li key={option.number}><Link
-                to={`/poll/results/${encodeURIComponent(poll.id)}/option/${option.number}`}>{option.text}</Link>
-            </li>)}</ul>
-            <p><Link to={`/poll/results/${encodeURIComponent(poll.id)}`}>{t('polls.results')}</Link> | <Link
-                to={`/poll/audit/${encodeURIComponent(poll.id)}`}>{t('audit.title')}</Link></p></section>}</QueryState>
+        <QueryState query={query}>{(poll) => poll.visibility === 'public' ? <PollDetail poll={poll}/> :
+            <RouteState status="error" error={notFoundError}/>}</QueryState>
     </DataPage>;
+}
+
+type Poll = components['schemas']['Poll'];
+type PollResults = components['schemas']['PollResults'];
+type Vote = components['schemas']['Vote'];
+
+function PollDetail({poll}: { poll: Poll }) {
+    const {t, locale} = useI18n();
+    const identityQuery = useApiQuery(queryKeys.identity, () => apiClient.getIdentity());
+    const resultsQuery = useApiQuery(queryKeys.pollResults(poll.id), () => apiClient.getPollResults(poll.id));
+    const identity = identityQuery.data?.userID ?? null;
+    const currentOptionNumber = currentOption(resultsQuery.data, identity);
+    const [confirmedOptionNumber, setConfirmedOptionNumber] = useState<number | null>(currentOptionNumber);
+    const [selectedOptionNumber, setSelectedOptionNumber] = useState<number | null>(currentOptionNumber);
+    const [feedback, setFeedback] = useState<string | null>(null);
+    const [mutationError, setMutationError] = useState<FrontendError | null>(null);
+    const mutation = useMutation<Vote, unknown, number, number | null>({
+        mutationFn: (optionNumber) => apiClient.castVote(poll.id, optionNumber),
+        onMutate: (optionNumber) => {
+            setSelectedOptionNumber(optionNumber);
+            setFeedback(null);
+            setMutationError(null);
+            return confirmedOptionNumber;
+        },
+        onSuccess: async (vote) => {
+            setConfirmedOptionNumber(vote.optionNumber);
+            setSelectedOptionNumber(vote.optionNumber);
+            setFeedback(voteFeedback(vote.status, t));
+            await Promise.all([
+                queryClient.invalidateQueries({queryKey: queryKeys.publicPolls}),
+                queryClient.invalidateQueries({queryKey: queryKeys.poll(poll.id)}),
+                queryClient.invalidateQueries({queryKey: queryKeys.pollResults(poll.id)}),
+                queryClient.invalidateQueries({queryKey: queryKeys.pollAudit(poll.id)}),
+            ]);
+        },
+        onError: (cause, _optionNumber, previousOptionNumber) => {
+            setSelectedOptionNumber(previousOptionNumber ?? null);
+            setMutationError(frontendError(cause));
+        },
+    });
+
+    useEffect(() => {
+        if (!mutation.isPending) {
+            setConfirmedOptionNumber(currentOptionNumber);
+            setSelectedOptionNumber(currentOptionNumber);
+        }
+    }, [currentOptionNumber, mutation.isPending]);
+
+    const sortedOptions = [...poll.options].sort((left, right) => left.text.localeCompare(right.text, locale));
+    const canVote = poll.visibility === 'public' && poll.state === 'active' && Boolean(identity) && !identityQuery.isPending && !identityQuery.isError;
+    const resultForbiddenBeforeVote = poll.state === 'active' && isForbidden(resultsQuery.error);
+
+    return <section className="data-card poll-detail-card"><div className="poll-detail-heading"><h3>{poll.title}</h3>
+        <span className="poll-state">{t(poll.state === 'active' ? 'polls.stateActive' : 'polls.stateClosed')}</span></div>
+        <fieldset className="poll-vote-form" disabled={!canVote || mutation.isPending}>
+            <legend>{t('polls.vote')}</legend>
+            <div className="poll-option-list">{sortedOptions.map((option) => {
+                const isCurrent = currentOptionNumber === option.number;
+                return <label className={`poll-option${selectedOptionNumber === option.number ? ' selected' : ''}${isCurrent ? ' current' : ''}`}
+                              key={option.number}>
+                    <input type="radio" name={`poll-${poll.id}`} value={option.number}
+                           aria-label={option.text} checked={selectedOptionNumber === option.number}
+                           onChange={() => mutation.mutate(option.number)}
+                           onClick={() => {
+                               if (selectedOptionNumber === option.number) mutation.mutate(option.number);
+                           }}/>
+                    <span><strong>{option.text}</strong>{isCurrent && <small>{t('polls.yourVote')}</small>}</span>
+                </label>;
+            })}</div>
+        </fieldset>
+        {identityQuery.isError && <p className="form-error" role="alert">{t('errors.generic')}</p>}
+        {!identityQuery.isPending && !identityQuery.isError && !identity && <p className="poll-notice">{t('polls.identityRequired')}</p>}
+        {poll.state !== 'active' && <p className="poll-notice">{t('polls.votingClosed')}</p>}
+        {mutationError && <p className="form-error" role="alert">{t(mutationError.messageKey)}</p>}
+        {feedback && <p className="poll-feedback" role="status">{feedback}</p>}
+        <ResultsState poll={poll} query={resultsQuery} forbiddenBeforeVote={resultForbiddenBeforeVote}/>
+        <p className="poll-detail-links"><>{resultsQuery.data && <Link
+            to={`/poll/results/${encodeURIComponent(poll.id)}`}>{t('polls.results')}</Link>}{resultsQuery.data && ' | '}<Link
+            to={`/poll/audit/${encodeURIComponent(poll.id)}`}>{t('audit.title')}</Link></></p>
+    </section>;
+}
+
+function ResultsState({poll, query, forbiddenBeforeVote}: {
+    poll: Poll;
+    query: UseQueryResult<PollResults, unknown>;
+    forbiddenBeforeVote: boolean
+}) {
+    const {t} = useI18n();
+    if (query.isPending) return <p className="poll-notice" role="status">{t('polls.resultsLoading')}</p>;
+    if (forbiddenBeforeVote) return <p className="poll-notice">{t('polls.resultsUnavailable')}</p>;
+    if (query.isError) return <RouteState status="error"
+                                          error={query.error instanceof ApiError ? query.error.frontend : undefined}
+                                          onRetry={() => void query.refetch()}/>;
+    if (poll.state === 'active' && query.isFetching) return <p className="stale-state" role="status">{t('common.refreshing')}</p>;
+    return null;
+}
+
+function currentOption(results: PollResults | undefined, identity: string | null) {
+    if (!results || !identity) return null;
+    return results.options.find((option) => option.votes.some((vote) => vote.userID === identity))?.number ?? null;
+}
+
+function isForbidden(error: unknown) {
+    return error instanceof ApiError && error.frontend.status === 403;
+}
+
+function frontendError(cause: unknown) {
+    return cause instanceof ApiError ? cause.frontend : {
+        kind: 'network' as const,
+        status: null,
+        code: 'unknown_error',
+        detail: null,
+        retryable: false,
+        messageKey: 'errors.generic' as const,
+    };
+}
+
+const notFoundError: FrontendError = {
+    kind: 'problem',
+    status: 404,
+    code: 'not_found',
+    detail: null,
+    retryable: false,
+    messageKey: 'errors.notFound',
+};
+
+function voteFeedback(status: Vote['status'], t: (key: TranslationKey) => string) {
+    switch (status) {
+        case 'created':
+            return t('polls.voteCreated');
+        case 'replaced':
+            return t('polls.voteReplaced');
+        case 'unchanged':
+            return t('polls.voteUnchanged');
+    }
 }
 
 export function ResultsPage() {

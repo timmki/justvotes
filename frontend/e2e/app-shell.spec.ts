@@ -91,6 +91,77 @@ test('renders public poll cards from one list request without N+1 detail request
   expect(requests.some((url) => /\/polls\/[^/]+$/.test(url))).toBe(false);
 });
 
+test('casts, replaces, repeats and restores a public poll vote', async ({ page }) => {
+  let selectedOption: number | null = null;
+  const voteRequests: number[] = [];
+  const requestMethods: string[] = [];
+  const poll = () => ({
+    id: 'p_v1_vote',
+    title: 'Browser vote poll',
+    visibility: 'public',
+    state: 'active',
+    createdAt: '2026-08-31T12:00:00.000Z',
+    endsAt: '2099-01-01T00:00:00.000Z',
+    totalVotes: selectedOption === null ? 0 : 1,
+    templateGroup: { id: 'g_v1_vote', name: 'Vote group', description: '' },
+    templateSnapshotOptions: [{ number: 2, text: 'Zebra' }, { number: 7, text: 'Apfel' }],
+    options: [{ number: 2, text: 'Zebra' }, { number: 7, text: 'Apfel' }],
+  });
+  const results = () => ({
+    id: 'p_v1_vote',
+    title: 'Browser vote poll',
+    visibility: 'public',
+    state: 'active',
+    createdAt: '2026-08-31T12:00:00.000Z',
+    endsAt: '2099-01-01T00:00:00.000Z',
+    totalVotes: selectedOption === null ? 0 : 1,
+    options: [{ number: 2, text: 'Zebra' }, { number: 7, text: 'Apfel' }].map((option) => ({
+      ...option,
+      voteCount: selectedOption === option.number ? 1 : 0,
+      votes: selectedOption === option.number ? [{ userID: 'alice', votedAt: '2026-08-31T12:00:00.000Z' }] : [],
+    })),
+  });
+
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request();
+    const url = request.url();
+    requestMethods.push(request.method());
+    if (url.endsWith('/identity') && request.method() === 'GET') return route.fulfill({ json: { userID: 'alice' } });
+    if (url.endsWith('/polls/p_v1_vote') && request.method() === 'GET') return route.fulfill({ json: poll() });
+    if (url.endsWith('/polls/p_v1_vote/results') && request.method() === 'GET') {
+      return selectedOption === null
+        ? route.fulfill({ status: 403, json: { status: 403, code: 'results-not-available' } })
+        : route.fulfill({ json: results() });
+    }
+    if (url.endsWith('/polls/p_v1_vote/votes') && request.method() === 'POST') {
+      const optionNumber = request.postDataJSON().optionNumber;
+      voteRequests.push(optionNumber);
+      const status = selectedOption === null ? 'created' : selectedOption === optionNumber ? 'unchanged' : 'replaced';
+      selectedOption = optionNumber;
+      return route.fulfill({ json: { status, optionNumber } });
+    }
+    if (url.endsWith('/csrf')) return route.fulfill({ json: { token: 'csrf-token', headerName: 'X-XSRF-TOKEN' } });
+    return route.fulfill({ json: [] });
+  });
+
+  await page.goto('/poll/p_v1_vote');
+  await expect(page.getByText('Ergebnisse werden nach der ersten Stimme freigegeben.')).toBeVisible();
+  await expect(page.getByRole('radio', { name: 'Apfel' })).toBeVisible();
+  await page.getByRole('radio', { name: 'Apfel' }).click();
+  await expect(page.getByText('Stimme abgegeben.')).toBeVisible();
+  await page.getByRole('radio', { name: 'Zebra' }).click();
+  await expect(page.getByText('Stimme geändert.')).toBeVisible();
+  await page.getByRole('radio', { name: 'Zebra' }).click();
+  await expect(page.getByText('Stimme unverändert.')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Poll-Ergebnisse' })).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByRole('radio', { name: 'Zebra' })).toBeChecked();
+  await expect(page.getByText('Eigene Stimme')).toBeVisible();
+  expect(voteRequests).toEqual([7, 2, 2]);
+  expect(requestMethods).not.toContain('DELETE');
+});
+
 test('logs in, restores the active admin area after reload, and logs out', async ({ page }) => {
   let authenticated = false;
   await page.route('**/api/v1/**', async (route) => {

@@ -4,9 +4,10 @@ import {cleanup, fireEvent, render, screen, waitFor} from '@testing-library/reac
 import {MemoryRouter, Route, Routes} from 'react-router-dom';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {apiClient} from '../../shared/api/client';
+import {problemError} from '../../shared/api/errors';
 import {queryClient} from '../../shared/api/queryClient';
 import {I18nProvider} from '../../shared/i18n/I18nProvider';
-import {PollsPage} from './PollPages';
+import {PollPage, PollsPage} from './PollPages';
 
 const polls = [
     {
@@ -22,6 +23,36 @@ const polls = [
         options: [],
     },
 ];
+
+const poll = {
+    id: 'poll-1',
+    title: 'Team-Ausflug',
+    visibility: 'public' as const,
+    state: 'active' as const,
+    createdAt: '2026-08-01T10:00:00Z',
+    endsAt: '2099-01-01T00:00:00Z',
+    totalVotes: 1,
+    templateGroup: {id: 'group-1', name: 'Gruppe', description: 'Beschreibung'},
+    templateSnapshotOptions: [{number: 2, text: 'Zebra'}, {number: 7, text: 'Apfel'}],
+    options: [{number: 2, text: 'Zebra'}, {number: 7, text: 'Apfel'}],
+};
+
+function resultsFor(optionNumber: number | null) {
+    return {
+        id: poll.id,
+        title: poll.title,
+        visibility: poll.visibility,
+        state: poll.state,
+        createdAt: poll.createdAt,
+        endsAt: poll.endsAt,
+        totalVotes: optionNumber === null ? 0 : 1,
+        options: poll.options.map((option) => ({
+            ...option,
+            voteCount: option.number === optionNumber ? 1 : 0,
+            votes: option.number === optionNumber ? [{userID: 'alice', votedAt: '2026-08-01T10:01:00Z'}] : [],
+        })),
+    };
+}
 
 beforeEach(() => {
     queryClient.clear();
@@ -50,6 +81,21 @@ function renderPolls(initialEntry = '/polls') {
                     <Routes>
                         <Route path="/polls" element={<PollsPage/>}/>
                         <Route path="/poll/:pollId" element={<p>Poll detail</p>}/>
+                    </Routes>
+                </I18nProvider>
+            </QueryClientProvider>
+        </MemoryRouter>,
+    );
+}
+
+function renderPollPage() {
+    return render(
+        <MemoryRouter initialEntries={['/poll/poll-1']}>
+            <QueryClientProvider client={queryClient}>
+                <I18nProvider>
+                    <Routes>
+                        <Route path="/poll/:pollId" element={<PollPage/>}/>
+                        <Route path="/poll/results/:pollId" element={<p>Results</p>}/>
                     </Routes>
                 </I18nProvider>
             </QueryClientProvider>
@@ -133,5 +179,99 @@ describe('PollsPage', () => {
         const card = await screen.findByRole('link', {name: /Welcher Titel/});
         expect(card).toHaveTextContent('Created by Admin');
         expect(card).toHaveTextContent('Jan 5, 2025');
+    });
+});
+
+describe('PollPage', () => {
+    beforeEach(() => {
+        vi.spyOn(apiClient, 'getPoll').mockResolvedValue(poll);
+        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
+    });
+
+    it.each([
+        ['created', null, 7, 'Stimme abgegeben'],
+        ['replaced', 2, 7, 'Stimme geändert'],
+        ['unchanged', 7, 7, 'Stimme unverändert'],
+    ] as const)('handles a %s vote result and sends the stable option number', async (status, initialOption, targetOption, feedback) => {
+        if (initialOption === null) {
+            vi.spyOn(apiClient, 'getPollResults')
+                .mockRejectedValueOnce(problemError({}, 403))
+                .mockResolvedValue(resultsFor(targetOption));
+        } else {
+            vi.spyOn(apiClient, 'getPollResults')
+                .mockResolvedValueOnce(resultsFor(initialOption))
+                .mockResolvedValue(resultsFor(targetOption));
+        }
+        const castVote = vi.spyOn(apiClient, 'castVote').mockResolvedValue({status, optionNumber: targetOption});
+
+        renderPollPage();
+
+        const option = await screen.findByRole('radio', {name: 'Apfel'});
+        expect(screen.getAllByRole('radio').map((input) => input.getAttribute('aria-label'))).toEqual(['Apfel', 'Zebra']);
+        if (initialOption === 7) await waitFor(() => expect(option).toBeChecked());
+        fireEvent.click(option);
+
+        await waitFor(() => expect(castVote).toHaveBeenCalledWith(poll.id, targetOption));
+        expect(await screen.findByText(new RegExp(feedback))).toBeVisible();
+        expect(await screen.findByRole('link', {name: 'Poll-Ergebnisse'})).toHaveAttribute('href', `/poll/results/${poll.id}`);
+    });
+
+    it('sorts options alphabetically while rolling back a failed selection', async () => {
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(resultsFor(2));
+        vi.spyOn(apiClient, 'castVote').mockRejectedValue(new Error('offline'));
+
+        renderPollPage();
+
+        const options = await screen.findAllByRole('radio');
+        expect(options.map((input) => input.getAttribute('aria-label'))).toEqual(['Apfel', 'Zebra']);
+        await waitFor(() => expect(screen.getByRole('radio', {name: 'Zebra'})).toBeChecked());
+        fireEvent.click(screen.getByRole('radio', {name: 'Apfel'}));
+
+        await waitFor(() => expect(screen.getByRole('radio', {name: 'Zebra'})).toBeChecked());
+        expect(screen.getByRole('alert')).toHaveTextContent('Die Anfrage konnte nicht verarbeitet werden');
+    });
+
+    it('treats an active poll results 403 as not voted instead of a page error', async () => {
+        vi.spyOn(apiClient, 'getPollResults').mockRejectedValue(problemError({}, 403));
+
+        renderPollPage();
+
+        expect(await screen.findByText('Ergebnisse werden nach der ersten Stimme freigegeben.')).toBeVisible();
+        expect(screen.getByRole('heading', {name: 'Team-Ausflug', level: 3})).toBeVisible();
+        expect(screen.queryByText('Daten konnten nicht geladen werden')).toBeNull();
+        expect(screen.queryByRole('link', {name: 'Poll-Ergebnisse'})).toBeNull();
+    });
+
+    it('disables voting for an expired poll but keeps released results available', async () => {
+        const expiredPoll = {...poll, state: 'expired' as const};
+        vi.mocked(apiClient.getPoll).mockResolvedValue(expiredPoll);
+        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: null});
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue({...resultsFor(null), state: 'expired' as const});
+
+        renderPollPage();
+
+        expect(await screen.findByText('Dieser Poll ist nicht mehr aktiv. Eine Stimmabgabe ist nicht möglich.')).toBeVisible();
+        expect(screen.getByRole('radio', {name: 'Apfel'})).toBeDisabled();
+        expect(await screen.findByRole('link', {name: 'Poll-Ergebnisse'})).toBeVisible();
+    });
+
+    it('uses the safe 404 state for private poll data and never loads its results', async () => {
+        const privatePoll = {...poll, visibility: 'private' as const};
+        const getPollResults = vi.spyOn(apiClient, 'getPollResults');
+        vi.mocked(apiClient.getPoll).mockResolvedValue(privatePoll);
+
+        renderPollPage();
+
+        expect(await screen.findByRole('heading', {name: 'Seite nicht gefunden', level: 3})).toBeVisible();
+        expect(getPollResults).not.toHaveBeenCalled();
+    });
+
+    it('uses the safe 404 state for a missing poll', async () => {
+        vi.mocked(apiClient.getPoll).mockRejectedValue(problemError({}, 404));
+
+        renderPollPage();
+
+        expect(await screen.findByRole('heading', {name: 'Seite nicht gefunden', level: 3})).toBeVisible();
+        expect(screen.queryByRole('radio')).toBeNull();
     });
 });
