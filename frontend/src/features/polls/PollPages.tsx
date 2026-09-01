@@ -93,7 +93,7 @@ function PollDetail({poll}: { poll: Poll }) {
     const resultForbiddenBeforeVote = poll.state === 'active' && isResultsUnavailable(resultsQuery.error);
 
     return <section className="data-card poll-detail-card"><div className="poll-detail-heading"><h3>{poll.title}</h3>
-        <span className="poll-state">{t(poll.state === 'active' ? 'polls.stateActive' : 'polls.stateClosed')}</span></div>
+        <span className="poll-state">{t(pollStateTranslationKey(poll.state))}</span></div>
         <fieldset className="poll-vote-form" disabled={!canVote || mutation.isPending}>
             <legend>{t('polls.vote')}</legend>
             <div className="poll-option-list">{sortedOptions.map((option) => {
@@ -112,14 +112,25 @@ function PollDetail({poll}: { poll: Poll }) {
         </fieldset>
         {identityQuery.isError && <p className="form-error" role="alert">{t('errors.generic')}</p>}
         {!identityQuery.isPending && !identityQuery.isError && !identity && <p className="poll-notice">{t('polls.identityRequired')}</p>}
-        {poll.state !== 'active' && <p className="poll-notice">{t('polls.votingClosed')}</p>}
+        {poll.state !== 'active' && <p className="poll-notice">{t('polls.votingClosed')} ({t(pollStateTranslationKey(poll.state))}{poll.endsAt && `, ${formatCreatedAt(poll.endsAt, locale)}`})</p>}
         {mutationError && <p className="form-error" role="alert">{t(mutationError.messageKey)}</p>}
         {feedback && <p className="poll-feedback" role="status">{feedback}</p>}
         <ResultsState poll={poll} query={resultsQuery} forbiddenBeforeVote={resultForbiddenBeforeVote}/>
-        <p className="poll-detail-links"><>{resultsQuery.data && !resultsQuery.isError && <Link
-            to={`/poll/results/${encodeURIComponent(poll.id)}`}>{t('polls.results')}</Link>}{resultsQuery.data && !resultsQuery.isError && ' | '}<Link
+        <p className="poll-detail-links"><>{resultsQuery.data && !resultsQuery.isError && !resultsQuery.isFetching && <Link
+            to={`/poll/results/${encodeURIComponent(poll.id)}`}>{t('polls.results')}</Link>}{resultsQuery.data && !resultsQuery.isError && !resultsQuery.isFetching && ' | '}<Link
             to={`/poll/audit/${encodeURIComponent(poll.id)}`}>{t('audit.title')}</Link></></p>
     </section>;
+}
+
+function pollStateTranslationKey(state: Poll['state']): TranslationKey {
+    const keys: Record<Poll['state'], TranslationKey> = {
+        draft: 'admin.stateDraft',
+        active: 'admin.stateActive',
+        expired: 'admin.stateExpired',
+        archived: 'admin.stateArchived',
+        deleted: 'admin.stateDeleted',
+    };
+    return keys[state];
 }
 
 function ResultsState({poll, query, forbiddenBeforeVote}: {

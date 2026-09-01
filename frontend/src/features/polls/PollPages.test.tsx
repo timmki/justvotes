@@ -253,14 +253,21 @@ describe('PollPage', () => {
     });
 
     it('hides stale results links while a released-results refetch is forbidden', async () => {
+        let rejectRefetch: ((reason?: unknown) => void) | undefined;
         const getPollResults = vi.spyOn(apiClient, 'getPollResults')
             .mockResolvedValueOnce(resultsFor(7))
-            .mockRejectedValueOnce(problemError({code: 'results-not-available'}, 403));
+            .mockImplementationOnce(() => new Promise((_, reject) => {
+                rejectRefetch = reject;
+            }));
 
         renderPollPage();
 
         expect(await screen.findByRole('link', {name: 'Poll-Ergebnisse'})).toBeVisible();
-        await queryClient.invalidateQueries({queryKey: queryKeys.pollResults(poll.id)});
+        const invalidation = queryClient.invalidateQueries({queryKey: queryKeys.pollResults(poll.id)});
+        await waitFor(() => expect(getPollResults).toHaveBeenCalledTimes(2));
+        expect(screen.queryByRole('link', {name: 'Poll-Ergebnisse'})).toBeNull();
+        rejectRefetch?.(problemError({code: 'results-not-available'}, 403));
+        await invalidation;
 
         expect(await screen.findByText('Ergebnisse werden nach der ersten Stimme freigegeben.')).toBeVisible();
         expect(screen.queryByRole('link', {name: 'Poll-Ergebnisse'})).toBeNull();
@@ -275,7 +282,7 @@ describe('PollPage', () => {
 
         renderPollPage();
 
-        expect(await screen.findByText('Dieser Poll ist nicht mehr aktiv. Eine Stimmabgabe ist nicht möglich.')).toBeVisible();
+        expect(await screen.findByText(/Dieser Poll ist nicht mehr aktiv.*abgelaufen/)).toBeVisible();
         expect(screen.getByRole('radio', {name: 'Apfel'})).toBeDisabled();
         expect(await screen.findByRole('link', {name: 'Poll-Ergebnisse'})).toBeVisible();
     });
