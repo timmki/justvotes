@@ -11,6 +11,11 @@ Settings-File ausgeführt werden:
 mvn -s .mvn/settings.xml test
 ```
 
+For separate backend development, start the Spring Boot module with
+`mvn -s .mvn/settings.xml -pl bootstrap -am spring-boot:run` and provide
+`ADMIN_USERNAME` and `ADMIN_PASSWORD_HASH` in the environment. Run the SPA
+from `frontend/` with `pnpm dev`; Vite proxies `/api` to the backend.
+
 Der Standarddatenbankpfad ist `/data/justvotes.db`. Er lässt sich mit
 `DATABASE_URL` überschreiben. Beim Start validiert und führt Flyway die Migrationen
 unter `bootstrap/src/main/resources/db/migration` aus; bei einer abweichenden
@@ -24,7 +29,7 @@ startet nicht ohne diese Werte.
 docker build -t justvotes .
 docker run --rm -p 8080:8080 -v justvotes-data:/data `
   -e ADMIN_USERNAME=admin `
-  -e ADMIN_PASSWORD_HASH='$2a$10$GaWgWmWoWlu2cKk9baV3MetvN9fXbR4OpvJb0.Z4d5xYGfJXp9oZW' justvotes
+  -e ADMIN_PASSWORD_HASH="$2a$10$yXyXCUgriz0cm1V1n0fypOPqDx.vQRVFpB42WFqYRQgPWd/vDC40m" justvotes
 ```
 
 Die Anwendung liefert ihre statischen Dateien unter derselben Origin aus. Betriebsendpunkte:
@@ -57,12 +62,39 @@ The same Maven execution generates the TypeScript client under `api-contract/tar
 
 The React/Vite SPA is developed independently from the backend in `frontend/`:
 
-```powershell
+```bash
 cd frontend
 pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-`pnpm build` generates the local OpenAPI TypeScript client and writes production assets to the ignored `frontend/dist/` directory. `mvn -s .mvn/settings.xml -Prelease package` installs the locked frontend dependencies, builds the SPA, and embeds those assets in the executable JAR. Normal Maven builds do not start Node or pnpm. The release profile is also used by the Docker build; Node and pnpm exist only in its build stage.
+`pnpm build` generates the local OpenAPI TypeScript client and writes production assets to the ignored `frontend/dist/` directory. The frontend quality gates are:
+
+```bash
+pnpm build
+pnpm typecheck
+pnpm lint
+pnpm test
+pnpm test:e2e
+```
+
+`pnpm test:e2e` runs the fast local Chromium check. `pnpm test:e2e:all` runs the configured Chromium, Edge, Firefox and WebKit projects after installing their Playwright browsers. WebKit is the reproducible Safari approximation in Linux CI; iOS Safari and two parallel browser release versions are not available on the hosted runner and are therefore not claimed as covered.
+
+The generated API client is intentionally not committed. `mvn -s .mvn/settings.xml test` generates the server and contract sources for normal backend tests; `npm ci && npm run typecheck` in `api-contract/typescript-contract` checks the generated contract client. Normal Maven builds do not start Node or pnpm. The complete release build is `mvn -s .mvn/settings.xml -Prelease package`; it installs the locked frontend dependencies, builds the SPA, and embeds those assets in the executable JAR. The release profile is also used by the Docker build; Node and pnpm exist only in its build stage.
+
+Build and smoke-test the final image with a temporary SQLite volume:
+
+```bash
+docker build -t justvotes .
+docker run --rm -p 8080:8080 -v justvotes-data:/data \
+  -e ADMIN_USERNAME=admin \
+  -e ADMIN_PASSWORD_HASH="$2a$10$yXyXCUgriz0cm1V1n0fypOPqDx.vQRVFpB42WFqYRQgPWd/vDC40m" justvotes
+```
+
+```cmd
+docker run --rm -p 8080:8080 -e ADMIN_USERNAME=admin -e ADMIN_PASSWORD_HASH="$2a$10$yXyXCUgriz0cm1V1n0fypOPqDx.vQRVFpB42WFqYRQgPWd/vDC40m" -e DATABASE_URL=jdbc:sqlite:/data/justvotes.db justvotes
+```
+
+Then verify `/`, a direct SPA route such as `/polls`, `/api/v1/missing` (404), `/actuator/health` and `/actuator/health/readiness`. The same checks run automatically in `.github/workflows/ci.yml`.
 
 Set `API_DOCS_ENABLED=true` in local, test, or staging environments to expose the contract at `/api-docs/openapi-v1.yaml` and Swagger UI at `/swagger-ui/index.html`. It is disabled by default in production. Swagger UI uses `/api/v1/csrf` to obtain the `X-XSRF-TOKEN` value before state-changing calls; administrator calls also require an authenticated session cookie.

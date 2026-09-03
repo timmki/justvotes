@@ -29,6 +29,16 @@ test('has no critical shell accessibility violations', async ({ page }) => {
   }
 });
 
+test('uses only same-origin runtime resources', async ({ page }) => {
+  await page.goto('/');
+
+  const externalResources = await page.evaluate(() => performance.getEntriesByType('resource')
+    .map(({ name }) => new URL(name, location.href).origin)
+    .filter((origin) => origin !== location.origin));
+
+  expect(externalResources).toEqual([]);
+});
+
 test('changes the identity once after confirming the warning', async ({ page }) => {
   let identity: string | null = null;
   const requests: { method: string; url: string }[] = [];
