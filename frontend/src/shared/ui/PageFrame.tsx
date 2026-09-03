@@ -12,7 +12,7 @@ export function PageFrame({eyebrow, title, description, children}: {
         <div className="page-frame">
             <section className="page-intro" aria-labelledby="page-heading">
                 <p className="eyebrow">{eyebrow}</p>
-                <h2 id="page-heading">{title}</h2>
+                <h1 id="page-heading">{title}</h1>
                 <p>{description}</p>
             </section>
             {children}

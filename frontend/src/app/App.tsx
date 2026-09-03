@@ -11,7 +11,7 @@ import {RouteState} from '../shared/ui/RouteState';
 import {I18nProvider} from '../shared/i18n/I18nProvider';
 import {ThemeProvider} from './theme';
 import {AppErrorBoundary} from './ErrorBoundary';
-import {Header} from './Header';
+import {AppShell} from './Header';
 
 export function App() {
     return <AppErrorBoundary><QueryClientProvider
@@ -19,16 +19,16 @@ export function App() {
 }
 
 function AppContent() {
-    return <div className="app-root"><Header/><SessionNotice/>
+    return <div className="app-root"><AppShell><SessionNotice/>
         <main id="main-content" tabIndex={-1}><Routes><Route path="/" element={<HomePage/>}/><Route path="/polls"
-                                                                                                    element={
-                                                                                                        <PollsPage/>}/><Route
+                                                                                                     element={
+                                                                                                         <PollsPage/>}/><Route
             path="/poll/results/:pollId/option/:optionNumber" element={<OptionPage/>}/><Route
             path="/poll/results/:pollId" element={<ResultsPage/>}/><Route path="/poll/audit/:pollId"
                                                                           element={<AuditPage/>}/><Route
             path="/poll/:pollId" element={<PollPage/>}/><Route path="/admin/*" element={<AdminPage/>}/><Route
             path="/404" element={<NotFoundPage/>}/><Route path="*" element={<Navigate to="/404" replace/>}/></Routes>
-        </main>
+        </main></AppShell>
     </div>;
 }
 

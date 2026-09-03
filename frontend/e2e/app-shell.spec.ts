@@ -5,7 +5,7 @@ test('loads the app shell on a deep client route', async ({ page }) => {
   await page.goto('/poll/example');
 
   await expect(page.getByRole('heading', { name: 'Poll', level: 1 })).toBeVisible();
-  await page.getByRole('link', { name: /^Polls/ }).click();
+  await page.locator('.back-link').click();
   await expect(page).toHaveURL(/\/polls$/);
 });
 
@@ -19,6 +19,19 @@ test('persists language and theme choices', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+});
+
+test('keeps the public navigation reachable on a narrow viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 720 });
+  await page.goto('/polls');
+
+  const navigation = page.locator('.mobile-navigation');
+  await expect(navigation).toBeVisible();
+  await expect(navigation.getByRole('link', { name: 'Startseite' })).toBeVisible();
+  await expect(navigation.getByRole('link', { name: 'Polls' })).toHaveAttribute('aria-current', 'page');
+  await expect(navigation.getByRole('link', { name: 'Admin' })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+  expect(await page.locator('.mobile-navigation .nav-item').first().evaluate((element) => element.getBoundingClientRect().height)).toBeGreaterThanOrEqual(44);
 });
 
 test('has no critical shell accessibility violations', async ({ page }) => {
@@ -55,13 +68,13 @@ test('changes the identity once after confirming the warning', async ({ page }) 
   });
 
   await page.goto('/');
-  await page.getByRole('button', { name: 'Identität bearbeiten' }).click();
+  await page.locator('.identity-card').getByRole('button', { name: 'Identität bearbeiten' }).click();
   await page.getByLabel('Neue Identität').fill('Alice_1');
   await page.getByRole('button', { name: 'Speichern' }).click();
 
   await expect(page.getByRole('dialog')).toContainText('Stimmen der bisherigen Identität');
   await page.getByRole('button', { name: 'Änderung bestätigen' }).click();
-  await expect(page.getByTitle('alice_1')).toBeVisible();
+  await expect(page.getByTitle('alice_1')).toHaveCount(2);
 
   expect(requests.filter(({ method, url }) => method === 'POST' && url.endsWith('/identity'))).toHaveLength(1);
   expect(requests.filter(({ method, url }) => method === 'DELETE' && url.includes('/votes'))).toHaveLength(0);

@@ -573,7 +573,7 @@ describe('AuditPage', () => {
 
         renderAuditPage();
 
-        expect(await screen.findByRole('heading', {name: 'Audit Log', level: 2})).toBeVisible();
+        expect(await screen.findByRole('heading', {name: 'Audit Log', level: 1})).toBeVisible();
         expect(await screen.findByRole('heading', {name: 'Stimme administrativ entfernt', level: 3})).toBeVisible();
         expect(screen.getAllByRole('heading', {level: 3}).map((heading) => heading.textContent)).toEqual([
             'Poll veröffentlicht', 'Stimme abgegeben', 'Stimme administrativ entfernt',

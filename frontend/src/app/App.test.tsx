@@ -1,4 +1,4 @@
-import {cleanup, fireEvent, render, screen} from '@testing-library/react';
+import {cleanup, fireEvent, render, screen, within} from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import {MemoryRouter} from 'react-router-dom';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
@@ -40,12 +40,37 @@ function renderApp(initialEntry = '/') {
 }
 
 describe('app shell', () => {
+    it('provides compact and desktop navigation with one page heading', () => {
+        renderApp('/polls');
+
+        expect(screen.getAllByRole('navigation', {name: 'Hauptnavigation'})).toHaveLength(2);
+        expect(screen.getAllByRole('link', {name: 'Startseite'})).toHaveLength(3);
+        expect(screen.getAllByRole('heading', {level: 1})).toHaveLength(1);
+        expect(screen.getByRole('heading', {name: 'Öffentliche Polls', level: 1})).toBeVisible();
+    });
+
+    it('öffnet den gemeinsamen Identitätseditor über die Shell-Identität', async () => {
+        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
+        const changeIdentity = vi.spyOn(apiClient, 'changeIdentity').mockResolvedValue(undefined);
+
+        renderApp('/polls');
+
+        const sidebar = screen.getByRole('complementary', {name: 'Identität'});
+        fireEvent.click(within(sidebar).getByRole('button', {name: 'Identität bearbeiten'}));
+        fireEvent.change(screen.getByLabelText('Neue Identität'), {target: {value: ' Bob '}});
+        fireEvent.click(screen.getByRole('button', {name: 'Speichern'}));
+        fireEvent.click(screen.getByRole('button', {name: 'Änderung bestätigen'}));
+
+        await vi.waitFor(() => expect(changeIdentity).toHaveBeenCalledWith({userID: 'bob'}));
+    });
+
     it('renders the home navigation in German by default', () => {
         renderApp();
 
         expect(screen.getByRole('heading', {name: 'JustVotes'})).toBeVisible();
-        expect(screen.getByRole('link', {name: /^Polls/})).toBeVisible();
-        expect(screen.getByRole('link', {name: /^Admin/})).toBeVisible();
+        const navigation = screen.getAllByRole('navigation', {name: 'Hauptnavigation'})[0];
+        expect(within(navigation).getByRole('link', {name: 'Polls'})).toBeVisible();
+        expect(within(navigation).getByRole('link', {name: 'Admin'})).toBeVisible();
         expect(screen.getByRole('button', {name: 'English anzeigen'})).toBeVisible();
     });
 
@@ -68,7 +93,7 @@ describe('app shell', () => {
         }
 
         renderApp('/not-a-route');
-        expect(screen.getByRole('heading', {name: 'Seite nicht gefunden', level: 2})).toBeVisible();
+        expect(screen.getByRole('heading', {name: 'Seite nicht gefunden', level: 1})).toBeVisible();
     });
 
     it('persists language and theme without using identity storage', () => {
