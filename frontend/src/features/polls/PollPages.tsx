@@ -298,60 +298,100 @@ function ResultsDetail({results, identity, locale}: { results: PollResults; iden
         },
         onError: (cause) => setWithdrawalError(frontendError(cause)),
     });
-    const orderedOptions = orderedResultOptions(results.options, locale);
-    const winnerCount = orderedOptions.filter((option) => isWinner(option, results.options)).length;
+    const orderedOptions = orderedResultOptions(results.options, locale, results.totalVotes);
+    const winnerOptions = orderedOptions.filter((option) => isWinner(option, results.options, results.totalVotes));
+    const winnerCount = winnerOptions.length;
     const winnerLabel = winnerCount > 1 ? t('polls.tie') : t('polls.winner');
+    const highestVoteCount = Math.max(0, ...results.options.map((option) => option.voteCount));
+    const highestPercentage = results.totalVotes === 0 ? 0 : Math.round(highestVoteCount / results.totalVotes * 100);
 
-    return <section className="data-card results-card"><div className="results-heading"><h3>{results.title}</h3>
-        <span className="poll-state">{t(pollStateTranslationKey(results.state))}</span></div>
-        <dl className="vote-stat-grid results-total"><div><dt>{t('polls.totalVotes')}</dt><dd>{results.totalVotes}</dd></div></dl>
-        <ol className="result-list">{orderedOptions.map((option) => {
-            const percentage = results.totalVotes === 0 ? 0 : Math.round(option.voteCount / results.totalVotes * 100);
-            const current = currentOptionNumber === option.number;
-            return <li className={`result-option${isWinner(option, results.options) ? ' winner' : ''}${current ? ' current' : ''}`} key={option.number}>
-                <div className="result-option-heading"><Link to={`/poll/results/${encodeURIComponent(results.id)}/option/${option.number}`}>{option.text}</Link>
-                    {isWinner(option, results.options) && <strong>{winnerLabel}</strong>}</div>
-                <div className="result-option-progress" aria-hidden="true"><span style={{width: `${percentage}%`}}/></div>
-                <div className="result-option-meta"><span>{percentage} %</span><span>{option.voteCount} {t('polls.votes')}</span></div>
-                {current && <small>{t('polls.yourVote')}</small>}
-            </li>;
-        })}</ol>
-        {withdrawalError && <p className="form-error" role="alert">{t(withdrawalError.messageKey)}</p>}
-        {results.state === 'active' && currentOptionNumber !== null && <button className="text-button" type="button"
-                                                                            disabled={withdrawal.isPending}
-                                                                            onClick={() => {
-                                                                                if (window.confirm(t('polls.confirmWithdrawal'))) withdrawal.mutate();
-                                                                            }}>{withdrawal.isPending ? t('polls.withdrawing') : t('polls.withdraw')}</button>}
-        <p className="poll-detail-links"><Link to={`/poll/${encodeURIComponent(results.id)}`}>{t('common.polls')}</Link> | <Link
-            to={`/poll/audit/${encodeURIComponent(results.id)}`}>{t('audit.title')}</Link></p>
-    </section>;
+    return <div className="result-layout">
+        <section className="data-card results-card" aria-label={t('polls.resultSheet')}>
+            <div className="results-heading"><div><p className="results-date"><time dateTime={results.createdAt}>{formatTimestamp(results.createdAt, locale)}</time></p>
+                <h3>{results.title}</h3></div><span className="poll-state">{t(pollStateTranslationKey(results.state))}</span></div>
+            <dl className="result-summary">
+                <div><dt>{t('polls.totalVotes')}</dt><dd>{results.totalVotes}</dd></div>
+                <div><dt>{t('polls.highestShare')}</dt><dd>{highestPercentage} %</dd></div>
+            </dl>
+            <ol className="result-list">{orderedOptions.map((option) => {
+                const percentage = results.totalVotes === 0 ? 0 : Math.round(option.voteCount / results.totalVotes * 100);
+                const current = currentOptionNumber === option.number;
+                return <li className={`result-option${isWinner(option, results.options, results.totalVotes) ? ' winner' : ''}${current ? ' current' : ''}`} key={option.number}>
+                    <div className="result-option-heading"><Link to={`/poll/results/${encodeURIComponent(results.id)}/option/${option.number}`}>{option.text}</Link>
+                        {isWinner(option, results.options, results.totalVotes) && <strong>{winnerLabel}</strong>}</div>
+                    <div className="result-option-progress" aria-hidden="true"><span style={{width: `${percentage}%`}}/></div>
+                    <div className="result-option-meta"><span>{percentage} %</span><span>{option.voteCount} {t('polls.votes')}</span></div>
+                    {current && <small>{t('polls.yourVote')}</small>}
+                </li>;
+            })}</ol>
+            {withdrawalError && <p className="form-error" role="alert">{t(withdrawalError.messageKey)}</p>}
+            {results.state === 'active' && currentOptionNumber !== null && <button className="text-button" type="button"
+                                                                                disabled={withdrawal.isPending}
+                                                                                onClick={() => {
+                                                                                    if (window.confirm(t('polls.confirmWithdrawal'))) withdrawal.mutate();
+                                                                                }}>{withdrawal.isPending ? t('polls.withdrawing') : t('polls.withdraw')}</button>}
+            <p className="poll-detail-links"><Link to={`/poll/${encodeURIComponent(results.id)}`}>{t('common.polls')}</Link> | <Link
+                to={`/poll/audit/${encodeURIComponent(results.id)}`}>{t('audit.title')}</Link></p>
+        </section>
+        <aside className="result-leader-panel" aria-label={t('polls.currentLeader')}>
+            <p className="eyebrow">{t('polls.currentLeader')}</p>
+            {winnerOptions.length === 0 ? <h3>{t('polls.noWinner')}</h3> : <>
+                <p className="result-leader-label">{winnerLabel}</p>
+                <h3>{winnerOptions.map((option) => option.text).join(', ')}</h3>
+            </>}
+            <dl>
+                <div><dt>{t('polls.highestShare')}</dt><dd>{highestPercentage} %</dd></div>
+                <div><dt>{t('polls.endsAt')}</dt><dd>{results.endsAt ? <time dateTime={results.endsAt}>{formatTimestamp(results.endsAt, locale)}</time> : t('polls.noEndDate')}</dd></div>
+            </dl>
+        </aside>
+    </div>;
 }
 
 function OptionDetail({results, option, locale}: { results: PollResults; option: PollResults['options'][number]; locale: Locale }) {
     const {t} = useI18n();
-    return <section className="data-card option-detail"><p className="option-poll-title">{results.title}</p><h3>{option.text}</h3>
-        <p className="option-detail-meta">{t('polls.optionNumber')} {option.number} · {t('polls.votes')}: {option.voteCount}</p>
-        {option.votes.length === 0 ? <RouteState status="empty"/> : <ol className="voter-list" aria-label={t('polls.voters')}>
-            {option.votes.map((vote, index) => <li key={`${vote.userID}-${vote.votedAt}`}><span className="voter-number">{index + 1}</span>
-                <span>{vote.userID}</span><time dateTime={vote.votedAt}>{formatTimestamp(vote.votedAt, locale)}</time></li>)}
-        </ol>}
-        <p className="poll-detail-links"><Link to={`/poll/results/${encodeURIComponent(results.id)}`}>{t('polls.results')}</Link> | <Link
-            to={`/poll/audit/${encodeURIComponent(results.id)}`}>{t('audit.title')}</Link></p>
-    </section>;
+    return <div className="result-layout option-layout">
+        <section className="data-card option-detail" aria-label={t('polls.optionOverview')}>
+            <div className="option-detail-heading"><div><p className="option-poll-title">{results.title}</p><h3>{option.text}</h3></div>
+                <span className="poll-state">{t(pollStateTranslationKey(results.state))}</span></div>
+            <dl className="option-summary">
+                <div><dt>{t('polls.optionNumber')}</dt><dd>{option.number}</dd></div>
+                <div><dt>{t('polls.votes')}</dt><dd>{option.voteCount}</dd></div>
+            </dl>
+            <div className="option-voters"><p className="eyebrow">{t('polls.voters')}</p>
+                {option.votes.length === 0 ? <div className="option-empty-state"><p>{t('polls.noOptionVotes')}</p><RouteState status="empty"/></div> : <ol className="voter-list" aria-label={t('polls.voters')}>
+                    {option.votes.map((vote, index) => <li key={`${vote.userID}-${vote.votedAt}`}><span className="voter-number">{index + 1}</span>
+                        <span className="voter-identity">{vote.userID}</span><time dateTime={vote.votedAt}>{formatTimestamp(vote.votedAt, locale)}</time></li>)}
+                </ol>}
+            </div>
+            <p className="poll-detail-links"><Link to={`/poll/results/${encodeURIComponent(results.id)}`}>{t('polls.results')}</Link> | <Link
+                to={`/poll/audit/${encodeURIComponent(results.id)}`}>{t('audit.title')}</Link></p>
+        </section>
+        <aside className="option-context-panel" aria-label={t('polls.optionContext')}>
+            <p className="eyebrow">{t('polls.optionContext')}</p>
+            <h3>{results.title}</h3>
+            <p>{t('polls.pseudonymousResults')}</p>
+            <dl>
+                <div><dt>{t('polls.optionNumber')}</dt><dd>{option.number}</dd></div>
+                <div><dt>{t('polls.state')}</dt><dd>{t(pollStateTranslationKey(results.state))}</dd></div>
+                <div><dt>{t('polls.createdAt')}</dt><dd><time dateTime={results.createdAt}>{formatTimestamp(results.createdAt, locale)}</time></dd></div>
+                <div><dt>{t('polls.duration')}</dt><dd>{results.endsAt ? <time dateTime={results.endsAt}>{formatTimestamp(results.endsAt, locale)}</time> : t('polls.noEndDate')}</dd></div>
+            </dl>
+        </aside>
+    </div>;
 }
 
-function orderedResultOptions(options: PollResults['options'], locale: Locale) {
+function orderedResultOptions(options: PollResults['options'], locale: Locale, totalVotes: number) {
     return [...options].sort((left, right) => {
-        const leftWinner = isWinner(left, options);
-        const rightWinner = isWinner(right, options);
+        const leftWinner = isWinner(left, options, totalVotes);
+        const rightWinner = isWinner(right, options, totalVotes);
         if (leftWinner !== rightWinner) return leftWinner ? -1 : 1;
         return left.text.localeCompare(right.text, locale);
     });
 }
 
-function isWinner(option: PollResults['options'][number], options: PollResults['options']) {
+function isWinner(option: PollResults['options'][number], options: PollResults['options'], totalVotes: number) {
     const maximum = Math.max(0, ...options.map((candidate) => candidate.voteCount));
-    return maximum > 0 && option.voteCount === maximum;
+    return totalVotes > 0 && maximum > 0 && option.voteCount === maximum;
 }
 
 export function AuditPage() {

@@ -340,15 +340,16 @@ test('refreshes active results on schedule and stops after the poll expires', as
 });
 
 test('loads a direct option link with the complete current voter list', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 800 });
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const url = request.url();
     if (url.endsWith('/polls/p_option_details/results')) return route.fulfill({ json: {
       id: 'p_option_details', title: 'Option details poll', visibility: 'public', state: 'expired',
       createdAt: '2026-08-31T12:00:00.000Z', endsAt: '2026-08-31T13:00:00.000Z', totalVotes: 2,
-      options: [{ number: 7, text: 'Apfel', voteCount: 2, votes: [
-        { userID: 'alice', votedAt: '2026-08-31T12:01:00.000Z' },
-        { userID: 'bob', votedAt: '2026-08-31T12:02:00.000Z' },
+       options: [{ number: 7, text: 'Apfel', voteCount: 2, votes: [
+         { userID: 'very-long.identity-0123456789', votedAt: '2026-08-31T12:01:00.000Z' },
+         { userID: 'bob', votedAt: '2026-08-31T12:02:00.000Z' },
       ] }],
     } });
     return route.fulfill({ json: [] });
@@ -356,10 +357,22 @@ test('loads a direct option link with the complete current voter list', async ({
 
   await page.goto('/poll/results/p_option_details/option/7');
   await expect(page.getByRole('heading', { name: 'Apfel', level: 3 })).toBeVisible();
-  await expect(page.getByText('alice')).toBeVisible();
+  await expect(page.getByRole('complementary', { name: 'Option-Kontext' })).toContainText('Optionsnummer');
+  await expect(page.locator('.option-summary dd')).toHaveText(['7', '2']);
+  await expect(page.getByText('very-long.identity-0123456789')).toBeVisible();
   await expect(page.getByText('bob')).toBeVisible();
+  await expect(page.locator('.voter-list li')).toHaveText([
+    /1.*very-long\.identity-0123456789.*31\.08\.2026/, /2.*bob.*31\.08\.2026/,
+  ]);
   await expect(page.locator('time').first()).toContainText('31.08.2026');
   await expect(page.locator('time').first()).toHaveAttribute('datetime', '2026-08-31T12:01:00.000Z');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+  await page.getByRole('link', { name: 'Poll-Ergebnisse' }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(/\/poll\/results\/p_option_details$/);
+  await page.goto('/poll/results/p_option_details/option/7');
+  await page.getByRole('link', { name: 'Audit Log' }).click();
+  await expect(page.getByRole('heading', { name: 'Audit Log', level: 1 })).toBeVisible();
 });
 
 test('zeigt eine lokalisierte, zugaengliche oeffentliche Domaenenereignis-Timeline', async ({ page }) => {
@@ -388,6 +401,7 @@ test('zeigt eine lokalisierte, zugaengliche oeffentliche Domaenenereignis-Timeli
 });
 
 test('zeigt null Prozent und Gleichstände in Poll-Ergebnissen', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 800 });
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const url = request.url();
@@ -410,12 +424,15 @@ test('zeigt null Prozent und Gleichstände in Poll-Ergebnissen', async ({ page }
   });
 
   await page.goto('/poll/results/p_zero_results');
-  await expect(page.getByText('0 %')).toHaveCount(2);
-  await expect(page.locator('.results-total dd')).toHaveText('0');
+  await expect(page.locator('.result-option-meta span:first-child')).toHaveText(['0 %', '0 %']);
+  await expect(page.locator('.result-summary dd')).toHaveText(['0', '0 %']);
+  await expect(page.getByRole('complementary', { name: 'Aktueller Spitzenstand' })).toContainText('Noch kein Spitzenstand');
   await expect(page.locator('.result-option-meta')).toHaveText(['0 %0 Stimmen', '0 %0 Stimmen']);
   await page.goto('/poll/results/p_tie_results');
-  await expect(page.getByText('Gleichstand')).toHaveCount(2);
+  await expect(page.locator('.result-option strong')).toHaveText(['Gleichstand', 'Gleichstand']);
+  await expect(page.getByRole('complementary', { name: 'Aktueller Spitzenstand' })).toContainText('Alpha, Zulu');
   await expect(page.locator('.result-option-heading a')).toHaveText(['Alpha', 'Zulu', 'Beta', 'Zebra']);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
 });
 
 test('confirms vote withdrawal and returns to the poll detail', async ({ page }) => {
@@ -543,7 +560,7 @@ test('removes an administrative vote through the browser flow', async ({ page })
 
   await page.goto('/poll/results/p_v1_browser');
   await expect(page.getByRole('heading', { name: 'Browser poll', level: 3 })).toBeVisible();
-  await expect(page.getByText('0 %')).toBeVisible();
+  await expect(page.locator('.result-summary dd')).toHaveText(['0', '0 %']);
   await page.goto('/poll/results/p_v1_browser/option/1');
   await expect(page.getByText('Noch keine Daten vorhanden')).toBeVisible();
   await expect(page.getByText('alice')).toHaveCount(0);

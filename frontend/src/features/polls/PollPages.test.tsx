@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest';
 import {QueryClientProvider} from '@tanstack/react-query';
-import {act, cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react';
+import {act, cleanup, fireEvent, render, screen, waitFor, within} from '@testing-library/react';
 import {MemoryRouter, Route, Routes} from 'react-router-dom';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {apiClient} from '../../shared/api/client';
@@ -113,6 +113,7 @@ function renderResultsPage(initialEntry = '/poll/results/poll-1') {
                         <Route path="/poll/results/:pollId" element={<ResultsPage/>}/>
                         <Route path="/poll/results/:pollId/option/:optionNumber" element={<OptionPage/>}/>
                         <Route path="/poll/:pollId" element={<p>Poll detail</p>}/>
+                        <Route path="/poll/audit/:pollId" element={<p>Audit log</p>}/>
                     </Routes>
                 </I18nProvider>
             </QueryClientProvider>
@@ -384,6 +385,28 @@ describe('ResultsPage', () => {
         vi.useRealTimers();
     });
 
+    it('renders a result sheet summary and a real current-leader panel', async () => {
+        const result = {
+            ...resultsFor(null),
+            totalVotes: 3,
+            options: [
+                {...poll.options[0], voteCount: 1, votes: [{userID: 'alice', votedAt: '2026-08-01T10:01:00Z'}]},
+                {...poll.options[1], voteCount: 2, votes: [{userID: 'bob', votedAt: '2026-08-01T10:02:00Z'}, {userID: 'carol', votedAt: '2026-08-01T10:03:00Z'}]},
+            ],
+        };
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(result);
+        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
+
+        renderResultsPage();
+
+        const sheet = await screen.findByRole('region', {name: 'Ergebnisübersicht'});
+        expect(sheet).toHaveTextContent('Team-Ausflug');
+        expect(sheet).toHaveTextContent('3');
+        expect(sheet).toHaveTextContent('67 %');
+        expect(screen.getByRole('complementary', {name: 'Aktueller Spitzenstand'})).toHaveTextContent('Apfel');
+        expect(screen.getByRole('complementary', {name: 'Aktueller Spitzenstand'})).toHaveTextContent('01.01.2099');
+    });
+
     it('shows totals, zero-safe percentages, winners first, and current voters', async () => {
         const result = {
             ...resultsFor(null),
@@ -400,9 +423,9 @@ describe('ResultsPage', () => {
 
         expect(await screen.findByRole('heading', {name: 'Team-Ausflug', level: 3})).toBeVisible();
         expect(screen.getByText('3')).toBeVisible();
-        expect(screen.getByText('67 %')).toBeVisible();
+        expect(screen.getByRole('region', {name: 'Ergebnisübersicht'})).toHaveTextContent('67 %');
         expect(screen.getByText('33 %')).toBeVisible();
-        expect(screen.getByText('Gewinner')).toBeVisible();
+        expect(screen.getAllByText('Gewinner')).toHaveLength(2);
         expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual(['Apfel', 'Zebra', 'Polls', 'Audit Log']);
 
         const zeroResult = {...result, totalVotes: 0, options: result.options.map((option) => ({...option, voteCount: 0, votes: []}))};
@@ -410,7 +433,9 @@ describe('ResultsPage', () => {
         await act(async () => {
             await queryClient.invalidateQueries({queryKey: queryKeys.pollResults(poll.id)});
         });
-        await waitFor(() => expect(screen.getAllByText('0 %')).toHaveLength(2));
+        await waitFor(() => expect(screen.getByRole('complementary', {name: 'Aktueller Spitzenstand'}))
+            .toHaveTextContent('Noch kein Spitzenstand'));
+        expect(screen.getByRole('complementary', {name: 'Aktueller Spitzenstand'})).toHaveTextContent('0 %');
     });
 
     it('marks all tied positive options as winners and polls only while visible and active', async () => {
@@ -433,7 +458,9 @@ describe('ResultsPage', () => {
             vi.advanceTimersByTime(0);
             await Promise.resolve();
         });
-        expect(screen.getAllByText('Gleichstand')).toHaveLength(2);
+        const sheet = screen.getByRole('region', {name: 'Ergebnisübersicht'});
+        expect(within(sheet).getAllByText('Gleichstand')).toHaveLength(2);
+        expect(screen.getByRole('complementary', {name: 'Aktueller Spitzenstand'})).toHaveTextContent('Apfel, Zebra');
 
         await act(async () => {
             vi.advanceTimersByTime(4_999);
@@ -467,7 +494,7 @@ describe('ResultsPage', () => {
         expect(getPollResults).toHaveBeenCalledTimes(3);
     });
 
-    it('shows a direct option link with a running voter number and localized timestamp', async () => {
+    it('shows a direct option link with a running identity number and localized timestamp', async () => {
         vi.spyOn(apiClient, 'getPollResults').mockResolvedValue({...resultsFor(7), options: [{
             ...poll.options[1],
             voteCount: 1,
@@ -477,10 +504,70 @@ describe('ResultsPage', () => {
         renderResultsPage('/poll/results/poll-1/option/7');
 
         expect(await screen.findByRole('heading', {name: 'Apfel', level: 3})).toBeVisible();
-        expect(screen.getByText('Team-Ausflug')).toBeVisible();
-        expect(screen.getByText('1')).toBeVisible();
+        expect(within(screen.getByRole('region', {name: 'Optionsübersicht'})).getByText('Team-Ausflug')).toBeVisible();
         expect(screen.getByText('alice')).toBeVisible();
-        expect(screen.getByText(/01\.08\.2026/)).toBeVisible();
+        expect(within(screen.getByRole('list', {name: 'Abstimmende Identitäten'})).getByText(/01\.08\.2026/)).toBeVisible();
+    });
+
+    it('renders the option sheet with context, complete identity order, and navigation', async () => {
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue({...resultsFor(7), options: [{
+            ...poll.options[1],
+            voteCount: 2,
+            votes: [
+                {userID: 'first.identity', votedAt: '2026-08-01T10:01:00Z'},
+                {userID: 'second.identity', votedAt: '2026-08-01T10:02:00Z'},
+            ],
+        }]});
+
+        renderResultsPage('/poll/results/poll-1/option/7');
+
+        const sheet = await screen.findByRole('region', {name: 'Optionsübersicht'});
+        expect(sheet).toHaveTextContent('Team-Ausflug');
+        expect(sheet).toHaveTextContent('Apfel');
+        expect(sheet).toHaveTextContent(/Optionsnummer\s*7/);
+        expect(sheet).toHaveTextContent('2');
+        expect(screen.getByRole('complementary', {name: 'Option-Kontext'})).toHaveTextContent('aktiv');
+        expect(screen.getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+            expect.stringContaining('first.identity'), expect.stringContaining('second.identity'),
+        ]);
+        expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual(['Poll-Ergebnisse', 'Audit Log']);
+
+        fireEvent.click(screen.getByRole('link', {name: 'Audit Log'}));
+        expect(screen.getByText('Audit log')).toBeVisible();
+    });
+
+    it('shows a clear empty state for an option without Stimmen and a missing option', async () => {
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue({...resultsFor(null), options: [{
+            ...poll.options[1], voteCount: 0, votes: [],
+        }]});
+
+        renderResultsPage('/poll/results/poll-1/option/7');
+
+        expect(await screen.findByText('Für diese Option liegen noch keine Stimmen vor.')).toBeVisible();
+        expect(await screen.findByText('Noch keine Daten vorhanden')).toBeVisible();
+        expect(screen.getByRole('region', {name: 'Seitenstatus'})).toHaveTextContent('Noch keine Daten vorhanden');
+
+        cleanup();
+        queryClient.clear();
+        vi.restoreAllMocks();
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(resultsFor(7));
+        renderResultsPage('/poll/results/poll-1/option/99');
+
+        expect(await screen.findByText('Noch keine Daten vorhanden')).toBeVisible();
+        expect(screen.queryByRole('heading', {name: 'Apfel', level: 3})).toBeNull();
+    });
+
+    it('localizes the option context and empty state in English', async () => {
+        window.localStorage.setItem('justvotes-locale', 'en');
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue({...resultsFor(null), options: [{
+            ...poll.options[1], voteCount: 0, votes: [],
+        }]});
+
+        renderResultsPage('/poll/results/poll-1/option/7');
+
+        expect(await screen.findByRole('region', {name: 'Option overview'})).toBeVisible();
+        expect(screen.getByRole('complementary', {name: 'Option context'})).toHaveTextContent('active');
+        expect(screen.getByText('No votes have been cast for this option yet.')).toBeVisible();
     });
 
     it('polls active option details while the tab is visible', async () => {
