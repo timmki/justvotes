@@ -619,9 +619,10 @@ test('shows login on session expiry and restores the previous admin route', asyn
 test('runs an admin poll through publication, expiry, archive, restore and destructive deletion', async ({ page }) => {
   let state: 'draft' | 'active' | 'expired' | 'archived' | 'deleted' = 'draft';
   let permanentlyDeleted = false;
+  const lifecycleTitle = 'A deliberately long poll title that remains readable inside the responsive administration card';
   const poll = (currentState = state) => ({
     id: 'p_v1_lifecycle',
-    title: 'Lifecycle poll',
+    title: lifecycleTitle,
     visibility: currentState === 'draft' || currentState === 'deleted' ? 'private' : 'public',
     state: currentState,
     createdAt: '2026-08-31T12:00:00.000Z',
@@ -650,11 +651,13 @@ test('runs an admin poll through publication, expiry, archive, restore and destr
   });
   page.on('dialog', async (dialog) => { await dialog.accept(); });
 
+  await page.setViewportSize({ width: 320, height: 720 });
   await page.goto('/admin/create');
-  await page.getByLabel('Poll-Titel').fill('Lifecycle poll');
+  await page.getByLabel('Poll-Titel').fill(lifecycleTitle);
   await page.getByLabel('Vorlagengruppe').selectOption('g_v1_lifecycle');
   await page.getByRole('button', { name: 'Speichern' }).click();
-  await expect(page.getByRole('heading', { name: 'Lifecycle poll', level: 4 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: lifecycleTitle, level: 4 })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
 
   await page.getByLabel('Veröffentlichen').fill('2099-01-01T12:00');
   await page.getByRole('button', { name: 'Veröffentlichen' }).click();

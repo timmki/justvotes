@@ -519,6 +519,7 @@ describe('Admin poll lifecycle', () => {
             'archived poll': ['Aus Archiv wiederherstellen', 'Soft löschen'],
             'deleted poll': ['Wiederherstellen', 'Permanent löschen'],
         };
+        const allActions = ['Veröffentlichen', 'Privat schalten', 'Ablauf ändern', 'Archivieren', 'Aus Archiv wiederherstellen', 'Wieder öffnen', 'Soft löschen', 'Wiederherstellen', 'Permanent löschen'];
         const cards = Array.from(rendered.container.querySelectorAll<HTMLElement>('.poll-admin-list > .poll-admin-card'));
         expect(cards).toHaveLength(6);
         expect(within(cards[0]).getByText(/Snapshot description/)).toBeVisible();
@@ -526,7 +527,10 @@ describe('Admin poll lifecycle', () => {
         expect(within(cards[0]).getByText('Current yes')).toBeVisible();
         for (const card of cards) {
             const title = within(card).getByRole('heading', {level: 4}).textContent ?? '';
-            for (const action of expectedActions[title]) expect(within(card).getByRole('button', {name: action})).toBeVisible();
+            for (const action of allActions) {
+                if (expectedActions[title].includes(action)) expect(within(card).getByRole('button', {name: action})).toBeVisible();
+                else expect(within(card).queryByRole('button', {name: action})).toBeNull();
+            }
         }
         expect(within(cards[0]).getByRole('button', {name: 'Optionen ersetzen'})).toBeVisible();
         expect(within(cards[2]).queryByRole('button', {name: 'Privat schalten'})).toBeNull();
@@ -555,6 +559,76 @@ describe('Admin poll lifecycle', () => {
         await waitFor(() => expect(publishPoll).toHaveBeenCalledWith('p_v1_draft_private', '2099-01-01T11:00:00.000Z'));
     });
 
+    it('keeps option values after replacing options fails', async () => {
+        vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+        vi.spyOn(apiClient, 'getAdminPolls').mockResolvedValue([testPoll('draft')]);
+        vi.spyOn(apiClient, 'replacePollOptions').mockRejectedValue(problemError({status: 409, code: 'poll_state_conflict'}, 409));
+
+        renderAdmin('/admin/polls');
+
+        const card = (await screen.findByRole('heading', {name: 'draft poll', level: 4})).closest('li');
+        const scoped = within(card as HTMLElement);
+        fireEvent.click(scoped.getByRole('button', {name: 'Optionen ersetzen'}));
+        const options = scoped.getByLabelText('Optionen, eine pro Zeile');
+        fireEvent.change(options, {target: {value: 'First\nSecond'}});
+        fireEvent.click(scoped.getByRole('button', {name: 'Speichern'}));
+
+        expect(await scoped.findByRole('alert')).toHaveTextContent('Der aktuelle Zustand erlaubt diese Aktion nicht.');
+        expect(options).toHaveValue('First\nSecond');
+    });
+
+    it('keeps the expiry value after changing it fails', async () => {
+        vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+        vi.spyOn(apiClient, 'getAdminPolls').mockResolvedValue([testPoll('expired')]);
+        vi.spyOn(apiClient, 'changePollExpiry').mockRejectedValue(problemError({status: 409, code: 'poll_state_conflict'}, 409));
+
+        renderAdmin('/admin/polls');
+
+        const card = (await screen.findByRole('heading', {name: 'expired poll', level: 4})).closest('li');
+        const scoped = within(card as HTMLElement);
+        const expiry = scoped.getByLabelText('Ablauf ändern');
+        fireEvent.change(expiry, {target: {value: '2099-01-01T12:00'}});
+        fireEvent.click(scoped.getByRole('button', {name: 'Ablauf ändern'}));
+
+        expect(await scoped.findByRole('alert')).toHaveTextContent('Der aktuelle Zustand erlaubt diese Aktion nicht.');
+        expect(expiry).toHaveValue('2099-01-01T12:00');
+    });
+
+    it('executes the remaining allowed lifecycle actions', async () => {
+        vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+        const makePrivate = vi.spyOn(apiClient, 'makePollPrivate').mockResolvedValue(testPoll('active', 'private'));
+        const changedExpiryPoll = {...testPoll('expired'), endsAt: '2099-02-01T11:00:00.000Z'};
+        const changeExpiry = vi.spyOn(apiClient, 'changePollExpiry').mockResolvedValue(changedExpiryPoll);
+        const reopen = vi.spyOn(apiClient, 'reopenPoll').mockResolvedValue(testPoll('active'));
+        const restore = vi.spyOn(apiClient, 'restorePoll').mockResolvedValue(testPoll('archived'));
+
+        vi.spyOn(apiClient, 'getAdminPolls').mockResolvedValue([testPoll('active')]);
+        const active = renderAdmin('/admin/polls');
+        let card = (await screen.findByRole('heading', {name: 'active public poll', level: 4})).closest('li') as HTMLElement;
+        fireEvent.click(within(card).getByRole('button', {name: 'Privat schalten'}));
+        await waitFor(() => expect(makePrivate).toHaveBeenCalledWith('p_v1_active_public'));
+        active.unmount();
+        queryClient.clear();
+
+        const expiredPoll = {...testPoll('expired'), endsAt: '2099-01-01T00:00:00.000Z'};
+        vi.spyOn(apiClient, 'getAdminPolls').mockResolvedValue([expiredPoll]);
+        renderAdmin('/admin/polls');
+        card = (await screen.findByRole('heading', {name: 'expired poll', level: 4})).closest('li') as HTMLElement;
+        fireEvent.change(within(card).getByLabelText('Ablauf ändern'), {target: {value: '2099-02-01T12:00'}});
+        fireEvent.click(within(card).getByRole('button', {name: 'Ablauf ändern'}));
+        await waitFor(() => expect(changeExpiry).toHaveBeenCalledWith('p_v1_expired_private', '2099-02-01T11:00:00.000Z'));
+        fireEvent.click(within(card).getByRole('button', {name: 'Wieder öffnen'}));
+        await waitFor(() => expect(reopen).toHaveBeenCalledWith('p_v1_expired_private'));
+
+        cleanup();
+        queryClient.clear();
+        vi.spyOn(apiClient, 'getAdminPolls').mockResolvedValue([testPoll('deleted')]);
+        renderAdmin('/admin/polls');
+        card = (await screen.findByRole('heading', {name: 'deleted poll', level: 4})).closest('li') as HTMLElement;
+        fireEvent.click(within(card).getByRole('button', {name: 'Wiederherstellen'}));
+        await waitFor(() => expect(restore).toHaveBeenCalledWith('p_v1_deleted_private'));
+    });
+
     it('offers only non-empty template groups for poll creation', async () => {
         vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
         vi.spyOn(apiClient, 'getGroups').mockResolvedValue([
@@ -574,6 +648,45 @@ describe('Admin poll lifecycle', () => {
         expect(screen.getByRole('button', {name: 'Speichern'})).toBeDisabled();
         fireEvent.change(select, {target: {value: 'g_v1_full'}});
         expect(screen.getByRole('button', {name: 'Speichern'})).toBeEnabled();
+    });
+
+    it('keeps poll creation values after the server rejects the snapshot', async () => {
+        vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+        vi.spyOn(apiClient, 'getGroups').mockResolvedValue([{id: 'g_v1_full', name: 'Full', description: ''}]);
+        vi.spyOn(apiClient, 'getTemplatesInGroup').mockResolvedValue([{id: 't_v1_one', name: 'One'}]);
+        vi.spyOn(apiClient, 'createPoll').mockRejectedValue(problemError({status: 409, code: 'poll_state_conflict'}, 409));
+
+        renderAdmin('/admin/create');
+
+        const title = await screen.findByLabelText('Poll-Titel');
+        const group = screen.getByLabelText('Vorlagengruppe');
+        fireEvent.change(title, {target: {value: 'A corrected title'}});
+        fireEvent.change(group, {target: {value: 'g_v1_full'}});
+        fireEvent.click(screen.getByRole('button', {name: 'Speichern'}));
+
+        expect(await screen.findByRole('alert')).toHaveTextContent('Der aktuelle Zustand erlaubt diese Aktion nicht.');
+        expect(title).toHaveValue('A corrected title');
+        expect(group).toHaveValue('g_v1_full');
+    });
+
+    it('creates a draft with the selected template-group snapshot', async () => {
+        vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+        vi.spyOn(apiClient, 'getGroups').mockResolvedValue([{id: 'g_v1_full', name: 'Full', description: ''}]);
+        vi.spyOn(apiClient, 'getTemplatesInGroup').mockResolvedValue([{id: 't_v1_one', name: 'One'}]);
+        const created = testPoll('draft');
+        created.title = 'Created draft';
+        const createPoll = vi.spyOn(apiClient, 'createPoll').mockResolvedValue(created);
+        vi.spyOn(apiClient, 'getAdminPolls').mockResolvedValue([created]);
+
+        renderAdmin('/admin/create');
+
+        fireEvent.change(await screen.findByLabelText('Poll-Titel'), {target: {value: 'Created draft'}});
+        fireEvent.change(screen.getByLabelText('Vorlagengruppe'), {target: {value: 'g_v1_full'}});
+        fireEvent.click(screen.getByRole('button', {name: 'Speichern'}));
+
+        await waitFor(() => expect(createPoll).toHaveBeenCalledWith({title: 'Created draft', templateGroupId: 'g_v1_full'}));
+        expect(await screen.findByRole('heading', {name: 'Created draft', level: 4})).toBeVisible();
+        expect(screen.getByText('Snapshot yes')).toBeVisible();
     });
 
     it('requires one confirmation for soft delete and two for permanent delete', async () => {

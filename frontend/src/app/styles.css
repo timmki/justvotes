@@ -501,6 +501,7 @@ main {
 .poll-admin-card {
     display: grid;
     gap: 1rem;
+    min-width: 0;
     padding: 1rem;
     border: 1px solid var(--separator);
     border-radius: .9rem;
@@ -517,6 +518,8 @@ main {
 .poll-admin-heading h4, .poll-admin-columns h5, .poll-admin-actions h5 {
     margin: 0;
 }
+
+.poll-admin-heading > div, .poll-admin-heading h4 { min-width: 0; overflow-wrap: anywhere; }
 
 .poll-admin-meta {
     margin: .25rem 0 0;
@@ -807,6 +810,8 @@ main {
     color: #b42318 !important;
     font-weight: 600;
 }
+
+:root[data-theme='dark'] .form-error { color: #ff9f9a !important; }
 
 .modal-backdrop {
     position: fixed;
