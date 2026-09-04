@@ -510,9 +510,23 @@ test('logs in, restores the active admin area after reload, and logs out', async
   await page.getByRole('button', { name: 'Anmelden' }).click();
 
   await expect(page.getByRole('heading', { name: 'Stimmen', level: 3 })).toBeVisible();
+  await expect(page.locator('.sidebar-navigation').getByRole('link', { name: 'Polls' })).toBeVisible();
+  await expect(page.locator('.sidebar-navigation').getByRole('link')).toHaveCount(5);
   await expect(page.locator('.admin-tabs').getByRole('link', { name: 'Stimmen' })).toHaveAttribute('aria-current', 'page');
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Stimmen', level: 3 })).toBeVisible();
+  await page.setViewportSize({ width: 320, height: 720 });
+  const mobileNavigation = page.locator('.mobile-navigation');
+  await expect(mobileNavigation).toBeVisible();
+  await expect(mobileNavigation.getByRole('link')).toHaveCount(5);
+  await expect(mobileNavigation.getByRole('link', { name: 'Stimmen' })).toHaveAttribute('aria-current', 'page');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+  for (const [label, path] of [['Stimmen', '/admin/votes'], ['Polls', '/admin/polls'], ['Vorlagengruppen', '/admin/groups'], ['Optionsvorlagen', '/admin/templates'], ['Poll erstellen', '/admin/create']] as const) {
+    const link = mobileNavigation.getByRole('link', { name: label });
+    await link.focus();
+    await page.keyboard.press('Enter');
+    await expect(page).toHaveURL(new RegExp(`${path}$`));
+  }
   await page.getByRole('button', { name: 'Abmelden' }).click();
   await expect(page.getByLabel('Benutzername')).toBeVisible();
   expect(await page.getByRole('navigation', { name: 'Admin-Navigation' }).count()).toBe(0);

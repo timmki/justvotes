@@ -267,6 +267,7 @@ button:active, a:active {
 }
 
 .mobile-navigation .nav-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.mobile-navigation .admin-nav-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
 .mobile-navigation .nav-item {
     justify-content: center;

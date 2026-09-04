@@ -4,6 +4,7 @@ import {MemoryRouter} from 'react-router-dom';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {I18nProvider} from '../shared/i18n/I18nProvider';
 import {apiClient, sessionCoordinator} from '../shared/api/client';
+import {problemError} from '../shared/api/errors';
 import {queryClient} from '../shared/api/queryClient';
 import {App, AppErrorBoundary, RouteState, ToastProvider, useToast} from './App';
 
@@ -175,6 +176,60 @@ describe('app shell', () => {
         renderApp('/polls');
 
         expect(await screen.findByRole('heading', {name: 'Administration', level: 1})).toBeVisible();
+    });
+
+    it('shows only authenticated admin areas in desktop and mobile shell navigation', async () => {
+        vi.spyOn(apiClient, 'getAdminPolls').mockResolvedValue([]);
+        renderApp('/admin/polls');
+
+        expect(await screen.findByRole('heading', {name: 'Polls', level: 3})).toBeVisible();
+        const navigations = screen.getAllByRole('navigation', {name: 'Adminnavigation'})
+            .filter((navigation) => navigation.classList.contains('sidebar-navigation') || navigation.classList.contains('mobile-navigation'));
+        expect(navigations).toHaveLength(2);
+        for (const navigation of navigations) {
+            expect(within(navigation).getAllByRole('link')).toHaveLength(5);
+            expect(within(navigation).getByRole('link', {name: 'Polls'})).toHaveAttribute('aria-current', 'page');
+            expect(within(navigation).queryByRole('link', {name: 'Startseite'})).toBeNull();
+        }
+        expect(screen.queryAllByRole('navigation', {name: 'Hauptnavigation'})).toHaveLength(0);
+        expect(screen.queryByRole('link', {name: 'Startseite'})).toBeNull();
+        expect(screen.queryByRole('link', {name: 'JustVotes'})).toBeNull();
+    });
+
+    it('marks votes as current for the admin root route', async () => {
+        vi.spyOn(apiClient, 'getAdminVotes').mockResolvedValue({votes: [], page: 0, size: 50, totalElements: 0});
+        renderApp('/admin');
+
+        expect(await screen.findByRole('heading', {name: 'Stimmen', level: 3})).toBeVisible();
+        const sidebar = screen.getAllByRole('navigation', {name: 'Adminnavigation'})
+            .find((navigation) => navigation.classList.contains('sidebar-navigation'));
+        expect(sidebar).toBeDefined();
+        expect(within(sidebar!).getByRole('link', {name: 'Stimmen'})).toHaveAttribute('aria-current', 'page');
+    });
+
+    it('localizes the authenticated admin shell and supports dark mode', async () => {
+        vi.spyOn(apiClient, 'getAdminPolls').mockResolvedValue([]);
+        renderApp('/admin/polls');
+
+        expect(await screen.findByRole('heading', {name: 'Polls', level: 3})).toBeVisible();
+        fireEvent.click(screen.getByRole('button', {name: 'English anzeigen'}));
+
+        const adminNavigation = screen.getAllByRole('navigation', {name: 'Administration navigation'})
+            .find((navigation) => navigation.classList.contains('sidebar-navigation'));
+        expect(within(adminNavigation!).getByRole('link', {name: 'Polls'})).toBeVisible();
+        expect(within(adminNavigation!).getByRole('link', {name: 'Polls'})).toHaveAttribute('aria-current', 'page');
+        fireEvent.click(screen.getByRole('button', {name: 'Enable dark mode'}));
+        expect(document.documentElement).toHaveAttribute('data-theme', 'dark');
+    });
+
+    it('does not expose protected shell navigation on the login screen', async () => {
+        vi.spyOn(apiClient, 'getAdminSession').mockRejectedValue(problemError({status: 401, code: 'unauthorized'}, 401));
+        renderApp('/admin/polls');
+
+        expect(await screen.findByLabelText('Benutzername')).toBeVisible();
+        expect(screen.queryAllByRole('navigation', {name: 'Adminnavigation'})).toHaveLength(0);
+        expect(screen.queryAllByRole('navigation', {name: 'Hauptnavigation'})).toHaveLength(0);
+        expect(screen.queryByRole('link', {name: 'JustVotes'})).toBeNull();
     });
 
     it('returns to the in-memory target route after login', async () => {

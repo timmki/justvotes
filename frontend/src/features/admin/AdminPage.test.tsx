@@ -155,6 +155,21 @@ describe('AdminPage session gate', () => {
         await waitFor(() => expect(screen.queryByRole('link', {name: 'Stimmen'})).toBeNull());
     });
 
+    it('keeps the active area and reports a logout failure', async () => {
+        vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+        vi.spyOn(apiClient, 'getAdminVotes').mockResolvedValue({votes: [], page: 0, size: 50, totalElements: 0});
+        vi.spyOn(apiClient, 'logout').mockRejectedValue(problemError({status: 500, code: 'server_error'}, 500));
+
+        renderAdmin('/admin/votes');
+
+        expect(await screen.findByRole('heading', {name: 'Stimmen', level: 3})).toBeVisible();
+        fireEvent.click(screen.getByRole('button', {name: 'Abmelden'}));
+
+        expect(await screen.findByRole('alert')).toHaveTextContent('Die Anfrage konnte nicht verarbeitet werden.');
+        expect(screen.getByRole('heading', {name: 'Stimmen', level: 3})).toBeVisible();
+        expect(screen.getByRole('link', {name: 'Stimmen'})).toHaveAttribute('aria-current', 'page');
+    });
+
     it('searches templates and paginates in pages of twenty', async () => {
         vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
         vi.spyOn(apiClient, 'getTemplates').mockResolvedValue(Array.from({length: 21}, (_, index) => ({

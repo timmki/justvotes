@@ -1,38 +1,68 @@
 import {NavLink, Link, useLocation} from 'react-router-dom';
-import type {ReactNode} from 'react';
+import {useSyncExternalStore, type ReactNode} from 'react';
 import {useI18n} from '../shared/i18n/I18nProvider';
 import {queryKeys} from '../shared/api/queryKeys';
 import {useApiQuery} from '../shared/api/useApiQuery';
-import {apiClient} from '../shared/api/client';
+import {apiClient, sessionCoordinator} from '../shared/api/client';
 import {ChevronLeftIcon, MoonIcon, SunIcon} from '../shared/ui/Icons';
 import {IdentityEditor} from '../shared/ui/IdentityEditor';
 import {useTheme} from './theme';
 
 export function AppShell({children}: {children: ReactNode}) {
     const {t} = useI18n();
+    const navigation = useShellNavigation();
     const identityQuery = useApiQuery(queryKeys.identity, () => apiClient.getIdentity());
     const identity = identityQuery.data?.userID ?? null;
     const identityState = identityQuery.isError ? 'error' : identityQuery.isPending ? 'loading' : 'ready';
 
     return <div className="app-shell">
         <aside className="sidebar" aria-label={t('common.identity')}>
-            <Link className="brand" to="/" aria-label={t('common.appName')}>
+            {navigation === 'public' ? <Link className="brand" to="/" aria-label={t('common.appName')}>
                 <span className="brand-mark" aria-hidden="true">JV</span><h2>{t('common.appName')}</h2>
-            </Link>
-            <nav className="sidebar-navigation" aria-label={t('common.mainNavigation')}>
-                <p className="sidebar-label">{t('common.appName')}</p>
-                <NavigationLinks/>
-            </nav>
+            </Link> : <div className="brand" aria-label={t('common.appName')}>
+                <span className="brand-mark" aria-hidden="true">JV</span><h2>{t('common.appName')}</h2>
+            </div>}
+            <ShellNavigation className="sidebar-navigation" navigation={navigation} showLabel/>
             <div className="sidebar-bottom">
                 <IdentityEditor identity={identity} identityState={identityState} variant="compact"/>
             </div>
         </aside>
         <div className="app-content">
             <Header/>
-            <MobileNavigation/>
+            <ShellNavigation className="mobile-navigation" navigation={navigation}/>
             {children}
         </div>
     </div>;
+}
+
+function useShellNavigation(): 'public' | 'admin' | null {
+    const {pathname} = useLocation();
+    const adminRoute = pathname === '/admin' || pathname.startsWith('/admin/');
+    const loginRequired = useSyncExternalStore((listener) => sessionCoordinator.subscribe(listener), () => sessionCoordinator.isLoginRequired(), () => false);
+    const sessionQuery = useApiQuery(queryKeys.adminSession, verifyShellAdminSession, {enabled: adminRoute && !loginRequired});
+
+    if (!adminRoute) return 'public';
+    return sessionQuery.isSuccess ? 'admin' : null;
+}
+
+async function verifyShellAdminSession() {
+    await apiClient.getAdminSession();
+    return true;
+}
+
+function ShellNavigation({className, navigation, showLabel = false}: {
+    className: string;
+    navigation: 'public' | 'admin' | null;
+    showLabel?: boolean;
+}) {
+    const {t} = useI18n();
+    if (!navigation) return null;
+    const admin = navigation === 'admin';
+
+    return <nav className={className} aria-label={t(admin ? 'common.adminNavigation' : 'common.mainNavigation')}>
+        {showLabel && <p className="sidebar-label">{t(admin ? 'common.admin' : 'common.appName')}</p>}
+        {admin ? <AdminNavigationLinks/> : <NavigationLinks/>}
+    </nav>;
 }
 
 function NavigationLinks() {
@@ -44,11 +74,20 @@ function NavigationLinks() {
     </ul>;
 }
 
-function MobileNavigation() {
+function AdminNavigationLinks() {
     const {t} = useI18n();
-    return <nav className="mobile-navigation" aria-label={t('common.mainNavigation')}>
-        <NavigationLinks/>
-    </nav>;
+    const {pathname} = useLocation();
+    return <ul className="nav-list admin-nav-list">
+        <li><AdminNavigationLink to="/admin/votes" active={pathname === '/admin' || pathname === '/admin/votes'}>{t('admin.votes')}</AdminNavigationLink></li>
+        <li><AdminNavigationLink to="/admin/polls" active={pathname === '/admin/polls'}>{t('admin.polls')}</AdminNavigationLink></li>
+        <li><AdminNavigationLink to="/admin/groups" active={pathname === '/admin/groups'}>{t('admin.groups')}</AdminNavigationLink></li>
+        <li><AdminNavigationLink to="/admin/templates" active={pathname === '/admin/templates'}>{t('admin.templates')}</AdminNavigationLink></li>
+        <li><AdminNavigationLink to="/admin/create" active={pathname === '/admin/create'}>{t('admin.createPoll')}</AdminNavigationLink></li>
+    </ul>;
+}
+
+function AdminNavigationLink({to, active, children}: { to: string; active: boolean; children: ReactNode }) {
+    return <Link className="nav-item" to={to} aria-current={active ? 'page' : undefined}>{children}</Link>;
 }
 
 export function Header() {
@@ -80,6 +119,7 @@ export function Header() {
 function routeContext(pathname: string, t: ReturnType<typeof useI18n>['t']) {
     const route = routeKind(pathname);
     if (route.kind === 'home') return null;
+    if (route.kind === 'admin') return null;
     if (route.kind === 'polls') return {to: '/', label: t('common.home')};
     if (route.kind === 'results' || route.kind === 'option' || route.kind === 'audit') {
         return {to: route.pollId ? `/poll/${route.pollId}` : '/polls', label: t('polls.detail')};
