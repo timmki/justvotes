@@ -407,11 +407,12 @@ export function AuditPage() {
 
 function AuditDetail({entries}: { entries: AuditEntry[] }) {
     const {t, locale} = useI18n();
+    const displayedEntries = [...entries].reverse();
     return <div className="audit-layout">
         <section className="data-card audit-sheet" aria-label={t('audit.timeline')}>
             <div className="audit-sheet-heading"><div><p className="eyebrow">{t('audit.timeline')}</p><h2>{t('audit.title')}</h2></div>
                 <p className="audit-count">{entries.length} {t('audit.events')}</p></div>
-            <ol className="audit-timeline" aria-label={t('audit.timeline')}>{entries.map((entry, index) => {
+            <ol className="audit-timeline" aria-label={t('audit.timeline')}>{displayedEntries.map((entry, index) => {
                 const optionLabel = auditOptionLabel(entry, t);
                 const hasOption = entry.selection != null || entry.optionNumber != null;
                 return <li className="audit-entry" key={`${entry.occurredAt}-${entry.event}-${index}`}><article>

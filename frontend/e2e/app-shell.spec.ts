@@ -389,14 +389,15 @@ test('zeigt eine lokalisierte, zugaengliche oeffentliche Domaenenereignis-Timeli
   await page.goto('/poll/audit/p_audit_browser');
   await expect(page.getByRole('complementary', { name: 'Audit-Kontext' })).toContainText('2');
   const timeline = page.getByRole('list', { name: 'Domänenereignis-Timeline' });
-  await expect(timeline.getByRole('heading', { name: 'Poll veröffentlicht', level: 3 })).toBeVisible();
   await expect(timeline.getByRole('heading', { name: 'Stimme abgegeben', level: 3 })).toBeVisible();
+  await expect(timeline.getByRole('heading', { name: 'Poll veröffentlicht', level: 3 })).toBeVisible();
+  await expect(timeline.getByRole('heading', { level: 3 })).toHaveText(['Stimme abgegeben', 'Poll veröffentlicht']);
   await expect(timeline.locator('.audit-entry')).toHaveCount(2);
   await expect(timeline).toContainText('identity-with-a-very-long-name-that-must-break');
   await expect(timeline).toContainText('alice');
   await expect(timeline).toContainText('Stimmzeitpunkt');
   await expect(timeline).toContainText('An equally long poll option text that remains readable');
-  await expect(timeline.locator('time').first()).toHaveAttribute('datetime', '2026-08-31T12:00:00.000Z');
+  await expect(timeline.locator('time').first()).toHaveAttribute('datetime', '2026-08-31T12:01:00.000Z');
   await expect(page.locator('#main-content').getByRole('link', { name: 'Polls' })).toHaveAttribute('href', '/poll/p_audit_browser');
   await expect(page.getByRole('link', { name: 'Poll-Ergebnisse' })).toHaveAttribute('href', '/poll/results/p_audit_browser');
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);

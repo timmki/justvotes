@@ -689,7 +689,7 @@ describe('ResultsPage', () => {
 });
 
 describe('AuditPage', () => {
-    it('rendert bekannte Domaenenereignisse in API-Reihenfolge mit lokalisierten Details und Navigation', async () => {
+    it('rendert bekannte Domaenenereignisse mit neuesten zuerst und lokalisierten Details', async () => {
         vi.spyOn(apiClient, 'getPollAudit').mockResolvedValue([
             {event: 'PollPublished', actor: 'admin', occurredAt: '2026-08-01T10:00:00Z'},
             {event: 'VoteCast', actor: 'alice', occurredAt: '2026-08-01T10:01:00Z', selection: 'Ja', userID: 'alice', optionNumber: 1, votedAt: '2026-08-01T10:01:00Z'},
@@ -704,7 +704,7 @@ describe('AuditPage', () => {
         expect(await screen.findByRole('heading', {name: 'Audit Log', level: 1})).toBeVisible();
         expect(await screen.findByRole('heading', {name: 'Stimme administrativ entfernt', level: 3})).toBeVisible();
         expect(screen.getAllByRole('heading', {level: 3}).map((heading) => heading.textContent)).toEqual([
-            'Poll veröffentlicht', 'Stimme abgegeben', 'Stimme administrativ entfernt',
+            'Stimme administrativ entfernt', 'Stimme abgegeben', 'Poll veröffentlicht',
         ]);
         expect(screen.getAllByText('alice')).toHaveLength(3);
         expect(screen.getByText('Ja')).toBeVisible();
