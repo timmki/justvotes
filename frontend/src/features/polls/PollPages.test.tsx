@@ -698,6 +698,9 @@ describe('AuditPage', () => {
 
         renderAuditPage();
 
+        const sheet = await screen.findByRole('region', {name: 'Domänenereignis-Timeline'});
+        expect(sheet).toBeVisible();
+        expect(screen.getByRole('complementary', {name: 'Audit-Kontext'})).toHaveTextContent('3');
         expect(await screen.findByRole('heading', {name: 'Audit Log', level: 1})).toBeVisible();
         expect(await screen.findByRole('heading', {name: 'Stimme administrativ entfernt', level: 3})).toBeVisible();
         expect(screen.getAllByRole('heading', {level: 3}).map((heading) => heading.textContent)).toEqual([
@@ -746,6 +749,22 @@ describe('AuditPage', () => {
         renderAuditPage();
         for (const [, , label] of knownEvents) expect(await screen.findByText(label)).toBeVisible();
         expect(screen.getByText('Unknown domain event')).toBeVisible();
+    });
+
+    it('renders every delivered optional field without depending on event family', async () => {
+        vi.spyOn(apiClient, 'getPollAudit').mockResolvedValue([{
+            event: 'PollPublished', actor: 'admin', occurredAt: '2026-08-01T10:00:00Z',
+            selection: 'Ja', optionNumber: 1, userID: 'alice', reason: 'Initialisierung', votedAt: '2026-08-01T09:59:00Z',
+        }]);
+
+        renderAuditPage();
+
+        const timeline = await screen.findByRole('list', {name: 'Domänenereignis-Timeline'});
+        expect(timeline).toHaveTextContent('Ja');
+        expect(timeline).toHaveTextContent('alice');
+        expect(timeline).toHaveTextContent('Initialisierung');
+        expect(timeline).toHaveTextContent('Stimmzeitpunkt');
+        expect(timeline.querySelector('time[datetime="2026-08-01T09:59:00Z"]')).not.toBeNull();
     });
 
     it('shows explicit empty and safe not-found states', async () => {

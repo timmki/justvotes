@@ -1582,16 +1582,106 @@ main {
     font-weight: 700;
 }
 
-.audit-timeline {
+.audit-layout {
     display: grid;
-    gap: .85rem;
-    padding: 0;
+    grid-template-columns: minmax(0, 1fr) minmax(15rem, 20rem);
+    gap: 1rem;
+    align-items: start;
+}
+
+.audit-sheet {
+    display: grid;
+    gap: 1rem;
+    padding: clamp(1.25rem, 4vw, 2.5rem);
+}
+
+.audit-sheet-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-bottom: 1.25rem;
+    border-bottom: 1px solid var(--separator);
+}
+
+.audit-sheet-heading h2 {
+    margin: 0;
+    font-size: clamp(1.7rem, 4vw, 3rem);
+    line-height: 1.05;
+    letter-spacing: -.04em;
+}
+
+.audit-count {
+    margin: 0;
+    color: var(--muted);
+    font-size: .85rem;
+    font-weight: 700;
+}
+
+.audit-context-panel {
+    display: grid;
+    gap: 1rem;
+    padding: 1.35rem;
+    border-radius: 1rem;
+    color: #f5f5f7;
+    background: #1d1d1f;
+    box-shadow: var(--shadow);
+}
+
+.audit-context-panel .eyebrow {
+    color: #2997ff;
+}
+
+.audit-context-panel h2 {
+    margin: 0;
+    font-size: clamp(1.5rem, 3vw, 2.25rem);
+    line-height: 1.05;
+    letter-spacing: -.04em;
+}
+
+.audit-context-panel > p:not(.eyebrow) {
+    margin: 0;
+    color: #aeaeb2;
+}
+
+.audit-context-panel dl {
+    display: grid;
+    gap: .75rem;
+    margin: 0;
+}
+
+.audit-context-panel dl div {
+    display: grid;
+    gap: .2rem;
+    padding-top: .75rem;
+    border-top: 1px solid #48484a;
+}
+
+.audit-context-panel dt {
+    color: #aeaeb2;
+    font-size: .78rem;
+    font-weight: 700;
+}
+
+.audit-context-panel dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+    font-weight: 700;
+}
+
+.audit-timeline {
+    position: relative;
+    display: grid;
+    gap: 1.1rem;
+    padding: .25rem 0 .25rem 1rem;
     margin: 0;
     list-style: none;
 }
 
 .audit-entry {
-    padding: 1rem;
+    position: relative;
+    margin-left: 1rem;
+    padding: 1.15rem 1.25rem;
     border: 1px solid var(--separator);
     border-radius: 1rem;
     background: var(--surface);
@@ -1939,6 +2029,29 @@ main {
     main { padding-top: 2.75rem; }
 }
 
+.audit-timeline::before {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 1.35rem;
+    width: 1px;
+    background: var(--separator);
+    content: '';
+}
+
+.audit-entry::before {
+    position: absolute;
+    top: 1.35rem;
+    left: -1.38rem;
+    width: .65rem;
+    height: .65rem;
+    border: .2rem solid var(--surface);
+    border-radius: 50%;
+    background: var(--accent-text);
+    box-shadow: 0 0 0 1px var(--accent-text);
+    content: '';
+}
+
 .poll-card-state {
     display: inline-flex;
     align-items: center;
@@ -1992,6 +2105,10 @@ main {
         grid-template-columns: 1fr;
     }
 
+    .audit-layout {
+        grid-template-columns: 1fr;
+    }
+
     .result-summary {
         grid-template-columns: 1fr;
     }
@@ -2004,12 +2121,32 @@ main {
         flex-direction: column;
     }
 
+    .audit-sheet-heading {
+        flex-direction: column;
+    }
+
     .poll-sheet-heading {
         flex-direction: column;
     }
 
     .option-detail-heading {
         flex-direction: column;
+    }
+
+    .audit-entry {
+        margin-left: .75rem;
+    }
+
+    .audit-timeline::before {
+        left: 1.1rem;
+    }
+
+    .audit-entry::before {
+        left: -1.13rem;
+    }
+
+    .audit-entry-meta {
+        grid-template-columns: 1fr;
     }
 
     .voter-list li {

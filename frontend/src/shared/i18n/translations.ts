@@ -134,6 +134,10 @@ export const messages = {
         audit: {
             title: 'Audit Log',
             timeline: 'Domänenereignis-Timeline',
+            context: 'Audit-Kontext',
+            events: 'Ereignisse',
+            order: 'Reihenfolge',
+            apiOrder: 'API-Reihenfolge',
             actor: 'Akteur',
             occurredAt: 'Zeitpunkt',
             option: 'Betroffene Poll-Option',
@@ -382,6 +386,10 @@ export const messages = {
         audit: {
             title: 'Audit log',
             timeline: 'Domain event timeline',
+            context: 'Audit context',
+            events: 'Events',
+            order: 'Order',
+            apiOrder: 'API order',
             actor: 'Actor',
             occurredAt: 'Time',
             option: 'Affected poll option',
