@@ -10,7 +10,11 @@ import {queryKeys} from '../../shared/api/queryKeys';
 import {I18nProvider} from '../../shared/i18n/I18nProvider';
 import {HomePage} from './HomePage';
 
-beforeEach(() => queryClient.clear());
+beforeEach(() => {
+    queryClient.clear();
+    vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: null});
+    vi.spyOn(apiClient, 'getPublicPolls').mockResolvedValue([]);
+});
 afterEach(() => {
     cleanup();
     queryClient.clear();
@@ -21,6 +25,45 @@ function renderHome() {
     return render(<MemoryRouter><QueryClientProvider
         client={queryClient}><I18nProvider><HomePage/></I18nProvider></QueryClientProvider></MemoryRouter>);
 }
+
+const discoveryPolls = [
+    {
+        id: 'z-active-newest',
+        title: 'Newest active poll',
+        visibility: 'public' as const,
+        state: 'active' as const,
+        createdAt: '2026-08-04T10:00:00Z',
+        endsAt: null,
+        totalVotes: 3,
+        templateGroup: {id: 'group-1', name: 'Group', description: ''},
+        templateSnapshotOptions: [],
+        options: [],
+    },
+    {
+        id: 'a-active-same-time',
+        title: 'Same time active poll',
+        visibility: 'public' as const,
+        state: 'active' as const,
+        createdAt: '2026-08-04T10:00:00Z',
+        endsAt: null,
+        totalVotes: 2,
+        templateGroup: {id: 'group-1', name: 'Group', description: ''},
+        templateSnapshotOptions: [],
+        options: [],
+    },
+    {
+        id: 'expired-newest',
+        title: 'Newest expired poll',
+        visibility: 'public' as const,
+        state: 'expired' as const,
+        createdAt: '2026-08-05T10:00:00Z',
+        endsAt: null,
+        totalVotes: 5,
+        templateGroup: {id: 'group-1', name: 'Group', description: ''},
+        templateSnapshotOptions: [],
+        options: [],
+    },
+];
 
 describe('HomePage identity', () => {
     it('shows the first eight characters while keeping the complete identity accessible', async () => {
@@ -37,6 +80,7 @@ describe('HomePage identity', () => {
             .mockResolvedValueOnce({userID: null})
             .mockResolvedValueOnce({userID: 'alice_1'});
         const changeIdentity = vi.spyOn(apiClient, 'changeIdentity').mockResolvedValue(undefined);
+        const getPublicPolls = vi.mocked(apiClient.getPublicPolls);
         const withdrawVote = vi.spyOn(apiClient, 'withdrawVote');
         queryClient.setQueryData(queryKeys.publicPolls, []);
         queryClient.setQueryData(queryKeys.pollResults('poll-1'), {});
@@ -54,7 +98,7 @@ describe('HomePage identity', () => {
         expect(withdrawVote).not.toHaveBeenCalled();
         expect(await screen.findByTitle('alice_1')).toBeTruthy();
         expect(getIdentity).toHaveBeenCalledTimes(2);
-        expect(queryClient.getQueryState(queryKeys.publicPolls)?.isInvalidated).toBe(true);
+        await waitFor(() => expect(getPublicPolls).toHaveBeenCalledTimes(2));
         expect(queryClient.getQueryState(queryKeys.pollResults('poll-1'))?.isInvalidated).toBe(true);
     });
 
@@ -137,5 +181,39 @@ describe('HomePage identity', () => {
         expect(input).toHaveValue('bob');
         expect(screen.getByTitle('alice')).toBeTruthy();
         expect(screen.getByRole('button', {name: 'Speichern'})).toHaveFocus();
+    });
+});
+
+describe('HomePage discovery', () => {
+    it('uses one public list for deterministic hero, honest metrics, and newest preview cards', async () => {
+        vi.mocked(apiClient.getPublicPolls).mockResolvedValue(discoveryPolls);
+        const getPoll = vi.spyOn(apiClient, 'getPoll');
+        const getPollResults = vi.spyOn(apiClient, 'getPollResults');
+
+        renderHome();
+
+        const featuredSection = await screen.findByRole('region', {name: 'Im Fokus'});
+        const featuredCard = await within(featuredSection).findByRole('link', {name: /Same time active poll/});
+        expect(featuredCard).toHaveClass('featured-poll-card');
+        expect(screen.getByRole('list', {name: 'Neueste öffentliche Polls'})).toHaveTextContent('Newest expired poll');
+        expect(screen.getByRole('list', {name: 'Neueste öffentliche Polls'}).textContent)
+            .toMatch(/Newest expired poll[\s\S]*Same time active poll[\s\S]*Newest active poll/);
+        expect(screen.getByText('Aktive öffentliche Polls').parentElement).toHaveTextContent('2');
+        expect(screen.getByText('Öffentliche Polls gesamt').parentElement).toHaveTextContent('3');
+        expect(screen.getByText('Öffentliche Stimmen').parentElement).toHaveTextContent('10');
+        expect(vi.mocked(apiClient.getPublicPolls)).toHaveBeenCalledTimes(1);
+        expect(getPoll).not.toHaveBeenCalled();
+        expect(getPollResults).not.toHaveBeenCalled();
+    });
+
+    it('shows an honest featured fallback when the public list has no active poll', async () => {
+        vi.mocked(apiClient.getPublicPolls).mockResolvedValue([discoveryPolls[2]]);
+
+        renderHome();
+
+        expect(await screen.findByText('Keine aktive Poll')).toBeVisible();
+        expect(screen.getByText('Aktive öffentliche Polls').parentElement).toHaveTextContent('0');
+        expect(screen.getByText('Öffentliche Polls gesamt').parentElement).toHaveTextContent('1');
+        expect(screen.getByText('Öffentliche Stimmen').parentElement).toHaveTextContent('5');
     });
 });

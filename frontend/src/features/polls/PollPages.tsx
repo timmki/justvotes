@@ -1,6 +1,6 @@
 import {type UseQueryResult, useMutation} from '@tanstack/react-query';
 import {Link, useNavigate, useParams} from 'react-router-dom';
-import {useEffect, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode} from 'react';
+import {useEffect, useState, type ReactNode} from 'react';
 import type {components} from '../../shared/api/generated/justvotes';
 import {apiClient} from '../../shared/api/client';
 import {ApiError, type FrontendError} from '../../shared/api/errors';
@@ -12,22 +12,18 @@ import type {Locale, TranslationKey} from '../../shared/i18n/translations';
 import {PageFrame} from '../../shared/ui/PageFrame';
 import {QueryState} from '../../shared/ui/QueryState';
 import {RouteState} from '../../shared/ui/RouteState';
+import {PublicPollCard} from './PublicPollCard';
 
 export function PollsPage() {
-    const {t, locale} = useI18n();
+    const {t} = useI18n();
     const query = useApiQuery(queryKeys.publicPolls, () => apiClient.getPublicPolls());
     return <DataPage eyebrow={t('common.publicArea')} title={t('polls.list')} description={t('common.publicArea')}>
-        <QueryState query={query}>{(polls) => polls.length === 0 ? <RouteState status="empty"/> :
-            <ul className="poll-list">{polls.map((poll) => <li key={poll.id}><Link className="poll-card"
-                                                                                   to={`/poll/${encodeURIComponent(poll.id)}`}
-                                                                                   onKeyDown={activateOnKeyDown}
-                                                                                   onKeyUp={activateOnSpaceUp}>
-                <span className="poll-card-heading"><strong>{poll.title}</strong><span className="poll-vote-badge"
-                                                                                       aria-label={`${poll.totalVotes} ${t('polls.votes')}`}>{poll.totalVotes}</span></span>
-                <span className="poll-card-meta"><span>{t('polls.createdBy')} {t('common.admin')}</span><time
-                                                                                    dateTime={poll.createdAt}>{formatTimestamp(poll.createdAt, locale)}</time><span
-                    className="poll-id">{poll.id}</span></span>
-            </Link></li>)}</ul>}</QueryState>
+        <QueryState query={query}>{(polls) => <>
+            <p className="poll-list-status" role="status" aria-live="polite">{polls.length} {t(polls.length === 1 ? 'polls.listCountSingular' : 'polls.listCount')}</p>
+            {polls.length === 0 ? <RouteState status="empty"/> : <ul className="poll-list">
+                {polls.map((poll) => <li key={poll.id}><PublicPollCard poll={poll}/></li>)}
+            </ul>}
+        </>}</QueryState>
     </DataPage>;
 }
 
@@ -404,19 +400,4 @@ function DataPage({eyebrow, title, description, children}: {
 
 function formatTimestamp(value: string, locale: Locale) {
     return new Intl.DateTimeFormat(locale, {dateStyle: 'medium', timeStyle: 'short'}).format(new Date(value));
-}
-
-function activateOnKeyDown(event: ReactKeyboardEvent<HTMLAnchorElement>) {
-    if (event.key === ' ') event.preventDefault();
-    if (event.key === 'Enter') {
-        event.preventDefault();
-        event.currentTarget.click();
-    }
-}
-
-function activateOnSpaceUp(event: ReactKeyboardEvent<HTMLAnchorElement>) {
-    if (event.key === ' ') {
-        event.preventDefault();
-        event.currentTarget.click();
-    }
 }

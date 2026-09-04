@@ -148,6 +148,7 @@ describe('PollsPage', () => {
         expect(card).toHaveTextContent('0');
         expect(card).toHaveTextContent('opaque-poll-id-123456789');
         expect(card).toHaveTextContent('Admin');
+        expect(card).toHaveTextContent('aktiv');
         expect(card).toHaveTextContent('05.01.2025');
         expect(getPublicPolls).toHaveBeenCalledTimes(1);
         expect(getPoll).not.toHaveBeenCalled();
