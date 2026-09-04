@@ -167,10 +167,13 @@ test('casts, replaces, repeats and restores a public poll vote', async ({ page }
     return route.fulfill({ json: [] });
   });
 
+  await page.setViewportSize({ width: 375, height: 800 });
   await page.goto('/poll/p_v1_vote');
-  await expect(page.getByText('Ergebnisse werden nach der ersten Stimme freigegeben.')).toBeVisible();
+  await expect(page.getByText('Ergebnisse werden nach eigener Stimme freigegeben.')).toBeVisible();
+  await expect(page.getByRole('complementary', { name: 'Poll-Metadaten' })).toContainText('Teilnahme');
   await expect(page.getByRole('radio', { name: 'Apfel' })).toBeVisible();
-  await page.getByRole('radio', { name: 'Apfel' }).click();
+  await page.getByRole('radio', { name: 'Apfel' }).focus();
+  await page.keyboard.press('Space');
   await expect(page.getByText('Stimme abgegeben.')).toBeVisible();
   await page.getByRole('radio', { name: 'Zebra' }).click();
   await expect(page.getByText('Stimme geändert.')).toBeVisible();
@@ -183,6 +186,7 @@ test('casts, replaces, repeats and restores a public poll vote', async ({ page }
   await expect(page.getByText('Eigene Stimme')).toBeVisible();
   expect(voteRequests).toEqual([7, 2, 2]);
   expect(requestMethods).not.toContain('DELETE');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
 });
 
 test('disables voting for an expired poll and safely handles private or missing polls', async ({ page }) => {
@@ -457,7 +461,7 @@ test('confirms vote withdrawal and returns to the poll detail', async ({ page })
   page.once('dialog', async (dialog) => { await dialog.accept(); });
   await page.getByRole('button', { name: 'Stimme zurücknehmen' }).click();
   await expect(page.getByRole('heading', { name: 'Withdrawal poll', level: 3 })).toBeVisible();
-  await expect(page.getByText('Ergebnisse werden nach der ersten Stimme freigegeben.')).toBeVisible();
+  await expect(page.getByText('Ergebnisse werden nach eigener Stimme freigegeben.')).toBeVisible();
   expect(deleteRequests).toBe(1);
   expect(csrfHeader).toBe('csrf-token');
 });

@@ -92,34 +92,59 @@ function PollDetail({poll}: { poll: Poll }) {
     const resultForbiddenBeforeVote = poll.state === 'active' && isResultsUnavailable(resultsQuery.error);
     const resultsLinkAvailable = Boolean(resultsQuery.data && !resultsQuery.isError && !resultsQuery.isFetching);
 
-    return <section className="data-card poll-detail-card"><div className="poll-detail-heading"><h3>{poll.title}</h3>
-        <span className="poll-state">{t(pollStateTranslationKey(poll.state))}</span></div>
-        <fieldset className="poll-vote-form" disabled={!canVote || mutation.isPending}>
-            <legend>{t('polls.vote')}</legend>
-            <div className="poll-option-list">{sortedOptions.map((option) => {
-                const isCurrent = currentOptionNumber === option.number;
-                return <label className={`poll-option${selectedOptionNumber === option.number ? ' selected' : ''}${isCurrent ? ' current' : ''}`}
-                              key={option.number}>
-                    <input type="radio" name={`poll-${poll.id}`} value={option.number}
-                           aria-label={option.text} checked={selectedOptionNumber === option.number}
-                           onChange={() => mutation.mutate(option.number)}
-                           onClick={() => {
-                               if (selectedOptionNumber === option.number) mutation.mutate(option.number);
-                           }}/>
-                    <span><strong>{option.text}</strong>{isCurrent && <small>{t('polls.yourVote')}</small>}</span>
-                </label>;
-            })}</div>
-        </fieldset>
-        {identityQuery.isError && <p className="form-error" role="alert">{t('errors.generic')}</p>}
-        {!identityQuery.isPending && !identityQuery.isError && !identity && <p className="poll-notice">{t('polls.identityRequired')}</p>}
-        {poll.state !== 'active' && <p className="poll-notice">{t('polls.voteUnavailable')} ({t(pollStateTranslationKey(poll.state))}{poll.endsAt && `, ${formatTimestamp(poll.endsAt, locale)}`})</p>}
-        {mutationError && <p className="form-error" role="alert">{t(mutationError.messageKey)}</p>}
-        {feedback && <p className="poll-feedback" role="status">{feedback}</p>}
-        <ResultsState poll={poll} query={resultsQuery} forbiddenBeforeVote={resultForbiddenBeforeVote}/>
-        <p className="poll-detail-links"><>{resultsLinkAvailable && <Link
-            to={`/poll/results/${encodeURIComponent(poll.id)}`}>{t('polls.results')}</Link>}{resultsLinkAvailable && ' | '}<Link
-            to={`/poll/audit/${encodeURIComponent(poll.id)}`}>{t('audit.title')}</Link></></p>
-    </section>;
+    return <div className="poll-layout">
+        <section className="data-card poll-detail-card">
+            <div className="poll-sheet-heading">
+                <div><p className="poll-detail-date"><time dateTime={poll.createdAt}>{formatTimestamp(poll.createdAt, locale)}</time></p>
+                    <h3>{poll.title}</h3></div>
+                <span className="poll-state">{t(pollStateTranslationKey(poll.state))}</span>
+            </div>
+            <fieldset className="poll-vote-form" disabled={!canVote || mutation.isPending}>
+                <legend>{t('polls.vote')}</legend>
+                <div className="poll-option-list">{sortedOptions.map((option) => {
+                    const isCurrent = currentOptionNumber === option.number;
+                    return <label className={`poll-option${selectedOptionNumber === option.number ? ' selected' : ''}${isCurrent ? ' current' : ''}`}
+                                  key={option.number}>
+                        <input type="radio" name={`poll-${poll.id}`} value={option.number}
+                               aria-label={option.text} checked={selectedOptionNumber === option.number}
+                               onChange={() => mutation.mutate(option.number)}
+                               onClick={() => {
+                                   if (selectedOptionNumber === option.number) mutation.mutate(option.number);
+                               }}/>
+                        <span><strong>{option.text}</strong><small>{t('polls.optionNumber')} {option.number}{isCurrent && ` · ${t('polls.yourVote')}`}</small></span>
+                    </label>;
+                })}</div>
+            </fieldset>
+            {identityQuery.isError && <p className="form-error" role="alert">{t('errors.generic')}</p>}
+            {!identityQuery.isPending && !identityQuery.isError && !identity && <p className="poll-notice">{t('polls.identityRequired')}</p>}
+            {poll.state !== 'active' && <p className="poll-notice">{t('polls.voteUnavailable')} ({t(pollStateTranslationKey(poll.state))}{poll.endsAt && `, ${formatTimestamp(poll.endsAt, locale)}`})</p>}
+            {mutationError && <p className="form-error" role="alert">{t(mutationError.messageKey)}</p>}
+            {feedback && <p className="poll-feedback" role="status">{feedback}</p>}
+            <ResultsState poll={poll} query={resultsQuery} forbiddenBeforeVote={resultForbiddenBeforeVote}/>
+            <p className="poll-detail-links"><>{resultsLinkAvailable && <Link
+                to={`/poll/results/${encodeURIComponent(poll.id)}`}>{t('polls.results')}</Link>}{resultsLinkAvailable && ' | '}<Link
+                to={`/poll/audit/${encodeURIComponent(poll.id)}`}>{t('audit.title')}</Link></></p>
+        </section>
+        <aside className="poll-metadata" aria-label={t('polls.metadata')}>
+            <p className="eyebrow">{t('polls.metadata')}</p>
+            <h3>{t('polls.detail')}</h3>
+            <dl>
+                <div><dt>{t('polls.createdAt')}</dt><dd><time dateTime={poll.createdAt}>{formatTimestamp(poll.createdAt, locale)}</time></dd></div>
+                <div><dt>{t('polls.duration')}</dt><dd>{poll.endsAt ? <time dateTime={poll.endsAt}>{formatTimestamp(poll.endsAt, locale)}</time> : t('polls.noEndDate')}</dd></div>
+                <div><dt>{t('polls.participation')}</dt><dd>{poll.totalVotes} {t('polls.votes')}</dd></div>
+                <div><dt>{t('polls.resultsRelease')}</dt><dd>{resultReleaseState(resultsQuery, resultForbiddenBeforeVote, t)}</dd></div>
+            </dl>
+            <p>{t('polls.pseudonymousResults')}</p>
+        </aside>
+    </div>;
+}
+
+function resultReleaseState(query: UseQueryResult<PollResults, unknown>, forbiddenBeforeVote: boolean,
+                            t: (key: TranslationKey) => string) {
+    if (query.isPending) return t('polls.resultsChecking');
+    if (forbiddenBeforeVote) return t('polls.resultsAfterVote');
+    if (query.isError) return t('polls.resultsUnavailableState');
+    return t('polls.resultsAvailable');
 }
 
 function pollStateTranslationKey(state: Poll['state']): TranslationKey {

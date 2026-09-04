@@ -222,6 +222,21 @@ describe('PollPage', () => {
         vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
     });
 
+    it('renders the poll sheet with real metadata, option numbers, and result release state', async () => {
+        vi.spyOn(apiClient, 'getPollResults').mockRejectedValue(problemError({code: 'results-not-available'}, 403));
+
+        renderPollPage();
+
+        expect(await screen.findByRole('heading', {name: 'Team-Ausflug', level: 3})).toBeVisible();
+        expect(screen.getByRole('complementary', {name: 'Poll-Metadaten'})).toHaveTextContent('01.08.2026');
+        expect(screen.getByRole('complementary', {name: 'Poll-Metadaten'})).toHaveTextContent('01.01.2099');
+        expect(screen.getByRole('complementary', {name: 'Poll-Metadaten'})).toHaveTextContent('1');
+        expect(await screen.findByText('Nach eigener Stimme')).toBeVisible();
+        expect(screen.getByRole('radio', {name: 'Apfel'}).parentElement).toHaveTextContent('Optionsnummer 7');
+        expect(screen.getByRole('radio', {name: 'Zebra'}).parentElement).toHaveTextContent('Optionsnummer 2');
+        expect(screen.queryByRole('button', {name: /Speichern/})).toBeNull();
+    });
+
     it.each([
         ['created', null, 7, 'Stimme abgegeben'],
         ['replaced', 2, 7, 'Stimme geändert'],
@@ -250,6 +265,28 @@ describe('PollPage', () => {
         expect(await screen.findByRole('link', {name: 'Poll-Ergebnisse'})).toHaveAttribute('href', `/poll/results/${poll.id}`);
     });
 
+    it('keeps the current vote visible and blocks competing input during a mutation', async () => {
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(resultsFor(2));
+        let finishVote: (() => void) | undefined;
+        const castVote = vi.spyOn(apiClient, 'castVote').mockImplementation(() => new Promise((resolve) => {
+            finishVote = () => resolve({status: 'replaced', optionNumber: 7});
+        }));
+
+        renderPollPage();
+
+        const apple = await screen.findByRole('radio', {name: 'Apfel'});
+        await waitFor(() => expect(screen.getByRole('radio', {name: 'Zebra'})).toBeChecked());
+        expect(screen.getByRole('radio', {name: 'Zebra'}).parentElement).toHaveTextContent('Eigene Stimme');
+        fireEvent.click(apple);
+
+        expect(apple).toBeChecked();
+        expect(screen.getByRole('group', {name: 'Stimme abgeben'})).toBeDisabled();
+        expect(screen.getByRole('radio', {name: 'Zebra'}).parentElement).toHaveTextContent('Eigene Stimme');
+        await waitFor(() => expect(castVote).toHaveBeenCalledWith(poll.id, 7));
+        await act(async () => finishVote?.());
+        expect(await screen.findByText('Stimme geändert.')).toBeVisible();
+    });
+
     it('sorts options alphabetically while rolling back a failed selection', async () => {
         vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(resultsFor(2));
         vi.spyOn(apiClient, 'castVote').mockRejectedValue(new Error('offline'));
@@ -270,7 +307,7 @@ describe('PollPage', () => {
 
         renderPollPage();
 
-        expect(await screen.findByText('Ergebnisse werden nach der ersten Stimme freigegeben.')).toBeVisible();
+        expect(await screen.findByText('Ergebnisse werden nach eigener Stimme freigegeben.')).toBeVisible();
         expect(screen.getByRole('heading', {name: 'Team-Ausflug', level: 3})).toBeVisible();
         expect(screen.queryByText('Daten konnten nicht geladen werden')).toBeNull();
         expect(screen.queryByRole('link', {name: 'Poll-Ergebnisse'})).toBeNull();
@@ -282,7 +319,7 @@ describe('PollPage', () => {
         renderPollPage();
 
         expect(await screen.findByRole('heading', {name: 'Diese Aktion ist nicht erlaubt.', level: 3})).toBeVisible();
-        expect(screen.queryByText('Ergebnisse werden nach der ersten Stimme freigegeben.')).toBeNull();
+        expect(screen.queryByText('Ergebnisse werden nach eigener Stimme freigegeben.')).toBeNull();
     });
 
     it('hides stale results links while a released-results refetch is forbidden', async () => {
@@ -302,7 +339,7 @@ describe('PollPage', () => {
         rejectRefetch?.(problemError({code: 'results-not-available'}, 403));
         await invalidation;
 
-        expect(await screen.findByText('Ergebnisse werden nach der ersten Stimme freigegeben.')).toBeVisible();
+        expect(await screen.findByText('Ergebnisse werden nach eigener Stimme freigegeben.')).toBeVisible();
         expect(screen.getByRole('radio', {name: 'Apfel'})).not.toBeChecked();
         expect(screen.queryByRole('link', {name: 'Poll-Ergebnisse'})).toBeNull();
         expect(getPollResults).toHaveBeenCalledTimes(2);
