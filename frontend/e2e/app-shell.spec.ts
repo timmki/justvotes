@@ -54,6 +54,29 @@ test('keeps the polls page header separated from its poll list status', async ({
   expect(status!.y - (intro!.y + intro!.height)).toBeGreaterThanOrEqual(40);
 });
 
+test('does not stretch the compact identity bar on a narrow viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 565, height: 456 });
+  await page.goto('/polls');
+
+  const sidebar = await page.locator('.sidebar').boundingBox();
+  const header = await page.locator('.app-header').boundingBox();
+  expect(sidebar).not.toBeNull();
+  expect(header).not.toBeNull();
+  expect(sidebar!.height).toBeLessThan(100);
+  expect(header!.y).toBe(sidebar!.y + sidebar!.height);
+});
+
+test('keeps the polls intro close to the mobile navigation', async ({ page }) => {
+  await page.setViewportSize({ width: 565, height: 456 });
+  await page.goto('/polls');
+
+  const navigation = await page.locator('.mobile-navigation').boundingBox();
+  const intro = await page.locator('.page-intro').boundingBox();
+  expect(navigation).not.toBeNull();
+  expect(intro).not.toBeNull();
+  expect(intro!.y - (navigation!.y + navigation!.height)).toBeLessThanOrEqual(24);
+});
+
 test('keeps central routes within supported viewport widths', async ({ page }) => {
   for (const width of [320, 600, 900, 1280]) {
     await page.setViewportSize({width, height: 720});

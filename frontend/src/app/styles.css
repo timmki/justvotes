@@ -2171,6 +2171,10 @@ main {
         padding-top: 2.5rem;
     }
 
+    .polls-page {
+        margin-top: -1rem;
+    }
+
     .header-inner {
         width: min(100% - 1rem, 52rem);
     }
