@@ -144,7 +144,7 @@ export const messages = {
             apiOrder: 'API-Reihenfolge',
             actor: 'Akteur',
             occurredAt: 'Zeitpunkt',
-            option: 'Betroffene Abstimmungs-Option',
+            option: 'Betroffene Option',
             optionNumber: 'Optionsnummer',
             identity: 'Betroffene Identität',
             reason: 'Begründung',
