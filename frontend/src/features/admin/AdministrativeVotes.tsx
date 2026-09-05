@@ -1,5 +1,5 @@
 import {useMutation, useQueries} from '@tanstack/react-query';
-import {type FormEvent, useEffect, useState} from 'react';
+import {type FormEvent, useEffect, useRef, useState} from 'react';
 import type {components} from '../../shared/api/generated/justvotes';
 import {apiClient} from '../../shared/api/client';
 import {ApiError, type FrontendError} from '../../shared/api/errors';
@@ -8,6 +8,7 @@ import {queryKeys} from '../../shared/api/queryKeys';
 import {useApiQuery} from '../../shared/api/useApiQuery';
 import {useI18n} from '../../shared/i18n/I18nProvider';
 import {RouteState} from '../../shared/ui/RouteState';
+import {useDialogFocusTrap} from '../../shared/ui/useDialogFocusTrap';
 
 type AdminVote = components['schemas']['AdminVote'];
 type AdminVotePage = components['schemas']['AdminVotePage'];
@@ -18,7 +19,10 @@ export function AdminVotes() {
     const {t, locale} = useI18n();
     const [page, setPage] = useState(0);
     const [pollFilter, setPollFilter] = useState('');
+    const [search, setSearch] = useState('');
     const [selectedVote, setSelectedVote] = useState<AdminVote | null>(null);
+    const removalTriggerRef = useRef<HTMLButtonElement | null>(null);
+    const panelRef = useRef<HTMLElement>(null);
     const [removedVoteIds, setRemovedVoteIds] = useState<Set<string>>(() => new Set());
     const [error, setError] = useState<FrontendError | null>(null);
     const firstPageQuery = useApiQuery(queryKeys.adminVotes(0, PAGE_SIZE), () => apiClient.getAdminVotes(0, PAGE_SIZE));
@@ -53,6 +57,14 @@ export function AdminVotes() {
         onError: (cause) => setError(frontendError(cause)),
     });
 
+    useEffect(() => {
+        if (selectedVote || !removalTriggerRef.current) return;
+        const trigger = removalTriggerRef.current;
+        if (document.contains(trigger)) trigger.focus();
+        else panelRef.current?.querySelector<HTMLElement>('.admin-vote-list button:not([disabled])')?.focus() ?? document.getElementById('admin-vote-poll-filter')?.focus();
+        removalTriggerRef.current = null;
+    }, [selectedVote]);
+
     if (firstPageQuery.isPending) return <RouteState status="loading"/>;
     if (firstPageQuery.isError) return <RouteState status="error" error={frontendError(firstPageQuery.error)}
                                                    onRetry={() => {
@@ -71,12 +83,21 @@ export function AdminVotes() {
     const affectedPolls = new Set(allVotes.map((vote) => vote.poll.id)).size;
     const identities = new Set(allVotes.map((vote) => vote.userID)).size;
     const pollOptions = Array.from(new Map(allVotes.map((vote) => [vote.poll.id, vote.poll.title])).entries()).sort(([, titleA], [, titleB]) => titleA.localeCompare(titleB, locale));
-    const filteredVotes = pollFilter ? allVotes.filter((vote) => vote.poll.id === pollFilter) : allVotes;
+    const normalizedSearch = search.trim().toLocaleLowerCase(locale);
+    const filteredVotes = allVotes.filter((vote) => {
+        if (pollFilter && vote.poll.id !== pollFilter) return false;
+        if (!normalizedSearch) return true;
+        return [vote.voteId, vote.poll.id, vote.poll.title, vote.option.text, String(vote.option.number), vote.userID]
+            .join(' ')
+            .toLocaleLowerCase(locale)
+            .includes(normalizedSearch);
+    });
     const filteredPageCount = Math.max(1, Math.ceil(filteredVotes.length / PAGE_SIZE));
     const currentPage = Math.min(page, filteredPageCount - 1);
     const visibleVotes = filteredVotes.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
 
-    function openRemoval(vote: AdminVote) {
+    function openRemoval(vote: AdminVote, trigger?: HTMLButtonElement) {
+        removalTriggerRef.current = trigger ?? (document.activeElement instanceof HTMLButtonElement ? document.activeElement : null);
         setError(null);
         removeMutation.reset();
         setSelectedVote(vote);
@@ -88,7 +109,7 @@ export function AdminVotes() {
         setError(null);
     }
 
-    return <section className="admin-panel">
+    return <section ref={panelRef} className="admin-panel">
         <h3>{t('admin.votes')}</h3>
         <dl className="vote-stat-grid">
             <div>
@@ -105,15 +126,22 @@ export function AdminVotes() {
             </div>
         </dl>
         <p className="stats-scope">{t('voteAdmin.statsAllPages')}</p>
-        <div className="admin-vote-filter"><label htmlFor="admin-vote-poll-filter">{t('voteAdmin.pollFilter')}</label><select id="admin-vote-poll-filter" value={pollFilter} onChange={(event) => { setPollFilter(event.target.value); setPage(0); }}><option value="">{t('voteAdmin.allPolls')}</option>{pollOptions.map(([pollId, title]) => <option key={pollId} value={pollId}>{title}</option>)}</select></div>
-        {visibleVotes.length === 0 ? <RouteState status="empty"/> :
+        <div className="admin-vote-filter">
+            <label htmlFor="admin-vote-search">{t('voteAdmin.searchVotes')}</label>
+            <input id="admin-vote-search" type="search" value={search} onChange={(event) => { setSearch(event.target.value); setPage(0); }}/>
+            <label htmlFor="admin-vote-poll-filter">{t('voteAdmin.pollFilter')}</label>
+            <select id="admin-vote-poll-filter" value={pollFilter} onChange={(event) => { setPollFilter(event.target.value); setPage(0); }}><option value="">{t('voteAdmin.allPolls')}</option>{pollOptions.map(([pollId, title]) => <option key={pollId} value={pollId}>{title}</option>)}</select>
+        </div>
+        {visibleVotes.length === 0 ? <RouteState status="empty"
+                                                 title={allVotes.length === 0 ? undefined : t('voteAdmin.noMatches')}
+                                                 text={allVotes.length === 0 ? undefined : t('voteAdmin.noMatchesText')}/> :
             <ul className="admin-vote-list">{visibleVotes.map((vote) => <li className="admin-vote-item"
                                                                             key={vote.voteId}>
                 <div className="admin-vote-details">
-                    <strong>{vote.poll.title}</strong><span>{vote.option.text}</span><span>{vote.userID}</span>
+                    <strong>{vote.poll.title}</strong><span>{t('voteAdmin.pollId')}: {vote.poll.id}</span><span>{t('voteAdmin.option')} {vote.option.number}: {vote.option.text}</span><span>{vote.userID}</span><span>{t('voteAdmin.voteId')}: {vote.voteId}</span>
                     <time dateTime={vote.votedAt}>{formatDate(vote.votedAt, locale)}</time>
                 </div>
-                <button className="secondary-button destructive-button" type="button" onClick={() => openRemoval(vote)}
+                <button className="secondary-button destructive-button" type="button" onClick={(event) => openRemoval(vote, event.currentTarget)}
                         disabled={removeMutation.isPending}>{t('voteAdmin.removeVote')}</button>
             </li>)}</ul>}
         {filteredPageCount > 1 && <nav className="admin-pagination" aria-label={t('voteAdmin.votePagination')}>
@@ -141,10 +169,8 @@ function VoteRemovalDialog({vote, error, pending, onCancel, onConfirm}: {
     const {t} = useI18n();
     const [reason, setReason] = useState('');
     const [invalid, setInvalid] = useState(false);
-
-    useEffect(() => {
-        document.getElementById('admin-vote-removal-reason')?.focus();
-    }, []);
+    const dialogRef = useRef<HTMLDivElement>(null);
+    useDialogFocusTrap(dialogRef, onCancel);
 
     function submit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -158,7 +184,7 @@ function VoteRemovalDialog({vote, error, pending, onCancel, onConfirm}: {
     }
 
     return <div className="modal-backdrop">
-        <div className="identity-dialog admin-vote-dialog" role="dialog" aria-modal="true"
+        <div ref={dialogRef} className="identity-dialog admin-vote-dialog" role="dialog" aria-modal="true" tabIndex={-1}
              aria-labelledby="admin-vote-removal-heading" aria-describedby="admin-vote-removal-warning">
             <h3 id="admin-vote-removal-heading">{t('voteAdmin.removeVoteTitle')}</h3>
             <p id="admin-vote-removal-warning">{vote.poll.title}: {vote.option.text} ({vote.userID})</p>

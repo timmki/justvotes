@@ -1779,6 +1779,21 @@ main {
     font-weight: 700;
 }
 
+.admin-vote-filter input, .admin-vote-filter select {
+    min-width: 0;
+    min-height: 2.75rem;
+    padding: .6rem .75rem;
+    border: 1px solid var(--separator);
+    border-radius: .7rem;
+    color: inherit;
+    background: var(--raised);
+}
+
+.admin-vote-filter input:focus-visible, .admin-vote-filter select:focus-visible {
+    outline: 3px solid #007aff;
+    outline-offset: 2px;
+}
+
 .admin-vote-list {
     display: grid;
     gap: .65rem;

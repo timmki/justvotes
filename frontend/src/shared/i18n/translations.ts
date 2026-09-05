@@ -248,9 +248,15 @@ export const messages = {
             removeVoteTitle: 'Stimme entfernen?',
             removeVoteWarning: 'Die Entfernung wird unveränderlich im Audit protokolliert.',
             removalReason: 'Begründung',
-            removalReasonRequired: 'Bitte eine Begründung eingeben.',
-            pollFilter: 'Poll filtern',
-            allPolls: 'Alle Polls'
+             removalReasonRequired: 'Bitte eine Begründung eingeben.',
+             searchVotes: 'Stimmen suchen',
+             pollFilter: 'Poll filtern',
+             allPolls: 'Alle Polls',
+             noMatches: 'Keine passenden Stimmen',
+             noMatchesText: 'Passe Suche oder Poll-Filter an.',
+             pollId: 'Poll-ID',
+             option: 'Option',
+             voteId: 'Stimmen-ID'
         },
     },
     en: {
@@ -499,9 +505,15 @@ export const messages = {
             removeVoteTitle: 'Remove vote?',
             removeVoteWarning: 'The removal is recorded in the immutable audit log.',
             removalReason: 'Reason',
-            removalReasonRequired: 'Please enter a reason.',
-            pollFilter: 'Filter by poll',
-            allPolls: 'All polls'
+             removalReasonRequired: 'Please enter a reason.',
+             searchVotes: 'Search votes',
+             pollFilter: 'Filter by poll',
+             allPolls: 'All polls',
+             noMatches: 'No matching votes',
+             noMatchesText: 'Adjust the search or poll filter.',
+             pollId: 'Poll ID',
+             option: 'Option',
+             voteId: 'Vote ID'
         },
     },
 } as const;

@@ -5,6 +5,7 @@ import {ApiError, type FrontendError} from '../api/errors';
 import {queryClient} from '../api/queryClient';
 import {queryKeys} from '../api/queryKeys';
 import {useI18n} from '../i18n/I18nProvider';
+import {useDialogFocusTrap} from './useDialogFocusTrap';
 
 type IdentityEditorProps = {
     identity: string | null;
@@ -127,39 +128,10 @@ function IdentityConfirmation({onCancel, onConfirm, pending}: {
 }) {
     const {t} = useI18n();
     const dialogRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        const dialog = dialogRef.current;
-        if (!dialog) return;
-        const focusable = () => Array.from(dialog.querySelectorAll<HTMLElement>('button:not([disabled])'));
-        focusable()[0]?.focus();
-
-        function handleKeyDown(event: KeyboardEvent) {
-            if (event.key === 'Escape') {
-                event.preventDefault();
-                onCancel();
-                return;
-            }
-            if (event.key !== 'Tab') return;
-            const controls = focusable();
-            if (controls.length === 0) return;
-            const first = controls[0];
-            const last = controls[controls.length - 1];
-            if (event.shiftKey && document.activeElement === first) {
-                event.preventDefault();
-                last.focus();
-            } else if (!event.shiftKey && document.activeElement === last) {
-                event.preventDefault();
-                first.focus();
-            }
-        }
-
-        document.addEventListener('keydown', handleKeyDown);
-        return () => document.removeEventListener('keydown', handleKeyDown);
-    }, [onCancel]);
+    useDialogFocusTrap(dialogRef, onCancel);
 
     return <div className="modal-backdrop">
-        <div ref={dialogRef} className="identity-dialog" role="dialog" aria-modal="true"
+        <div ref={dialogRef} className="identity-dialog" role="dialog" aria-modal="true" tabIndex={-1}
              aria-labelledby="identity-dialog-heading" aria-describedby="identity-dialog-warning">
             <h3 id="identity-dialog-heading">{t('common.identityChangeTitle')}</h3>
             <p id="identity-dialog-warning">{t('common.identityChangeWarning')}</p>

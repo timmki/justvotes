@@ -420,6 +420,12 @@ describe('Admin vote administration', () => {
 
         expect(await within(voteList).findByText('Beta')).toBeVisible();
         expect(screen.getByText('Seite 2 von 2')).toBeVisible();
+
+        fireEvent.change(screen.getByLabelText('Stimmen suchen'), {target: {value: 'bob'}});
+        expect(await within(voteList).findByText('bob')).toBeVisible();
+        expect(within(voteList).queryByText('alice')).toBeNull();
+        fireEvent.change(screen.getByLabelText('Stimmen suchen'), {target: {value: 'does-not-exist'}});
+        expect(await screen.findByRole('heading', {name: 'Keine passenden Stimmen', level: 3})).toBeVisible();
     });
 
     it('requires a trimmed reason and removes a vote after confirmation', async () => {
@@ -431,11 +437,15 @@ describe('Admin vote administration', () => {
             totalElements: 1
         });
         const removeAdminVote = vi.spyOn(apiClient, 'removeAdminVote').mockResolvedValue(undefined);
+        const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries');
 
         renderAdmin('/admin/votes');
 
         const vote = (await within(await screen.findByRole('list')).findByText('A poll')).closest('li');
         expect(vote).not.toBeNull();
+        expect(vote).toHaveTextContent('p_v1_poll');
+        expect(vote).toHaveTextContent('Option 1: Yes');
+        expect(vote).toHaveTextContent('v_v1_vote');
         fireEvent.click(within(vote as HTMLElement).getByRole('button', {name: 'Stimme entfernen'}));
 
         const dialog = screen.getByRole('dialog');
@@ -447,8 +457,79 @@ describe('Admin vote administration', () => {
         fireEvent.click(submit);
 
         await waitFor(() => expect(removeAdminVote).toHaveBeenCalledWith('v_v1_vote', 'Regelverstoß'));
+        expect(invalidateQueries).toHaveBeenCalledWith({queryKey: queryKeys.adminVotesRoot});
+        expect(invalidateQueries).toHaveBeenCalledWith({queryKey: queryKeys.publicPolls});
+        expect(invalidateQueries).toHaveBeenCalledWith({queryKey: queryKeys.poll('p_v1_poll')});
+        expect(invalidateQueries).toHaveBeenCalledWith({queryKey: queryKeys.pollResults('p_v1_poll')});
+        expect(invalidateQueries).toHaveBeenCalledWith({queryKey: queryKeys.pollAudit('p_v1_poll')});
         expect(await screen.findByText('Noch keine Daten vorhanden')).toBeVisible();
         expect(screen.queryByRole('dialog')).toBeNull();
+        expect(screen.getByLabelText('Poll filtern')).toHaveFocus();
+    });
+
+    it('traps removal dialog focus, closes with Escape, and restores the trigger focus', async () => {
+        vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+        vi.spyOn(apiClient, 'getAdminVotes').mockResolvedValue({
+            votes: [testAdminVote('v_v1_vote', 'p_v1_poll', 'A poll', 'alice')],
+            page: 0,
+            size: 50,
+            totalElements: 1
+        });
+
+        renderAdmin('/admin/votes');
+
+        const vote = (await within(await screen.findByRole('list')).findByText('A poll')).closest('li') as HTMLElement;
+        const trigger = within(vote).getByRole('button', {name: 'Stimme entfernen'});
+        fireEvent.click(trigger);
+
+        const dialog = screen.getByRole('dialog');
+        const reason = within(dialog).getByRole('textbox', {name: 'Begründung'});
+        const cancel = within(dialog).getByRole('button', {name: 'Abbrechen'});
+        expect(reason).toHaveFocus();
+        trigger.focus();
+        fireEvent.keyDown(document, {key: 'Tab'});
+        expect(reason).toHaveFocus();
+        fireEvent.keyDown(document, {key: 'Tab', shiftKey: true});
+        expect(cancel).toHaveFocus();
+        fireEvent.keyDown(document, {key: 'Tab'});
+        expect(reason).toHaveFocus();
+        fireEvent.keyDown(document, {key: 'Escape'});
+
+        expect(screen.queryByRole('dialog')).toBeNull();
+        expect(trigger).toHaveFocus();
+    });
+
+    it('disables duplicate removal and keeps the dialog open while pending', async () => {
+        vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+        vi.spyOn(apiClient, 'getAdminVotes').mockResolvedValue({
+            votes: [testAdminVote('v_v1_vote', 'p_v1_poll', 'A poll', 'alice')],
+            page: 0,
+            size: 50,
+            totalElements: 1
+        });
+        let resolveRemoval!: () => void;
+        const removalPending = new Promise<void>((resolve) => {
+            resolveRemoval = resolve;
+        });
+        const removeAdminVote = vi.spyOn(apiClient, 'removeAdminVote').mockReturnValue(removalPending);
+
+        renderAdmin('/admin/votes');
+
+        const vote = (await within(await screen.findByRole('list')).findByText('A poll')).closest('li') as HTMLElement;
+        fireEvent.click(within(vote).getByRole('button', {name: 'Stimme entfernen'}));
+        const dialog = screen.getByRole('dialog');
+        fireEvent.change(within(dialog).getByRole('textbox', {name: 'Begründung'}), {target: {value: 'Reason'}});
+        const submit = within(dialog).getByRole('button', {name: 'Stimme entfernen'});
+        expect(submit).toBeEnabled();
+        fireEvent.click(submit);
+
+        await waitFor(() => expect(removeAdminVote).toHaveBeenCalledTimes(1));
+        expect(submit).toBeDisabled();
+        expect(within(dialog).getByRole('button', {name: 'Abbrechen'})).toBeDisabled();
+        fireEvent.keyDown(document, {key: 'Escape'});
+        expect(screen.getByRole('dialog')).toBeVisible();
+        resolveRemoval();
+        await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     });
 
     it('keeps the vote and entered reason visible when removal fails', async () => {

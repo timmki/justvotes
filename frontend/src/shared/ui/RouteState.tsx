@@ -4,16 +4,18 @@ import {EmptyIcon, ErrorIcon, SpinnerIcon} from './Icons';
 
 export type StateStatus = 'loading' | 'empty' | 'error';
 
-export function RouteState({status, onRetry = () => window.location.reload(), error, stale = false}: {
+export function RouteState({status, onRetry = () => window.location.reload(), error, stale = false, title, text}: {
     status: StateStatus;
     onRetry?: () => void;
     error?: FrontendError;
-    stale?: boolean
+    stale?: boolean;
+    title?: string;
+    text?: string
 }) {
     const {t} = useI18n();
     const content = {
         loading: {title: t('common.loading'), text: t('common.loadingText'), icon: <SpinnerIcon/>},
-        empty: {title: t('common.empty'), text: t('common.emptyText'), icon: <EmptyIcon/>},
+        empty: {title: title ?? t('common.empty'), text: text ?? t('common.emptyText'), icon: <EmptyIcon/>},
         error: {
             title: error ? t(error.messageKey) : t('common.error'),
             text: error ? t(error.messageKey) : t('common.errorText'),
