@@ -15,6 +15,7 @@ afterEach(() => {
     document.documentElement.removeAttribute('data-theme');
     document.documentElement.removeAttribute('lang');
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
     queryClient.clear();
 });
 
@@ -42,6 +43,15 @@ function renderApp(initialEntry = '/') {
 }
 
 describe('app shell', () => {
+    it('uses the configured app name in the shared shell', () => {
+        vi.stubEnv('VITE_APP_NAME', 'PollBoard');
+
+        renderApp();
+
+        expect(screen.getByRole('link', {name: 'PollBoard'})).toBeVisible();
+        expect(screen.getByText('PollBoard', {selector: '.eyebrow'})).toBeVisible();
+    });
+
     it('provides compact and desktop navigation with one page heading', () => {
         renderApp('/polls');
 
@@ -123,24 +133,33 @@ describe('app shell', () => {
         expect(window.localStorage.getItem('justvotes-theme')).toBe('light');
     });
 
-    it('supports the Claude theme across the shared shell', () => {
+    it('supports the Sepia theme across the shared shell', () => {
         renderApp();
 
         fireEvent.click(screen.getByRole('button', {name: 'Theme auswählen'}));
-        fireEvent.click(screen.getByRole('radio', {name: 'Claude'}));
+        fireEvent.click(screen.getByRole('radio', {name: 'Sepia'}));
 
         expect(document.documentElement).toHaveAttribute('data-theme', 'claude');
         expect(window.localStorage.getItem('justvotes-theme')).toBe('claude');
     });
 
-    it('supports the OpenAI theme across the shared shell', () => {
+    it('supports the Eco theme across the shared shell', () => {
         renderApp();
 
         fireEvent.click(screen.getByRole('button', {name: 'Theme auswählen'}));
-        fireEvent.click(screen.getByRole('radio', {name: 'OpenAI'}));
+        fireEvent.click(screen.getByRole('radio', {name: 'Eco'}));
 
         expect(document.documentElement).toHaveAttribute('data-theme', 'openai');
         expect(window.localStorage.getItem('justvotes-theme')).toBe('openai');
+    });
+
+    it('keeps the internal theme identifier for stored preferences', () => {
+        window.localStorage.setItem('justvotes-theme', 'claude');
+
+        renderApp();
+
+        expect(document.documentElement).toHaveAttribute('data-theme', 'claude');
+        expect(window.localStorage.getItem('justvotes-theme')).toBe('claude');
     });
 
     it('opens an exclusive theme menu and closes it after selection or Escape', () => {

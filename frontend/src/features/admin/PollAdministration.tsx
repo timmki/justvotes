@@ -99,15 +99,7 @@ function PollAdministrationCard({poll}: { poll: Poll }) {
             <div><h4>{poll.title}</h4><p
                 className="poll-admin-meta">{t(poll.visibility === 'public' ? 'admin.public' : 'admin.private')} · {t(stateTranslationKey(poll.state))} · {poll.endsAt ? formatDate(poll.endsAt, locale) : t('admin.noExpiry')}</p>
              </div></div>
-        <div className="poll-admin-columns">
-            <section aria-labelledby={`snapshot-${poll.id}`}><h5 id={`snapshot-${poll.id}`}>{t('admin.snapshot')}</h5>
-                <p>
-                    <strong>{poll.templateGroup.name}</strong>{poll.templateGroup.description && `: ${poll.templateGroup.description}`}
-                </p>
-                <ol className="poll-options">{poll.templateSnapshotOptions.map((option) => <li key={option.number}
-                                                                                               value={option.number}>{option.text}</li>)}</ol>
-            </section>
-            <section aria-labelledby={`options-${poll.id}`}><h5
+        <section className="poll-admin-options" aria-labelledby={`options-${poll.id}`}><h5
                 id={`options-${poll.id}`}>{t('admin.currentOptions')}</h5>{editingOptions ?
                 <form className="catalog-form" onSubmit={submitOptions}><label
                     htmlFor={`options-edit-${poll.id}`}>{t('admin.optionsInput')}</label><textarea
@@ -128,7 +120,6 @@ function PollAdministrationCard({poll}: { poll: Poll }) {
                         setOptionsInvalid(false);
                         setEditingOptions(true);
                     }}>{t('admin.editOptions')}</button>}</>}</section>
-        </div>
         <div className="poll-admin-actions"><h5>{t('admin.actions')}</h5>{actions.includes('publish') &&
             <ExpiryForm key={`${poll.id}-publish`} inputId={`${poll.id}-publish-expiry`} label={t('admin.publish')}
                         submitLabel={t('admin.publish')}

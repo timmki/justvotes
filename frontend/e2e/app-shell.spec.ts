@@ -44,6 +44,16 @@ test('keeps the public navigation reachable on a narrow viewport', async ({ page
   expect(await page.locator('.mobile-navigation .nav-item').first().evaluate((element) => element.getBoundingClientRect().height)).toBeGreaterThanOrEqual(44);
 });
 
+test('keeps the polls page header separated from its poll list status', async ({ page }) => {
+  await page.goto('/polls');
+
+  const intro = await page.locator('.page-intro').boundingBox();
+  const status = await page.locator('.poll-list-status').boundingBox();
+  expect(intro).not.toBeNull();
+  expect(status).not.toBeNull();
+  expect(status!.y - (intro!.y + intro!.height)).toBeGreaterThanOrEqual(40);
+});
+
 test('keeps central routes within supported viewport widths', async ({ page }) => {
   for (const width of [320, 600, 900, 1280]) {
     await page.setViewportSize({width, height: 720});

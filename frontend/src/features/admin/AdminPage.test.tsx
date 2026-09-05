@@ -637,7 +637,7 @@ function testPoll(state: TestPoll['state'], visibility: TestPoll['visibility'] =
 }
 
 describe('Admin poll lifecycle', () => {
-    it('renders the exhaustive state/action matrix and draft snapshot', async () => {
+    it('renders the exhaustive state/action matrix and current options', async () => {
         vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
         vi.spyOn(apiClient, 'getAdminPolls').mockResolvedValue([
             testPoll('draft'),
@@ -662,9 +662,9 @@ describe('Admin poll lifecycle', () => {
         const allActions = ['Veröffentlichen', 'Privat schalten', 'Ablauf ändern', 'Archivieren', 'Aus Archiv wiederherstellen', 'Wieder öffnen', 'Soft löschen', 'Wiederherstellen', 'Permanent löschen'];
         const cards = Array.from(rendered.container.querySelectorAll<HTMLElement>('.poll-admin-list > .poll-admin-card'));
         expect(cards).toHaveLength(6);
-        expect(within(cards[0]).getByText(/Snapshot description/)).toBeVisible();
-        expect(within(cards[0]).getByText('Snapshot yes')).toBeVisible();
         expect(within(cards[0]).getByText('Current yes')).toBeVisible();
+        expect(within(cards[0]).queryByText(/Snapshot description/)).toBeNull();
+        expect(within(cards[0]).queryByText('Snapshot yes')).toBeNull();
         for (const card of cards) {
             const title = within(card).getByRole('heading', {level: 4}).textContent ?? '';
             for (const action of allActions) {
@@ -809,7 +809,7 @@ describe('Admin poll lifecycle', () => {
         expect(group).toHaveValue('g_v1_full');
     });
 
-    it('creates a draft with the selected template-group snapshot', async () => {
+    it('creates a draft with the selected template-group options', async () => {
         vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
         vi.spyOn(apiClient, 'getGroups').mockResolvedValue([{id: 'g_v1_full', name: 'Full', description: ''}]);
         vi.spyOn(apiClient, 'getTemplatesInGroup').mockResolvedValue([{id: 't_v1_one', name: 'One'}]);
@@ -826,7 +826,8 @@ describe('Admin poll lifecycle', () => {
 
         await waitFor(() => expect(createPoll).toHaveBeenCalledWith({title: 'Created draft', templateGroupId: 'g_v1_full'}));
         expect(await screen.findByRole('heading', {name: 'Created draft', level: 4})).toBeVisible();
-        expect(screen.getByText('Snapshot yes')).toBeVisible();
+        expect(screen.getByText('Current yes')).toBeVisible();
+        expect(screen.queryByText('Snapshot yes')).toBeNull();
     });
 
     it('requires one confirmation for soft delete and two for permanent delete', async () => {

@@ -1,6 +1,7 @@
 import {createContext, type ReactNode, useContext, useEffect, useState} from 'react';
 import {type Locale, messages, type TranslationKey} from './translations';
 import {browserStorage} from '../storage';
+import {getAppName} from '../config/appConfig';
 
 const localeStorageKey = 'justvotes-locale';
 
@@ -26,6 +27,7 @@ export function I18nProvider({children}: { children: ReactNode }) {
     }, [locale]);
 
     const t = (key: TranslationKey) => {
+        if (key === 'common.appName') return getAppName();
         const [namespace, name] = key.split('.') as [keyof typeof messages.de, string];
         return messages[locale][namespace][name as never] ?? key;
     };

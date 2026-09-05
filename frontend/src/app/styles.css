@@ -401,6 +401,15 @@ main {
     margin: 0 auto;
 }
 
+.polls-page {
+    gap: 2.625rem;
+}
+
+.polls-content {
+    display: grid;
+    gap: 1.4rem;
+}
+
 .session-notice {
     display: grid;
     gap: .2rem;
@@ -563,7 +572,7 @@ main {
     gap: 1rem;
 }
 
-.poll-admin-heading h4, .poll-admin-columns h5, .poll-admin-actions h5 {
+.poll-admin-heading h4, .poll-admin-options h5, .poll-admin-actions h5 {
     margin: 0;
 }
 
@@ -575,13 +584,7 @@ main {
     font-size: .85rem;
 }
 
-.poll-admin-columns {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 1rem;
-}
-
-.poll-admin-columns section {
+.poll-admin-options {
     min-width: 0;
     padding: .85rem;
     border: 1px solid var(--separator);
@@ -589,7 +592,7 @@ main {
     background: var(--surface);
 }
 
-.poll-admin-columns p {
+.poll-admin-options p {
     margin: .45rem 0;
     color: var(--muted);
     overflow-wrap: anywhere;
@@ -2176,7 +2179,7 @@ main {
         font-size: 2.25rem;
     }
 
-    .poll-admin-columns, .vote-stat-grid {
+    .vote-stat-grid {
         grid-template-columns: 1fr;
     }
 
@@ -2483,7 +2486,7 @@ main {
     accent-color: var(--accent);
 }
 
-/* OpenAI theme: near-monochrome product UI with a single teal signal color. */
+/* Eco theme: near-monochrome product UI with a single teal signal color. */
 :root[data-theme='openai'] body {
     font-family: var(--font-body);
 }

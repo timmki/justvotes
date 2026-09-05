@@ -9,12 +9,12 @@ import {usePollsQuery} from './pollQueries';
 export function PollsPage() {
     const {t} = useI18n();
     const query = usePollsQuery();
-    return <DataPage eyebrow={t('common.publicArea')} title={t('polls.list')} description={t('common.publicArea')}>
-        <QueryState query={query}>{(polls) => <>
+    return <DataPage className="polls-page" eyebrow={t('common.publicArea')} title={t('polls.list')} description={t('common.publicArea')}>
+        <div className="polls-content"><QueryState query={query}>{(polls) => <>
             <p className="poll-list-status" role="status" aria-live="polite">{polls.length} {t(polls.length === 1 ? 'polls.listCountSingular' : 'polls.listCount')}</p>
             {polls.length === 0 ? <RouteState status="empty"/> : <ul className="poll-list">
                 {polls.map((poll) => <li key={poll.id}><PublicPollCard poll={projectPollList(poll)}/></li>)}
             </ul>}
-        </>}</QueryState>
+        </>}</QueryState></div>
     </DataPage>;
 }

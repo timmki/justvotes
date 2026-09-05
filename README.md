@@ -80,12 +80,14 @@ pnpm test:e2e
 
 `pnpm test:e2e` runs the fast local Chromium check. `pnpm test:e2e:all` runs the configured Chromium, Edge, Firefox and WebKit projects after installing their Playwright browsers. WebKit is the reproducible Safari approximation in Linux CI; iOS Safari and two parallel browser release versions are not available on the hosted runner and are therefore not claimed as covered.
 
+The displayed app name defaults to `JustVotes` and can be changed at frontend build time with `VITE_APP_NAME`, for example `$env:VITE_APP_NAME='PollBoard'; pnpm build`. Docker builds accept the same value as `--build-arg VITE_APP_NAME=PollBoard`; setting it only when starting the container is too late because the SPA is compiled into the image.
+
 The generated API client is intentionally not committed. `mvn -s .mvn/settings.xml test` generates the server and contract sources for normal backend tests; `npm ci && npm run typecheck` in `api-contract/typescript-contract` checks the generated contract client. Normal Maven builds do not start Node or pnpm. The complete release build is `mvn -s .mvn/settings.xml -Prelease package`; it installs the locked frontend dependencies, builds the SPA, and embeds those assets in the executable JAR. The release profile is also used by the Docker build; Node and pnpm exist only in its build stage.
 
 Build and smoke-test the final image with a temporary SQLite volume:
 
 ```bash
-docker build -t justvotes .
+docker build --build-arg VITE_APP_NAME=JustVotes -t justvotes .
 docker run --rm -p 8080:8080 -v justvotes-data:/data \
   -e ADMIN_USERNAME=admin \
   -e ADMIN_PASSWORD_HASH="$2a$10$yXyXCUgriz0cm1V1n0fypOPqDx.vQRVFpB42WFqYRQgPWd/vDC40m" justvotes

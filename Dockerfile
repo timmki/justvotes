@@ -1,5 +1,7 @@
 FROM maven:3.9.9-eclipse-temurin-21 AS build
 WORKDIR /workspace
+ARG VITE_APP_NAME=JustVotes
+ENV VITE_APP_NAME=${VITE_APP_NAME}
 RUN apt-get update \
     && apt-get install -y --no-install-recommends nodejs npm \
     && npm install --global pnpm@10.6.1 \

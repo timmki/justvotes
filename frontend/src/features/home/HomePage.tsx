@@ -13,7 +13,7 @@ export function HomePage() {
     const {t} = useI18n();
     const identityQuery = useApiQuery(queryKeys.identity, () => apiClient.getIdentity());
     const pollsQuery = useApiQuery(queryKeys.publicPolls, () => apiClient.getPublicPolls());
-    return <PageFrame eyebrow="JustVotes" title={t('common.home')} description={t('common.homeDescription')}>
+    return <PageFrame eyebrow={t('common.appName')} title={t('common.home')} description={t('common.homeDescription')}>
         <QueryState query={identityQuery}>{(identity) => <IdentityEditor identity={identity.userID}/>}</QueryState>
         <QueryState query={pollsQuery}>{(polls) => <HomeDiscovery polls={polls}/>}</QueryState>
         <footer className="home-footer"><Link className="text-link" to="/admin">{t('common.admin')}</Link></footer>
