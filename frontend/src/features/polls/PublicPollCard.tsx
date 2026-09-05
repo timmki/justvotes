@@ -1,11 +1,11 @@
 import type {KeyboardEvent as ReactKeyboardEvent} from 'react';
 import {Link} from 'react-router-dom';
-import type {components} from '../../shared/api/generated/justvotes';
 import {useI18n} from '../../shared/i18n/I18nProvider';
-import type {TranslationKey} from '../../shared/i18n/translations';
 import {ChevronRightIcon} from '../../shared/ui/Icons';
+import {formatTimestamp} from './pollFormatters';
+import {pollStateTranslationKey, type Poll} from './pollProjections';
 
-export type PublicPoll = components['schemas']['Poll'];
+export type PublicPoll = Poll;
 
 export function PublicPollCard({poll, featured = false}: {poll: PublicPoll; featured?: boolean}) {
     const {locale, t} = useI18n();
@@ -24,21 +24,6 @@ export function PublicPollCard({poll, featured = false}: {poll: PublicPoll; feat
             <span className="poll-card-arrow"><ChevronRightIcon/></span>
         </span>
     </Link>;
-}
-
-function pollStateTranslationKey(state: PublicPoll['state']): TranslationKey {
-    const keys: Record<PublicPoll['state'], TranslationKey> = {
-        draft: 'admin.stateDraft',
-        active: 'admin.stateActive',
-        expired: 'admin.stateExpired',
-        archived: 'admin.stateArchived',
-        deleted: 'admin.stateDeleted',
-    };
-    return keys[state];
-}
-
-function formatTimestamp(value: string, locale: 'de' | 'en') {
-    return new Intl.DateTimeFormat(locale, {dateStyle: 'medium', timeStyle: 'short'}).format(new Date(value));
 }
 
 function activateOnKeyDown(event: ReactKeyboardEvent<HTMLAnchorElement>) {

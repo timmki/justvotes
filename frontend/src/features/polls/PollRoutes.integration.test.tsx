@@ -8,7 +8,10 @@ import {problemError} from '../../shared/api/errors';
 import {queryClient} from '../../shared/api/queryClient';
 import {queryKeys} from '../../shared/api/queryKeys';
 import {I18nProvider} from '../../shared/i18n/I18nProvider';
-import {AuditPage, OptionPage, PollPage, PollsPage, ResultsPage} from './PollPages';
+import {AuditPage} from './AuditPage';
+import {PollPage} from './PollPage';
+import {PollsPage} from './PollsPage';
+import {OptionPage, ResultsPage} from './ResultsPages';
 
 const polls = [
     {
