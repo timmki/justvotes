@@ -95,7 +95,7 @@ export function Header() {
     const [themeMenuOpen, setThemeMenuOpen] = useState(false);
     const themeMenuRef = useRef<HTMLDivElement>(null);
     const themeButtonRef = useRef<HTMLButtonElement>(null);
-    const themeOptionRefs = useRef<Record<Theme, HTMLInputElement | null>>({light: null, dark: null});
+    const themeOptionRefs = useRef<Record<Theme, HTMLInputElement | null>>({light: null, dark: null, claude: null, openai: null});
     const location = useLocation();
     const previousPathname = useRef(location.pathname);
     const context = routeContext(location.pathname, t);

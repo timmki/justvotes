@@ -123,6 +123,26 @@ describe('app shell', () => {
         expect(window.localStorage.getItem('justvotes-theme')).toBe('light');
     });
 
+    it('supports the Claude theme across the shared shell', () => {
+        renderApp();
+
+        fireEvent.click(screen.getByRole('button', {name: 'Theme auswählen'}));
+        fireEvent.click(screen.getByRole('radio', {name: 'Claude'}));
+
+        expect(document.documentElement).toHaveAttribute('data-theme', 'claude');
+        expect(window.localStorage.getItem('justvotes-theme')).toBe('claude');
+    });
+
+    it('supports the OpenAI theme across the shared shell', () => {
+        renderApp();
+
+        fireEvent.click(screen.getByRole('button', {name: 'Theme auswählen'}));
+        fireEvent.click(screen.getByRole('radio', {name: 'OpenAI'}));
+
+        expect(document.documentElement).toHaveAttribute('data-theme', 'openai');
+        expect(window.localStorage.getItem('justvotes-theme')).toBe('openai');
+    });
+
     it('opens an exclusive theme menu and closes it after selection or Escape', () => {
         renderApp();
 

@@ -2,19 +2,22 @@ import {createContext, type ReactNode, useContext, useEffect, useLayoutEffect, u
 import {browserStorage} from '../shared/storage';
 import type {TranslationKey} from '../shared/i18n/translations';
 
-export type Theme = 'light' | 'dark';
+export type Theme = 'light' | 'dark' | 'claude' | 'openai';
 export type ThemeOption = { value: Theme; labelKey: TranslationKey };
 
 export const themeOptions: readonly ThemeOption[] = [
     {value: 'light', labelKey: 'common.lightThemeName'},
     {value: 'dark', labelKey: 'common.darkThemeName'},
+    {value: 'claude', labelKey: 'common.claudeThemeName'},
+    {value: 'openai', labelKey: 'common.openaiThemeName'},
 ];
 
 const themeStorageKey = 'justvotes-theme';
 const ThemeContext = createContext<{ theme: Theme; setTheme: (theme: Theme) => void } | null>(null);
 
 function themeFromValue(value: string | null): Theme {
-    return value === 'dark' ? 'dark' : 'light';
+    if (value === 'dark' || value === 'claude' || value === 'openai') return value;
+    return 'light';
 }
 
 function storedTheme(): Theme {

@@ -46,6 +46,44 @@
     --danger: #ff9f9a;
 }
 
+:root[data-theme='claude'] {
+    color: #141413;
+    background: #f5f4ed;
+    color-scheme: light;
+    --surface: #faf9f5;
+    --raised: #e8e6dc;
+    --separator: #e8e6dc;
+    --separator-soft: #f0eee6;
+    --muted: #5e5d59;
+    --accent: #c96442;
+    --accent-text: color-mix(in oklab, var(--accent), black 18%);
+    --accent-on: #faf9f5;
+    --danger: #b53333;
+    --shadow: 0 4px 24px rgb(20 20 19 / 5%);
+}
+
+:root[data-theme='openai'] {
+    color: #0d0d0d;
+    background: #ffffff;
+    color-scheme: light;
+    --bg: #ffffff;
+    --surface: #f5f5f5;
+    --raised: #fafafa;
+    --separator: #e5e5e5;
+    --separator-soft: #ededed;
+    --muted: #6e6e6e;
+    --fg: #0d0d0d;
+    --accent: #10a37f;
+    --accent-text: #0a7a5e;
+    --accent-on: #ffffff;
+    --danger: #ef4146;
+    --shadow: 0 4px 16px rgb(13 13 13 / 6%);
+    --font-display: 'Signifier', 'Source Serif Pro', Georgia, serif;
+    --font-body: 'Söhne', 'Inter', 'Work Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --radius-sm: 12px;
+    --radius-md: 16px;
+}
+
 * {
     box-sizing: border-box;
 }
@@ -2223,4 +2261,443 @@ main {
         animation-duration: .01ms !important;
         transition-duration: .01ms !important;
     }
+}
+
+/* Claude theme: warm editorial surfaces, serif-led hierarchy, quiet depth. */
+:root[data-theme='claude'] body {
+    font-family: 'Work Sans', sans-serif;
+}
+
+:root[data-theme='claude'] h1,
+:root[data-theme='claude'] h2,
+:root[data-theme='claude'] h3,
+:root[data-theme='claude'] .page-intro h1,
+:root[data-theme='claude'] .page-intro h2,
+:root[data-theme='claude'] .error-page h1,
+:root[data-theme='claude'] .poll-sheet-heading h3,
+:root[data-theme='claude'] .audit-sheet-heading h2,
+:root[data-theme='claude'] .option-detail-heading h2,
+:root[data-theme='claude'] .result-leader-panel h3,
+:root[data-theme='claude'] .option-context-panel h3,
+:root[data-theme='claude'] .poll-metadata h3 {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-weight: 500;
+    letter-spacing: normal;
+}
+
+:root[data-theme='claude'] .app-shell {
+    background: var(--bg, #f5f4ed);
+}
+
+:root[data-theme='claude'] .sidebar,
+:root[data-theme='claude'] .mobile-navigation,
+:root[data-theme='claude'] .theme-menu-panel {
+    background: var(--surface);
+}
+
+:root[data-theme='claude'] .sidebar {
+    border-right-color: var(--separator-soft);
+}
+
+:root[data-theme='claude'] .brand h2 {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-weight: 500;
+    letter-spacing: normal;
+}
+
+:root[data-theme='claude'] .brand-mark {
+    border-radius: var(--radius-sm, .5rem);
+    color: var(--accent-on);
+    background: var(--fg, #141413);
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: .78rem;
+    font-weight: 500;
+}
+
+:root[data-theme='claude'] .app-header {
+    background: color-mix(in srgb, var(--bg, #f5f4ed) 86%, transparent);
+}
+
+:root[data-theme='claude'] .nav-item:hover,
+:root[data-theme='claude'] .nav-item[aria-current='page'],
+:root[data-theme='claude'] .icon-button:hover,
+:root[data-theme='claude'] .control-button:hover,
+:root[data-theme='claude'] .theme-option:hover,
+:root[data-theme='claude'] .theme-option:focus-within,
+:root[data-theme='claude'] .identity-edit-button:hover,
+:root[data-theme='claude'] .poll-card:hover {
+    background: var(--raised);
+}
+
+:root[data-theme='claude'] .nav-item[aria-current='page'] {
+    box-shadow: 0 0 0 1px var(--separator);
+}
+
+:root[data-theme='claude'] button:focus-visible,
+:root[data-theme='claude'] a:focus-visible,
+:root[data-theme='claude'] input:focus-visible,
+:root[data-theme='claude'] select:focus-visible {
+    outline: 3px solid #3898ec;
+    outline-offset: 3px;
+}
+
+:root[data-theme='claude'] .identity-card,
+:root[data-theme='claude'] .action-card,
+:root[data-theme='claude'] .route-state,
+:root[data-theme='claude'] .login-form,
+:root[data-theme='claude'] .poll-card,
+:root[data-theme='claude'] .poll-detail-card,
+:root[data-theme='claude'] .audit-entry,
+:root[data-theme='claude'] .toast {
+    border-color: var(--separator-soft);
+    border-radius: var(--radius-sm, .5rem);
+    box-shadow: var(--shadow);
+}
+
+:root[data-theme='claude'] .identity-card,
+:root[data-theme='claude'] .action-card,
+:root[data-theme='claude'] .route-state,
+:root[data-theme='claude'] .login-form,
+:root[data-theme='claude'] .poll-card,
+:root[data-theme='claude'] .poll-detail-card,
+:root[data-theme='claude'] .audit-entry,
+:root[data-theme='claude'] .toast,
+:root[data-theme='claude'] .theme-menu-panel {
+    background: var(--surface);
+}
+
+:root[data-theme='claude'] .session-notice {
+    border-color: color-mix(in srgb, var(--accent) 55%, var(--separator));
+    background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+
+:root[data-theme='claude'] .primary-button {
+    border-radius: var(--radius-md, .75rem);
+    color: var(--accent-on);
+    background: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent);
+}
+
+:root[data-theme='claude'] .primary-button:hover {
+    background: color-mix(in oklab, var(--accent), black 8%);
+}
+
+:root[data-theme='claude'] .text-button,
+:root[data-theme='claude'] .back-link,
+:root[data-theme='claude'] .eyebrow,
+:root[data-theme='claude'] .poll-detail-links,
+:root[data-theme='claude'] .result-option-heading a,
+:root[data-theme='claude'] .result-option-heading strong,
+:root[data-theme='claude'] .result-option small {
+    color: var(--accent-text);
+}
+
+:root[data-theme='claude'] .back-link:hover,
+:root[data-theme='claude'] .text-button:hover {
+    color: var(--accent);
+}
+
+:root[data-theme='claude'] .destructive-button,
+:root[data-theme='claude'] .form-error,
+:root[data-theme='claude'] .login-form .form-error {
+    color: var(--danger) !important;
+}
+
+:root[data-theme='claude'] .option-context-panel,
+:root[data-theme='claude'] .result-leader-panel,
+:root[data-theme='claude'] .poll-metadata,
+:root[data-theme='claude'] .audit-context-panel {
+    color: var(--surface);
+    background: var(--fg, #141413);
+    box-shadow: var(--shadow);
+}
+
+:root[data-theme='claude'] .option-context-panel .eyebrow,
+:root[data-theme='claude'] .result-leader-panel .eyebrow,
+:root[data-theme='claude'] .poll-metadata .eyebrow,
+:root[data-theme='claude'] .audit-context-panel .eyebrow {
+    color: var(--accent);
+}
+
+:root[data-theme='claude'] .option-context-panel > p:not(.eyebrow),
+:root[data-theme='claude'] .result-leader-label,
+:root[data-theme='claude'] .result-leader-panel dt,
+:root[data-theme='claude'] .option-context-panel dt,
+:root[data-theme='claude'] .poll-metadata dt,
+:root[data-theme='claude'] .poll-metadata > p:last-child,
+:root[data-theme='claude'] .audit-context-panel > p:not(.eyebrow),
+:root[data-theme='claude'] .audit-context-panel dt {
+    color: color-mix(in srgb, var(--surface) 68%, var(--fg, #141413));
+}
+
+:root[data-theme='claude'] .option-context-panel dl div,
+:root[data-theme='claude'] .result-leader-panel dl div,
+:root[data-theme='claude'] .poll-metadata dl div,
+:root[data-theme='claude'] .audit-context-panel dl div {
+    border-top-color: color-mix(in srgb, var(--surface) 22%, var(--fg, #141413));
+}
+
+:root[data-theme='claude'] .result-option-progress span,
+:root[data-theme='claude'] .result-option.winner .result-option-progress span {
+    background: var(--accent);
+}
+
+:root[data-theme='claude'] .poll-option.current,
+:root[data-theme='claude'] .result-option.current {
+    box-shadow: inset .25rem 0 var(--accent);
+}
+
+:root[data-theme='claude'] .result-option.winner {
+    border-color: var(--accent);
+}
+
+:root[data-theme='claude'] .poll-vote-badge {
+    color: var(--accent-on);
+    background: var(--accent);
+}
+
+:root[data-theme='claude'] .poll-option:hover,
+:root[data-theme='claude'] .poll-option.selected,
+:root[data-theme='claude'] .group-choice.active,
+:root[data-theme='claude'] .result-option.winner {
+    border-color: var(--accent);
+}
+
+:root[data-theme='claude'] .spinner,
+:root[data-theme='claude'] .state-dot {
+    border-color: color-mix(in srgb, var(--accent) 28%, transparent);
+    border-top-color: var(--accent);
+}
+
+:root[data-theme='claude'] .state-dot {
+    border-color: var(--accent);
+}
+
+:root[data-theme='claude'] .state-alert {
+    color: var(--accent-on);
+    background: var(--danger);
+}
+
+:root[data-theme='claude'] .poll-option input,
+:root[data-theme='claude'] .theme-option input {
+    accent-color: var(--accent);
+}
+
+/* OpenAI theme: near-monochrome product UI with a single teal signal color. */
+:root[data-theme='openai'] body {
+    font-family: var(--font-body);
+}
+
+:root[data-theme='openai'] h1,
+:root[data-theme='openai'] h2,
+:root[data-theme='openai'] h3,
+:root[data-theme='openai'] .page-intro h1,
+:root[data-theme='openai'] .page-intro h2,
+:root[data-theme='openai'] .error-page h1,
+:root[data-theme='openai'] .poll-sheet-heading h3,
+:root[data-theme='openai'] .audit-sheet-heading h2,
+:root[data-theme='openai'] .option-detail-heading h2,
+:root[data-theme='openai'] .result-leader-panel h3,
+:root[data-theme='openai'] .option-context-panel h3,
+:root[data-theme='openai'] .poll-metadata h3 {
+    font-family: var(--font-body);
+    font-weight: 600;
+    letter-spacing: -.01em;
+}
+
+:root[data-theme='openai'] .app-shell {
+    background: var(--bg);
+}
+
+:root[data-theme='openai'] .sidebar,
+:root[data-theme='openai'] .mobile-navigation,
+:root[data-theme='openai'] .theme-menu-panel {
+    background: var(--bg);
+}
+
+:root[data-theme='openai'] .sidebar,
+:root[data-theme='openai'] .app-header,
+:root[data-theme='openai'] .mobile-navigation {
+    border-color: var(--separator-soft);
+}
+
+:root[data-theme='openai'] .brand h2 {
+    font-family: var(--font-body);
+    font-weight: 600;
+    letter-spacing: -.02em;
+}
+
+:root[data-theme='openai'] .brand-mark {
+    border-radius: var(--radius-sm);
+    color: var(--accent-on);
+    background: var(--fg);
+    font-family: var(--font-body);
+    font-weight: 600;
+}
+
+:root[data-theme='openai'] .app-header {
+    background: color-mix(in srgb, var(--bg) 92%, transparent);
+}
+
+:root[data-theme='openai'] .nav-item:hover,
+:root[data-theme='openai'] .nav-item[aria-current='page'],
+:root[data-theme='openai'] .icon-button:hover,
+:root[data-theme='openai'] .control-button:hover,
+:root[data-theme='openai'] .theme-option:hover,
+:root[data-theme='openai'] .theme-option:focus-within,
+:root[data-theme='openai'] .identity-edit-button:hover,
+:root[data-theme='openai'] .poll-card:hover {
+    color: var(--fg);
+    background: var(--surface);
+}
+
+:root[data-theme='openai'] .nav-item[aria-current='page'] {
+    box-shadow: 0 0 0 1px var(--separator);
+}
+
+:root[data-theme='openai'] button:focus-visible,
+:root[data-theme='openai'] a:focus-visible,
+:root[data-theme='openai'] input:focus-visible,
+:root[data-theme='openai'] select:focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--accent) 18%, transparent);
+    outline-offset: 3px;
+}
+
+:root[data-theme='openai'] .identity-card,
+:root[data-theme='openai'] .action-card,
+:root[data-theme='openai'] .route-state,
+:root[data-theme='openai'] .login-form,
+:root[data-theme='openai'] .poll-card,
+:root[data-theme='openai'] .poll-detail-card,
+:root[data-theme='openai'] .audit-entry,
+:root[data-theme='openai'] .toast {
+    border-color: var(--separator-soft);
+    border-radius: var(--radius-md);
+    box-shadow: none;
+}
+
+:root[data-theme='openai'] .identity-card,
+:root[data-theme='openai'] .action-card,
+:root[data-theme='openai'] .route-state,
+:root[data-theme='openai'] .login-form,
+:root[data-theme='openai'] .poll-card,
+:root[data-theme='openai'] .poll-detail-card,
+:root[data-theme='openai'] .audit-entry,
+:root[data-theme='openai'] .toast,
+:root[data-theme='openai'] .theme-menu-panel {
+    background: var(--bg);
+}
+
+:root[data-theme='openai'] .session-notice {
+    border-color: color-mix(in srgb, var(--accent) 42%, var(--separator));
+    background: color-mix(in srgb, var(--accent) 8%, var(--bg));
+}
+
+:root[data-theme='openai'] .primary-button {
+    border-radius: var(--radius-sm);
+    color: var(--accent-on);
+    background: var(--fg);
+    box-shadow: none;
+}
+
+:root[data-theme='openai'] .primary-button:hover {
+    color: var(--accent-on);
+    background: color-mix(in srgb, var(--fg) 90%, white);
+}
+
+:root[data-theme='openai'] .text-button,
+:root[data-theme='openai'] .back-link,
+:root[data-theme='openai'] .eyebrow,
+:root[data-theme='openai'] .poll-detail-links,
+:root[data-theme='openai'] .result-option-heading a,
+:root[data-theme='openai'] .result-option-heading strong,
+:root[data-theme='openai'] .result-option small {
+    color: var(--accent-text);
+}
+
+:root[data-theme='openai'] .back-link:hover,
+:root[data-theme='openai'] .text-button:hover {
+    color: var(--accent);
+}
+
+:root[data-theme='openai'] .destructive-button,
+:root[data-theme='openai'] .form-error,
+:root[data-theme='openai'] .login-form .form-error {
+    color: var(--danger) !important;
+}
+
+:root[data-theme='openai'] .option-context-panel,
+:root[data-theme='openai'] .result-leader-panel,
+:root[data-theme='openai'] .poll-metadata,
+:root[data-theme='openai'] .audit-context-panel {
+    color: var(--bg);
+    background: var(--fg);
+    box-shadow: none;
+}
+
+:root[data-theme='openai'] .option-context-panel .eyebrow,
+:root[data-theme='openai'] .result-leader-panel .eyebrow,
+:root[data-theme='openai'] .poll-metadata .eyebrow,
+:root[data-theme='openai'] .audit-context-panel .eyebrow {
+    color: var(--accent);
+}
+
+:root[data-theme='openai'] .option-context-panel > p:not(.eyebrow),
+:root[data-theme='openai'] .result-leader-label,
+:root[data-theme='openai'] .result-leader-panel dt,
+:root[data-theme='openai'] .option-context-panel dt,
+:root[data-theme='openai'] .poll-metadata dt,
+:root[data-theme='openai'] .poll-metadata > p:last-child,
+:root[data-theme='openai'] .audit-context-panel > p:not(.eyebrow),
+:root[data-theme='openai'] .audit-context-panel dt {
+    color: color-mix(in srgb, var(--bg) 66%, var(--fg));
+}
+
+:root[data-theme='openai'] .option-context-panel dl div,
+:root[data-theme='openai'] .result-leader-panel dl div,
+:root[data-theme='openai'] .poll-metadata dl div,
+:root[data-theme='openai'] .audit-context-panel dl div {
+    border-top-color: color-mix(in srgb, var(--bg) 22%, var(--fg));
+}
+
+:root[data-theme='openai'] .result-option-progress span,
+:root[data-theme='openai'] .result-option.winner .result-option-progress span {
+    background: var(--accent);
+}
+
+:root[data-theme='openai'] .poll-option.current,
+:root[data-theme='openai'] .result-option.current {
+    box-shadow: inset .25rem 0 var(--accent);
+}
+
+:root[data-theme='openai'] .result-option.winner,
+:root[data-theme='openai'] .poll-option:hover,
+:root[data-theme='openai'] .poll-option.selected,
+:root[data-theme='openai'] .group-choice.active {
+    border-color: var(--accent);
+}
+
+:root[data-theme='openai'] .poll-vote-badge {
+    color: var(--accent-on);
+    background: var(--accent);
+}
+
+:root[data-theme='openai'] .spinner,
+:root[data-theme='openai'] .state-dot {
+    border-color: color-mix(in srgb, var(--accent) 28%, transparent);
+    border-top-color: var(--accent);
+}
+
+:root[data-theme='openai'] .state-dot {
+    border-color: var(--accent);
+}
+
+:root[data-theme='openai'] .state-alert {
+    color: var(--accent-on);
+    background: var(--danger);
+}
+
+:root[data-theme='openai'] .poll-option input,
+:root[data-theme='openai'] .theme-option input {
+    accent-color: var(--accent);
 }
