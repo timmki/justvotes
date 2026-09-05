@@ -671,3 +671,36 @@ test('runs an admin poll through publication, expiry, archive, restore and destr
   await page.getByRole('button', { name: 'Permanent löschen' }).click();
   await expect(page.getByText('Noch keine Daten vorhanden')).toBeVisible();
 });
+
+test('keeps the template catalog usable at 320px with long names', async ({ page }) => {
+  const longGroupName = 'TemplateGroupNameThatMustWrapAt320pxWithoutSpaces';
+  const longTemplateName = 'An option template name that must remain readable at 320px';
+  const longMembershipName = 'MembershipNameThatMustWrapAt320pxWithoutSpaces';
+  await page.setViewportSize({ width: 320, height: 720 });
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request();
+    const url = request.url();
+    if (url.endsWith('/admin/session')) return route.fulfill({status: 204});
+    if (url.endsWith('/admin/template-catalog/groups') && request.method() === 'GET') {
+      return route.fulfill({json: [{id: 'g_v1_catalog', name: longGroupName, description: ''}]});
+    }
+    if (url.endsWith('/admin/template-catalog/groups/g_v1_catalog/templates')) {
+      return route.fulfill({json: [{id: 't_v1_catalog', name: longMembershipName}]});
+    }
+    if (url.endsWith('/admin/template-catalog/templates') && request.method() === 'GET') {
+      return route.fulfill({json: [{id: 't_v1_catalog', name: longTemplateName}]});
+    }
+    return route.fulfill({json: []});
+  });
+
+  await page.goto('/admin/groups');
+  await expect(page.getByRole('button', {name: longGroupName})).toBeVisible();
+  await expect(page.getByText(longMembershipName)).toBeVisible();
+  await page.getByLabel('Gruppe umbenennen').focus();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+
+  await page.goto('/admin/templates');
+  await expect(page.getByText(longTemplateName)).toBeVisible();
+  await page.getByLabel('Vorlagen suchen').focus();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+});

@@ -636,6 +636,13 @@ main {
     resize: vertical;
 }
 
+.form-status {
+    margin: 0;
+    color: var(--muted);
+    font-size: .85rem;
+    font-weight: 600;
+}
+
 .catalog-form input:focus-visible, .catalog-form textarea:focus-visible, .catalog-form select:focus-visible, .catalog-list input:focus-visible {
     outline: 3px solid #007aff;
     outline-offset: 2px;
@@ -699,6 +706,11 @@ main {
     overflow-wrap: anywhere;
 }
 
+.catalog-list li > strong {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
 .catalog-item-actions {
     display: flex;
     flex-wrap: wrap;
@@ -724,12 +736,16 @@ main {
 }
 
 .group-choice {
+    min-width: 0;
+    max-width: 100%;
     padding: .65rem .85rem;
     border: 1px solid var(--separator);
     border-radius: .7rem;
     color: inherit;
     background: var(--raised);
     font-weight: 700;
+    overflow-wrap: anywhere;
+    text-align: left;
     cursor: pointer;
 }
 

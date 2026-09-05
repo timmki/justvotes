@@ -212,6 +212,7 @@ describe('AdminPage session gate', () => {
         expect(screen.getByRole('status')).toHaveTextContent('Übersprungen: 1');
         expect(screen.getByRole('status')).toHaveTextContent('Leerer Wert');
         expect(screen.getByRole('status')).toHaveTextContent('Fehlgeschlagen: 1');
+        expect(screen.getByLabelText('Mehrere Vorlagen (kommagetrennt)')).toHaveValue('beta');
     });
 
     it('limits concurrent batch requests', async () => {
@@ -240,6 +241,27 @@ describe('AdminPage session gate', () => {
         expect(maxActive).toBe(3);
         release();
         expect(await screen.findByText('Import-Ergebnis')).toBeVisible();
+    });
+
+    it('shows a pending status while creating a template', async () => {
+        vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+        vi.spyOn(apiClient, 'getTemplates').mockResolvedValue([]);
+        let release!: () => void;
+        const pending = new Promise<{ id: string; name: string }>((resolve) => {
+            release = () => resolve({id: 't_v1_pending', name: 'Pending'});
+        });
+        const createTemplate = vi.spyOn(apiClient, 'createTemplate').mockReturnValue(pending);
+
+        renderAdmin('/admin/templates');
+
+        await screen.findByRole('heading', {name: 'Optionsvorlagen', level: 3});
+        fireEvent.change(screen.getByLabelText('Neue Optionsvorlage'), {target: {value: 'Pending'}});
+        fireEvent.click(screen.getByRole('button', {name: 'Vorlage anlegen'}));
+
+        expect(await screen.findByRole('status')).toHaveTextContent('Speichern läuft');
+        expect(screen.getByRole('button', {name: 'Vorlage anlegen'})).toBeDisabled();
+        release();
+        await waitFor(() => expect(createTemplate).toHaveBeenCalledWith('Pending'));
     });
 
     it('creates and renames an individual option template', async () => {
@@ -368,6 +390,19 @@ describe('AdminPage session gate', () => {
         await waitFor(() => expect(renameGroup).toHaveBeenCalledWith('g_v1_new', 'Renamed Board'));
         fireEvent.click(screen.getByRole('button', {name: 'Löschen'}));
         await waitFor(() => expect(deleteGroup).toHaveBeenCalledWith('g_v1_new'));
+    });
+
+    it('translates template-group controls in English', async () => {
+        window.localStorage.setItem('justvotes-locale', 'en');
+        vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+        vi.spyOn(apiClient, 'getGroups').mockResolvedValue([{id: 'g_v1_group', name: 'Board', description: ''}]);
+        vi.spyOn(apiClient, 'getTemplates').mockResolvedValue([]);
+        vi.spyOn(apiClient, 'getTemplatesInGroup').mockResolvedValue([]);
+
+        renderAdmin('/admin/groups');
+
+        expect(await screen.findByRole('heading', {name: 'Template groups', level: 3})).toBeVisible();
+        expect(screen.getByLabelText('Rename group')).toBeVisible();
     });
 });
 

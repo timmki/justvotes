@@ -13,6 +13,7 @@ type CatalogGroup = { id: string; name: string; description: string };
 type FailedEntry = { name: string; error: FrontendError | null };
 type BatchResult = { created: string[]; skipped: string[]; failed: FailedEntry[] };
 type DeleteResult = { deleted: string[]; failed: FailedEntry[] };
+type BusyMessage = 'common.saving' | 'common.processing';
 
 // Keep batch traffic bounded while allowing independent requests to continue.
 const BATCH_CONCURRENCY = 3;
@@ -33,6 +34,7 @@ function TemplateManager({templates}: { templates: CatalogTemplate[] }) {
     const [renameId, setRenameId] = useState<string | null>(null);
     const [renameValue, setRenameValue] = useState('');
     const [busy, setBusy] = useState(false);
+    const [busyMessage, setBusyMessage] = useState<BusyMessage>('common.saving');
     const [error, setError] = useState<FrontendError | null>(null);
     const [batchResult, setBatchResult] = useState<BatchResult | null>(null);
     const [deleteResult, setDeleteResult] = useState<DeleteResult | null>(null);
@@ -83,6 +85,7 @@ function TemplateManager({templates}: { templates: CatalogTemplate[] }) {
         const name = normalizeName(newName);
         if (!name) return;
         setBusy(true);
+        setBusyMessage('common.saving');
         setError(null);
         setBatchResult(null);
         try {
@@ -99,6 +102,7 @@ function TemplateManager({templates}: { templates: CatalogTemplate[] }) {
     async function importTemplates(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         setBusy(true);
+        setBusyMessage('common.saving');
         setError(null);
         setDeleteResult(null);
         const existingNames = new Set(templates.map((template) => normalizeName(template.name)));
@@ -127,7 +131,7 @@ function TemplateManager({templates}: { templates: CatalogTemplate[] }) {
             }
         });
         setBatchResult({created, skipped, failed});
-        setBatchInput('');
+        setBatchInput(failed.length === 0 ? '' : failed.map((entry) => entry.name).join(', '));
         try {
             await refresh();
         } catch (cause) {
@@ -149,6 +153,7 @@ function TemplateManager({templates}: { templates: CatalogTemplate[] }) {
         const name = normalizeName(renameValue);
         if (!name) return;
         setBusy(true);
+        setBusyMessage('common.saving');
         setError(null);
         try {
             await apiClient.renameTemplate(renameId, name);
@@ -164,6 +169,7 @@ function TemplateManager({templates}: { templates: CatalogTemplate[] }) {
     async function deleteTemplates(toDelete: CatalogTemplate[]) {
         if (!toDelete.length || !window.confirm(t('admin.confirmDeleteTemplates'))) return;
         setBusy(true);
+        setBusyMessage('common.processing');
         setError(null);
         setBatchResult(null);
         const deleted: string[] = [];
@@ -219,6 +225,7 @@ function TemplateManager({templates}: { templates: CatalogTemplate[] }) {
             </button>
         </div>
         {error && <p className="form-error" role="alert">{t(error.messageKey)}</p>}
+        {busy && <p className="form-status" role="status">{t(busyMessage)}</p>}
         {batchResult && <BatchResultView result={batchResult}/>}
         {deleteResult && <DeleteResultView result={deleteResult}/>}
         {visible.length === 0 ? <RouteState status="empty"/> :
@@ -307,6 +314,7 @@ function GroupManager({groups, templates, activeGroup, groupTemplatesQuery, onSe
     const [renameValue, setRenameValue] = useState('');
     const [assignId, setAssignId] = useState('');
     const [busy, setBusy] = useState(false);
+    const [busyMessage, setBusyMessage] = useState<BusyMessage>('common.saving');
     const [error, setError] = useState<FrontendError | null>(null);
 
     useEffect(() => {
@@ -322,6 +330,7 @@ function GroupManager({groups, templates, activeGroup, groupTemplatesQuery, onSe
         const name = normalizeName(newName);
         if (!name) return;
         setBusy(true);
+        setBusyMessage('common.saving');
         setError(null);
         try {
             const created = await apiClient.createGroup({name, description: newDescription.trim()});
@@ -342,6 +351,7 @@ function GroupManager({groups, templates, activeGroup, groupTemplatesQuery, onSe
         const name = normalizeName(renameValue);
         if (!name) return;
         setBusy(true);
+        setBusyMessage('common.saving');
         setError(null);
         try {
             await apiClient.renameGroup(activeGroup.id, name);
@@ -356,6 +366,7 @@ function GroupManager({groups, templates, activeGroup, groupTemplatesQuery, onSe
     async function deleteGroup() {
         if (!activeGroup || !window.confirm(t('admin.confirmDeleteGroup'))) return;
         setBusy(true);
+        setBusyMessage('common.processing');
         setError(null);
         try {
             await apiClient.deleteGroup(activeGroup.id);
@@ -372,6 +383,7 @@ function GroupManager({groups, templates, activeGroup, groupTemplatesQuery, onSe
         event.preventDefault();
         if (!activeGroup || !assignId) return;
         setBusy(true);
+        setBusyMessage('common.processing');
         setError(null);
         try {
             await apiClient.assignTemplateToGroup(activeGroup.id, assignId);
@@ -387,6 +399,7 @@ function GroupManager({groups, templates, activeGroup, groupTemplatesQuery, onSe
     async function removeMembership(templateId: string) {
         if (!activeGroup) return;
         setBusy(true);
+        setBusyMessage('common.processing');
         setError(null);
         try {
             await apiClient.removeTemplateFromGroup(activeGroup.id, templateId);
@@ -415,6 +428,7 @@ function GroupManager({groups, templates, activeGroup, groupTemplatesQuery, onSe
             </div>
         </form>
         {error && <p className="form-error" role="alert">{t(error.messageKey)}</p>}
+        {busy && <p className="form-status" role="status">{t(busyMessage)}</p>}
         {groups.length === 0 ? <RouteState status="empty"/> : <>
             <div className="group-list" role="list">{groups.map((group) => <button
                 className={`group-choice${group.id === activeGroup?.id ? ' active' : ''}`} key={group.id} type="button"
