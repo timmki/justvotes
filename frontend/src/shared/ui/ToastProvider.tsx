@@ -30,7 +30,7 @@ export function useToast() {
 function ToastRegion() {
     const {t} = useI18n();
     const {toasts, dismiss} = useToast();
-    return <div className="toast-region" aria-label={t('notifications.status')} aria-live="polite"
+    return <div className="toast-region" role="region" aria-label={t('notifications.status')} aria-live="polite"
                 aria-atomic="true">{toasts.map((toast) => <div className={`toast ${toast.tone}`} role="status"
                                                                key={toast.id}>{toast.message}
         <button type="button" aria-label={t('common.dismiss')} onClick={() => dismiss(toast.id)}>×</button>

@@ -1,6 +1,8 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
+const centralRoutes = ['/', '/polls', '/poll/example', '/poll/results/example', '/poll/results/example/option/1', '/poll/audit/example', '/404', '/admin', '/admin/votes', '/admin/polls', '/admin/groups', '/admin/templates', '/admin/create'];
+
 test('loads the app shell on a deep client route', async ({ page }) => {
   await page.goto('/poll/example');
 
@@ -34,11 +36,21 @@ test('keeps the public navigation reachable on a narrow viewport', async ({ page
   expect(await page.locator('.mobile-navigation .nav-item').first().evaluate((element) => element.getBoundingClientRect().height)).toBeGreaterThanOrEqual(44);
 });
 
-test('has no critical shell accessibility violations', async ({ page }) => {
-  for (const route of ['/', '/polls', '/admin']) {
+test('keeps central routes within supported viewport widths', async ({ page }) => {
+  for (const width of [320, 600, 900, 1280]) {
+    await page.setViewportSize({width, height: 720});
+    for (const route of centralRoutes) {
+      await page.goto(route);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth), `${route} at ${width}px`).toBeLessThanOrEqual(width);
+    }
+  }
+});
+
+test('has no critical or serious shell accessibility violations', async ({ page }) => {
+  for (const route of centralRoutes) {
     await page.goto(route);
     const results = await new AxeBuilder({ page }).analyze();
-    expect(results.violations.filter(({ impact }) => impact === 'critical')).toEqual([]);
+    expect(results.violations.filter(({ impact }) => impact === 'critical' || impact === 'serious')).toEqual([]);
   }
 });
 
