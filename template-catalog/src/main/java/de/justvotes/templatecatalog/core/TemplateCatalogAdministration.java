@@ -22,10 +22,6 @@ public class TemplateCatalogAdministration implements ManageTemplateCatalog, Vie
         this.groups = groups;
     }
 
-//    private static String normalizedName(String name) {
-//        return name.trim().toLowerCase(Locale.ROOT);
-//    }
-
     @Override
     public OptionTemplate createTemplate(String name) {
         return Try.success(name)

@@ -47,7 +47,6 @@ public final class VoteManagement implements ManageVotes, ViewVotes, ManageAdmin
             return;
         }
         polls.findAllPublicActive()
-                .stream()
                 .forEach(poll -> poll.removeVoteForIdentity(oldIdentity)
                         .ifPresent(vote -> {
                             events.publish(new VoteRemovedForIdentityChange(
@@ -154,12 +153,11 @@ public final class VoteManagement implements ManageVotes, ViewVotes, ManageAdmin
         return poll;
     }
 
-    private Poll publiclyReadable(Poll.PollId pollId) {
+    private void publiclyReadable(Poll.PollId pollId) {
         Poll poll = loadAndExpireIfDue(pollId);
         if (!poll.isPubliclyReadable()) {
             throw new PollNotFoundException(pollId);
         }
-        return poll;
     }
 
     private Poll publiclyReadableResults(Poll.PollId pollId) {
