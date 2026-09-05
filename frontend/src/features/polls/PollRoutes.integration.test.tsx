@@ -232,9 +232,9 @@ describe('PollPage', () => {
         renderPollPage();
 
         expect(await screen.findByRole('heading', {name: 'Team-Ausflug', level: 3})).toBeVisible();
-        expect(screen.getByRole('complementary', {name: 'Poll-Metadaten'})).toHaveTextContent('01.08.2026');
-        expect(screen.getByRole('complementary', {name: 'Poll-Metadaten'})).toHaveTextContent('01.01.2099');
-        expect(screen.getByRole('complementary', {name: 'Poll-Metadaten'})).toHaveTextContent('1');
+        expect(screen.getByRole('complementary', {name: 'Abstimmungs-Metadaten'})).toHaveTextContent('01.08.2026');
+        expect(screen.getByRole('complementary', {name: 'Abstimmungs-Metadaten'})).toHaveTextContent('01.01.2099');
+        expect(screen.getByRole('complementary', {name: 'Abstimmungs-Metadaten'})).toHaveTextContent('1');
         expect(await screen.findByText('Nach eigener Stimme')).toBeVisible();
         expect(screen.getByRole('radio', {name: 'Apfel'}).parentElement).toHaveTextContent('Optionsnummer 7');
         expect(screen.getByRole('radio', {name: 'Zebra'}).parentElement).toHaveTextContent('Optionsnummer 2');
@@ -266,7 +266,7 @@ describe('PollPage', () => {
 
         await waitFor(() => expect(castVote).toHaveBeenCalledWith(poll.id, targetOption));
         expect(await screen.findByText(new RegExp(feedback))).toBeVisible();
-        expect(await screen.findByRole('link', {name: 'Poll-Ergebnisse'})).toHaveAttribute('href', `/poll/results/${poll.id}`);
+        expect(await screen.findByRole('link', {name: 'Abstimmung - Ergebnisse'})).toHaveAttribute('href', `/poll/results/${poll.id}`);
     });
 
     it('keeps the current vote visible and blocks competing input during a mutation', async () => {
@@ -314,7 +314,7 @@ describe('PollPage', () => {
         expect(await screen.findByText('Ergebnisse werden nach eigener Stimme freigegeben.')).toBeVisible();
         expect(screen.getByRole('heading', {name: 'Team-Ausflug', level: 3})).toBeVisible();
         expect(screen.queryByText('Daten konnten nicht geladen werden')).toBeNull();
-        expect(screen.queryByRole('link', {name: 'Poll-Ergebnisse'})).toBeNull();
+        expect(screen.queryByRole('link', {name: 'Abstimmung - Ergebnisse'})).toBeNull();
     });
 
     it('does not hide a non-results-forbidden error behind the not-voted state', async () => {
@@ -336,16 +336,16 @@ describe('PollPage', () => {
 
         renderPollPage();
 
-        expect(await screen.findByRole('link', {name: 'Poll-Ergebnisse'})).toBeVisible();
+        expect(await screen.findByRole('link', {name: 'Abstimmung - Ergebnisse'})).toBeVisible();
         const invalidation = queryClient.invalidateQueries({queryKey: queryKeys.pollResults(poll.id)});
         await waitFor(() => expect(getPollResults).toHaveBeenCalledTimes(2));
-        expect(screen.queryByRole('link', {name: 'Poll-Ergebnisse'})).toBeNull();
+        expect(screen.queryByRole('link', {name: 'Abstimmung - Ergebnisse'})).toBeNull();
         rejectRefetch?.(problemError({code: 'results-not-available'}, 403));
         await invalidation;
 
         expect(await screen.findByText('Ergebnisse werden nach eigener Stimme freigegeben.')).toBeVisible();
         expect(screen.getByRole('radio', {name: 'Apfel'})).not.toBeChecked();
-        expect(screen.queryByRole('link', {name: 'Poll-Ergebnisse'})).toBeNull();
+        expect(screen.queryByRole('link', {name: 'Abstimmung - Ergebnisse'})).toBeNull();
         expect(getPollResults).toHaveBeenCalledTimes(2);
     });
 
@@ -357,9 +357,9 @@ describe('PollPage', () => {
 
         renderPollPage();
 
-        expect(await screen.findByText(/Dieser Poll ist nicht mehr aktiv.*abgelaufen/)).toBeVisible();
+        expect(await screen.findByText(/Diese Abstimmung ist nicht mehr aktiv.*abgelaufen/)).toBeVisible();
         expect(screen.getByRole('radio', {name: 'Apfel'})).toBeDisabled();
-        expect(await screen.findByRole('link', {name: 'Poll-Ergebnisse'})).toBeVisible();
+        expect(await screen.findByRole('link', {name: 'Abstimmung - Ergebnisse'})).toBeVisible();
     });
 
     it('uses the safe 404 state for private poll data and never loads its results', async () => {
@@ -429,7 +429,7 @@ describe('ResultsPage', () => {
         expect(screen.getByRole('region', {name: 'Ergebnisübersicht'})).toHaveTextContent('67 %');
         expect(screen.getByText('33 %')).toBeVisible();
         expect(screen.getAllByText('Gewinner')).toHaveLength(2);
-        expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual(['Apfel', 'Zebra', 'Polls', 'Audit Log']);
+        expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual(['Apfel', 'Zebra', 'Abstimmungen', 'Audit Log']);
 
         const zeroResult = {...result, totalVotes: 0, options: result.options.map((option) => ({...option, voteCount: 0, votes: []}))};
         vi.mocked(apiClient.getPollResults).mockResolvedValue(zeroResult);
@@ -533,7 +533,7 @@ describe('ResultsPage', () => {
         expect(screen.getAllByRole('listitem').map((item) => item.textContent)).toEqual([
             expect.stringContaining('first.identity'), expect.stringContaining('second.identity'),
         ]);
-        expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual(['Poll-Ergebnisse', 'Audit Log']);
+        expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual(['Abstimmung - Ergebnisse', 'Audit Log']);
 
         fireEvent.click(screen.getByRole('link', {name: 'Audit Log'}));
         expect(screen.getByText('Audit log')).toBeVisible();
@@ -707,27 +707,27 @@ describe('AuditPage', () => {
         expect(await screen.findByRole('heading', {name: 'Audit Log', level: 1})).toBeVisible();
         expect(await screen.findByRole('heading', {name: 'Stimme administrativ entfernt', level: 3})).toBeVisible();
         expect(screen.getAllByRole('heading', {level: 3}).map((heading) => heading.textContent)).toEqual([
-            'Stimme administrativ entfernt', 'Stimme abgegeben', 'Poll veröffentlicht',
+            'Stimme administrativ entfernt', 'Stimme abgegeben', 'Abstimmung veröffentlicht',
         ]);
         expect(screen.getAllByText('alice')).toHaveLength(3);
         expect(screen.getByText('Ja')).toBeVisible();
         expect(screen.getByText('Optionsnummer 1')).toBeVisible();
         expect(screen.getByText('Korrektur')).toBeVisible();
         expect(screen.getAllByText(/01\.08\.2026/).length).toBeGreaterThan(0);
-        expect(screen.getByRole('link', {name: 'Polls'})).toHaveAttribute('href', '/poll/poll-1');
-        expect(screen.getByRole('link', {name: 'Poll-Ergebnisse'})).toHaveAttribute('href', '/poll/results/poll-1');
+        expect(screen.getByRole('link', {name: 'Abstimmungen'})).toHaveAttribute('href', '/poll/poll-1');
+        expect(screen.getByRole('link', {name: 'Abstimmung - Ergebnisse'})).toHaveAttribute('href', '/poll/results/poll-1');
     });
 
     it('lokalisiert jedes Vertrags-Domaenenereignis und behandelt unbekannte zukuenftige Werte sicher', async () => {
         const knownEvents = [
-            ['PollPublished', 'Poll veröffentlicht', 'Poll published'],
-            ['PollExpired', 'Poll abgelaufen', 'Poll expired'],
-            ['PollArchived', 'Poll archiviert', 'Poll archived'],
-            ['PollRestoredFromArchive', 'Poll aus Archiv wiederhergestellt', 'Poll restored from archive'],
+            ['PollPublished', 'Abstimmung veröffentlicht', 'Poll published'],
+            ['PollExpired', 'Abstimmung abgelaufen', 'Poll expired'],
+            ['PollArchived', 'Abstimmung archiviert', 'Poll archived'],
+            ['PollRestoredFromArchive', 'Abstimmung aus Archiv wiederhergestellt', 'Poll restored from archive'],
             ['PollExpiryChanged', 'Ablauf geändert', 'Expiry changed'],
-            ['PollReopened', 'Poll wieder geöffnet', 'Poll reopened'],
-            ['PollSoftDeleted', 'Poll soft gelöscht', 'Poll soft-deleted'],
-            ['PollRestored', 'Poll wiederhergestellt', 'Poll restored'],
+            ['PollReopened', 'Abstimmung wieder geöffnet', 'Poll reopened'],
+            ['PollSoftDeleted', 'Abstimmung soft gelöscht', 'Poll soft-deleted'],
+            ['PollRestored', 'Abstimmung wiederhergestellt', 'Poll restored'],
             ['VoteCast', 'Stimme abgegeben', 'Vote cast'],
             ['VoteReplaced', 'Stimme ersetzt', 'Vote replaced'],
             ['VoteWithdrawn', 'Stimme zurückgenommen', 'Vote withdrawn'],

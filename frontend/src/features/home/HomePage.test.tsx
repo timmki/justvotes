@@ -195,11 +195,11 @@ describe('HomePage discovery', () => {
         const featuredSection = await screen.findByRole('region', {name: 'Im Fokus'});
         const featuredCard = await within(featuredSection).findByRole('link', {name: /Same time active poll/});
         expect(featuredCard).toHaveClass('featured-poll-card');
-        expect(screen.getByRole('list', {name: 'Neueste öffentliche Polls'})).toHaveTextContent('Newest expired poll');
-        expect(screen.getByRole('list', {name: 'Neueste öffentliche Polls'}).textContent)
+        expect(screen.getByRole('list', {name: 'Neueste öffentliche Abstimmungen'})).toHaveTextContent('Newest expired poll');
+        expect(screen.getByRole('list', {name: 'Neueste öffentliche Abstimmungen'}).textContent)
             .toMatch(/Newest expired poll[\s\S]*Same time active poll[\s\S]*Newest active poll/);
-        expect(screen.getByText('Aktive öffentliche Polls').parentElement).toHaveTextContent('2');
-        expect(screen.getByText('Öffentliche Polls gesamt').parentElement).toHaveTextContent('3');
+        expect(screen.getByText('Aktive öffentliche Abstimmungen').parentElement).toHaveTextContent('2');
+        expect(screen.getByText('Öffentliche Abstimmungen gesamt').parentElement).toHaveTextContent('3');
         expect(screen.getByText('Öffentliche Stimmen').parentElement).toHaveTextContent('10');
         expect(vi.mocked(apiClient.getPublicPolls)).toHaveBeenCalledTimes(1);
         expect(getPoll).not.toHaveBeenCalled();
@@ -211,9 +211,9 @@ describe('HomePage discovery', () => {
 
         renderHome();
 
-        expect(await screen.findByText('Keine aktive Poll')).toBeVisible();
-        expect(screen.getByText('Aktive öffentliche Polls').parentElement).toHaveTextContent('0');
-        expect(screen.getByText('Öffentliche Polls gesamt').parentElement).toHaveTextContent('1');
+        expect(await screen.findByText('Keine aktive Abstimmung')).toBeVisible();
+        expect(screen.getByText('Aktive öffentliche Abstimmungen').parentElement).toHaveTextContent('0');
+        expect(screen.getByText('Öffentliche Abstimmungen gesamt').parentElement).toHaveTextContent('1');
         expect(screen.getByText('Öffentliche Stimmen').parentElement).toHaveTextContent('5');
     });
 });

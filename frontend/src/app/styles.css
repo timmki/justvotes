@@ -2101,6 +2101,7 @@ main {
         position: sticky;
         z-index: 11;
         align-self: start;
+        min-width: 0;
         flex-direction: row;
         align-items: center;
         justify-content: space-between;
@@ -2112,15 +2113,15 @@ main {
         border-bottom: 1px solid var(--separator-soft);
     }
 
-    .brand { flex: 0 0 auto; padding: 0; }
-    .brand h2 { font-size: 1.1rem; }
+    .brand { flex: 1 1 auto; min-width: 0; padding: 0; }
+    .brand h2 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1.1rem; }
     .sidebar-navigation { display: none; }
-    .sidebar-bottom { display: block; margin: 0; }
-    .identity-shell-editor { display: flex; align-items: center; gap: .6rem; padding: 0; background: transparent; }
+    .sidebar-bottom { display: block; min-width: 0; flex: 0 1 auto; margin: 0; }
+    .identity-shell-editor { display: flex; align-items: center; min-width: 0; gap: .6rem; padding: 0; background: transparent; }
     .identity-shell-editor .eyebrow { display: none; }
     .identity-shell-editor h2 { max-width: 7rem; }
     .identity-shell-editor.is-editing { display: grid; align-items: stretch; gap: .45rem; padding: .85rem; }
-    .identity-shell-editor .identity-edit-button { min-height: 2.75rem; padding: 0 .5rem; font-size: .78rem; }
+    .identity-shell-editor .identity-edit-button { min-width: 0; min-height: 2.75rem; overflow: hidden; padding: 0 .5rem; text-overflow: ellipsis; white-space: nowrap; font-size: .78rem; }
     .mobile-navigation { display: block; }
 
     .header-inner { min-height: 3.9rem; }

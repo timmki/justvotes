@@ -3,10 +3,19 @@ import { expect, test } from '@playwright/test';
 
 const centralRoutes = ['/', '/polls', '/poll/example', '/poll/results/example', '/poll/results/example/option/1', '/poll/audit/example', '/404', '/admin', '/admin/votes', '/admin/polls', '/admin/groups', '/admin/templates', '/admin/create'];
 
+test.beforeEach(async ({ page }) => {
+  await page.route('**/api/v1/**', async (route) => {
+    const url = route.request().url();
+    if (url.endsWith('/admin/session')) return route.fulfill({ status: 401, json: { status: 401, code: 'unauthorized' } });
+    if (url.endsWith('/identity')) return route.fulfill({ json: { userID: null } });
+    return route.fulfill({ json: [] });
+  });
+});
+
 test('loads the app shell on a deep client route', async ({ page }) => {
   await page.goto('/poll/example');
 
-  await expect(page.getByRole('heading', { name: 'Poll', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Abstimmung', level: 1 })).toBeVisible();
   await page.locator('.back-link').click();
   await expect(page).toHaveURL(/\/polls$/);
 });
@@ -31,7 +40,7 @@ test('keeps the public navigation reachable on a narrow viewport', async ({ page
   const navigation = page.locator('.mobile-navigation');
   await expect(navigation).toBeVisible();
   await expect(navigation.getByRole('link', { name: 'Startseite' })).toBeVisible();
-  await expect(navigation.getByRole('link', { name: 'Polls' })).toHaveAttribute('aria-current', 'page');
+  await expect(navigation.getByRole('link', { name: 'Abstimmungen' })).toHaveAttribute('aria-current', 'page');
   await page.goto('/');
   await expect(page.getByRole('link', { name: 'Admin' })).toHaveAttribute('href', '/admin');
   const themeButton = page.getByRole('button', { name: 'Theme auswählen' });
@@ -44,7 +53,16 @@ test('keeps the public navigation reachable on a narrow viewport', async ({ page
   expect(await page.locator('.mobile-navigation .nav-item').first().evaluate((element) => element.getBoundingClientRect().height)).toBeGreaterThanOrEqual(44);
 });
 
+test('keeps a long configured app name inside a narrow viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 720 });
+  await page.goto('/');
+  await page.locator('.brand h2').evaluate((element) => { element.textContent = 'Verylongname Ofacompanyororganization'; });
+
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+});
+
 test('keeps the polls page header separated from its poll list status', async ({ page }) => {
+  await page.route('**/api/v1/polls', async (route) => route.fulfill({ json: [] }));
   await page.goto('/polls');
 
   const intro = await page.locator('.page-intro').boundingBox();
@@ -67,14 +85,15 @@ test('does not stretch the compact identity bar on a narrow viewport', async ({ 
 });
 
 test('keeps the polls intro close to the mobile navigation', async ({ page }) => {
-  await page.setViewportSize({ width: 565, height: 456 });
-  await page.goto('/polls');
+   await page.setViewportSize({ width: 565, height: 456 });
+   await page.goto('/polls');
+   await page.evaluate(() => document.fonts.ready);
 
-  const navigation = await page.locator('.mobile-navigation').boundingBox();
-  const intro = await page.locator('.page-intro').boundingBox();
-  expect(navigation).not.toBeNull();
-  expect(intro).not.toBeNull();
-  expect(intro!.y - (navigation!.y + navigation!.height)).toBeLessThanOrEqual(24);
+   await expect.poll(async () => page.evaluate(() => {
+       const navigation = document.querySelector('.mobile-navigation')?.getBoundingClientRect();
+       const intro = document.querySelector('.page-intro')?.getBoundingClientRect();
+       return navigation && intro ? intro.y - (navigation.y + navigation.height) : Number.POSITIVE_INFINITY;
+   })).toBeLessThanOrEqual(24);
 });
 
 test('keeps central routes within supported viewport widths', async ({ page }) => {
@@ -276,7 +295,7 @@ test('casts, replaces, repeats and restores a public poll vote', async ({ page }
   await page.setViewportSize({ width: 375, height: 800 });
   await page.goto('/poll/p_v1_vote');
   await expect(page.getByText('Ergebnisse werden nach eigener Stimme freigegeben.')).toBeVisible();
-  await expect(page.getByRole('complementary', { name: 'Poll-Metadaten' })).toContainText('Teilnahme');
+  await expect(page.getByRole('complementary', { name: 'Abstimmungs-Metadaten' })).toContainText('Teilnahme');
   await expect(page.getByRole('radio', { name: 'Apfel' })).toBeVisible();
   await page.getByRole('radio', { name: 'Apfel' }).focus();
   await page.keyboard.press('Space');
@@ -285,7 +304,7 @@ test('casts, replaces, repeats and restores a public poll vote', async ({ page }
   await expect(page.getByText('Stimme geändert.')).toBeVisible();
   await page.getByRole('radio', { name: 'Zebra' }).click();
   await expect(page.getByText('Stimme unverändert.')).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Poll-Ergebnisse' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Abstimmung - Ergebnisse' })).toBeVisible();
 
   await page.reload();
   await expect(page.getByRole('radio', { name: 'Zebra' })).toBeChecked();
@@ -340,9 +359,9 @@ test('disables voting for an expired poll and safely handles private or missing 
 
   await page.goto('/poll/p_expired');
   await expect(page.getByRole('heading', { name: 'Expired browser poll', level: 3 })).toBeVisible();
-  await expect(page.getByText(/Dieser Poll ist nicht mehr aktiv.*abgelaufen/)).toBeVisible();
+  await expect(page.getByText(/Diese Abstimmung ist nicht mehr aktiv.*abgelaufen/)).toBeVisible();
   await expect(page.getByRole('radio', { name: 'Yes' })).toBeDisabled();
-  await expect(page.getByRole('link', { name: 'Poll-Ergebnisse' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Abstimmung - Ergebnisse' })).toBeVisible();
 
   await page.goto('/poll/p_private');
   await expect(page.getByRole('heading', { name: 'Seite nicht gefunden', level: 3 })).toBeVisible();
@@ -473,7 +492,7 @@ test('loads a direct option link with the complete current voter list', async ({
   await expect(page.locator('time').first()).toContainText('31.08.2026');
   await expect(page.locator('time').first()).toHaveAttribute('datetime', '2026-08-31T12:01:00.000Z');
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
-  await page.getByRole('link', { name: 'Poll-Ergebnisse' }).focus();
+  await page.getByRole('link', { name: 'Abstimmung - Ergebnisse' }).focus();
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(/\/poll\/results\/p_option_details$/);
   await page.goto('/poll/results/p_option_details/option/7');
@@ -496,16 +515,16 @@ test('zeigt eine lokalisierte, zugaengliche oeffentliche Domaenenereignis-Timeli
   await expect(page.getByRole('complementary', { name: 'Audit-Kontext' })).toContainText('2');
   const timeline = page.getByRole('list', { name: 'Domänenereignis-Timeline' });
   await expect(timeline.getByRole('heading', { name: 'Stimme abgegeben', level: 3 })).toBeVisible();
-  await expect(timeline.getByRole('heading', { name: 'Poll veröffentlicht', level: 3 })).toBeVisible();
-  await expect(timeline.getByRole('heading', { level: 3 })).toHaveText(['Stimme abgegeben', 'Poll veröffentlicht']);
+  await expect(timeline.getByRole('heading', { name: 'Abstimmung veröffentlicht', level: 3 })).toBeVisible();
+  await expect(timeline.getByRole('heading', { level: 3 })).toHaveText(['Stimme abgegeben', 'Abstimmung veröffentlicht']);
   await expect(timeline.locator('.audit-entry')).toHaveCount(2);
   await expect(timeline).toContainText('identity-with-a-very-long-name-that-must-break');
   await expect(timeline).toContainText('alice');
   await expect(timeline).toContainText('Stimmzeitpunkt');
   await expect(timeline).toContainText('An equally long poll option text that remains readable');
   await expect(timeline.locator('time').first()).toHaveAttribute('datetime', '2026-08-31T12:01:00.000Z');
-  await expect(page.locator('#main-content').getByRole('link', { name: 'Polls' })).toHaveAttribute('href', '/poll/p_audit_browser');
-  await expect(page.getByRole('link', { name: 'Poll-Ergebnisse' })).toHaveAttribute('href', '/poll/results/p_audit_browser');
+  await expect(page.locator('#main-content').getByRole('link', { name: 'Abstimmungen' })).toHaveAttribute('href', '/poll/p_audit_browser');
+  await expect(page.getByRole('link', { name: 'Abstimmung - Ergebnisse' })).toHaveAttribute('href', '/poll/results/p_audit_browser');
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
 
   const accessibility = await new AxeBuilder({ page }).analyze();
@@ -621,7 +640,7 @@ test('logs in, restores the active admin area after reload, and logs out', async
   await expect(page.locator('.back-link')).toHaveAttribute('href', '/');
   await page.goto('/admin');
   await expect(page.getByRole('heading', { name: 'Stimmen', level: 3 })).toBeVisible();
-  await expect(page.locator('.sidebar-navigation').getByRole('link', { name: 'Polls' })).toBeVisible();
+  await expect(page.locator('.sidebar-navigation').getByRole('link', { name: 'Abstimmungen' })).toBeVisible();
   await expect(page.locator('.sidebar-navigation').getByRole('link')).toHaveCount(5);
   await expect(page.locator('.sidebar-navigation').getByRole('link', { name: 'Stimmen' })).toHaveAttribute('aria-current', 'page');
   await page.reload();
@@ -632,7 +651,7 @@ test('logs in, restores the active admin area after reload, and logs out', async
   await expect(mobileNavigation.getByRole('link')).toHaveCount(5);
   await expect(mobileNavigation.getByRole('link', { name: 'Stimmen' })).toHaveAttribute('aria-current', 'page');
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
-  for (const [label, path] of [['Stimmen', '/admin/votes'], ['Polls', '/admin/polls'], ['Vorlagengruppen', '/admin/groups'], ['Optionsvorlagen', '/admin/templates'], ['Poll erstellen', '/admin/create']] as const) {
+  for (const [label, path] of [['Stimmen', '/admin/votes'], ['Abstimmungen', '/admin/polls'], ['Vorlagengruppen', '/admin/groups'], ['Optionsvorlagen', '/admin/templates'], ['Abstimmung erstellen', '/admin/create']] as const) {
     const link = mobileNavigation.getByRole('link', { name: label });
     await link.focus();
     await page.keyboard.press('Enter');
@@ -720,7 +739,7 @@ test('shows login on session expiry and restores the previous admin route', asyn
   });
 
   await page.goto('/admin/polls');
-  await expect(page.getByRole('heading', { name: 'Polls', level: 3 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Abstimmungen', level: 3 })).toBeVisible();
   expired = true;
   await page.reload();
 
@@ -730,8 +749,8 @@ test('shows login on session expiry and restores the previous admin route', asyn
   await page.getByLabel('Passwort').fill('secret');
   await page.getByRole('button', { name: 'Anmelden' }).click();
 
-  await expect(page.getByRole('heading', { name: 'Polls', level: 3 })).toBeVisible();
-  await expect(page.locator('.sidebar-navigation').getByRole('link', { name: 'Polls' })).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByRole('heading', { name: 'Abstimmungen', level: 3 })).toBeVisible();
+  await expect(page.locator('.sidebar-navigation').getByRole('link', { name: 'Abstimmungen' })).toHaveAttribute('aria-current', 'page');
 });
 
 test('runs an admin poll through publication, expiry, archive, restore and destructive deletion', async ({ page }) => {
@@ -771,7 +790,7 @@ test('runs an admin poll through publication, expiry, archive, restore and destr
 
   await page.setViewportSize({ width: 320, height: 720 });
   await page.goto('/admin/create');
-  await page.getByLabel('Poll-Titel').fill(lifecycleTitle);
+  await page.getByLabel('Abstimmungs-Titel').fill(lifecycleTitle);
   await page.getByLabel('Vorlagengruppe').selectOption('g_v1_lifecycle');
   await page.getByRole('button', { name: 'Speichern' }).click();
   await expect(page.getByRole('heading', { name: lifecycleTitle, level: 4 })).toBeVisible();

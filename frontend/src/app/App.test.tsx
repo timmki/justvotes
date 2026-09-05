@@ -59,7 +59,7 @@ describe('app shell', () => {
         expect(screen.getAllByRole('navigation', {name: 'Hauptnavigation'})).toHaveLength(2);
         expect(screen.getAllByRole('link', {name: 'Startseite'})).toHaveLength(3);
         expect(screen.getAllByRole('heading', {level: 1})).toHaveLength(1);
-        expect(screen.getByRole('heading', {name: 'Öffentliche Polls', level: 1})).toBeVisible();
+        expect(screen.getByRole('heading', {name: 'Öffentliche Abstimmungen', level: 1})).toBeVisible();
     });
 
     it('öffnet den gemeinsamen Identitätseditor über die Shell-Identität', async () => {
@@ -82,7 +82,7 @@ describe('app shell', () => {
 
         expect(screen.getByRole('heading', {name: 'JustVotes'})).toBeVisible();
         const navigation = screen.getAllByRole('navigation', {name: 'Hauptnavigation'})[0];
-        expect(within(navigation).getByRole('link', {name: 'Polls'})).toBeVisible();
+        expect(within(navigation).getByRole('link', {name: 'Abstimmungen'})).toBeVisible();
         expect(within(navigation).queryByRole('link', {name: 'Admin'})).toBeNull();
         expect(within(screen.getByRole('contentinfo')).getByRole('link', {name: 'Admin'})).toHaveAttribute('href', '/admin');
         expect(screen.getByRole('button', {name: 'English anzeigen'})).toBeVisible();
@@ -193,7 +193,7 @@ describe('app shell', () => {
         expect(button).toHaveFocus();
 
         fireEvent.click(button);
-        fireEvent.click(screen.getAllByRole('link', {name: 'Polls'})[0]);
+        fireEvent.click(screen.getAllByRole('link', {name: 'Abstimmungen'})[0]);
         expect(screen.queryByRole('radiogroup', {name: 'Theme auswählen'})).toBeNull();
         expect(button).toHaveFocus();
     });
@@ -307,14 +307,14 @@ describe('app shell', () => {
         vi.spyOn(apiClient, 'getAdminPolls').mockResolvedValue([]);
         renderApp('/admin/polls');
 
-        expect(await screen.findByRole('heading', {name: 'Polls', level: 3})).toBeVisible();
+        expect(await screen.findByRole('heading', {name: 'Abstimmungen', level: 3})).toBeVisible();
         const navigations = screen.getAllByRole('navigation', {name: 'Admin-Navigation'})
             .filter((navigation) => navigation.classList.contains('sidebar-navigation') || navigation.classList.contains('mobile-navigation'));
         expect(navigations).toHaveLength(2);
         expect(screen.getAllByRole('navigation', {name: 'Admin-Navigation'})).toHaveLength(2);
         for (const navigation of navigations) {
             expect(within(navigation).getAllByRole('link')).toHaveLength(5);
-            expect(within(navigation).getByRole('link', {name: 'Polls'})).toHaveAttribute('aria-current', 'page');
+            expect(within(navigation).getByRole('link', {name: 'Abstimmungen'})).toHaveAttribute('aria-current', 'page');
             expect(within(navigation).queryByRole('link', {name: 'Startseite'})).toBeNull();
         }
         expect(screen.queryAllByRole('navigation', {name: 'Hauptnavigation'})).toHaveLength(0);
@@ -337,7 +337,7 @@ describe('app shell', () => {
         vi.spyOn(apiClient, 'getAdminPolls').mockResolvedValue([]);
         renderApp('/admin/polls');
 
-        expect(await screen.findByRole('heading', {name: 'Polls', level: 3})).toBeVisible();
+        expect(await screen.findByRole('heading', {name: 'Abstimmungen', level: 3})).toBeVisible();
         fireEvent.click(screen.getByRole('button', {name: 'English anzeigen'}));
 
         const adminNavigation = screen.getAllByRole('navigation', {name: 'Administration navigation'})
@@ -368,7 +368,7 @@ describe('app shell', () => {
         fireEvent.change(screen.getByLabelText('Passwort'), {target: {value: 'secret'}});
         fireEvent.click(screen.getByRole('button', {name: 'Anmelden'}));
 
-        expect(await screen.findByRole('heading', {name: 'Öffentliche Polls', level: 1})).toBeVisible();
+        expect(await screen.findByRole('heading', {name: 'Öffentliche Abstimmungen', level: 1})).toBeVisible();
     });
 });
 

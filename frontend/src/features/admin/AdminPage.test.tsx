@@ -116,7 +116,7 @@ describe('AdminPage session gate', () => {
         fireEvent.change(screen.getByLabelText('Passwort'), {target: {value: 'secret'}});
         fireEvent.click(screen.getByRole('button', {name: 'Anmelden'}));
 
-        expect(await screen.findByRole('heading', {name: 'Polls', level: 3})).toBeVisible();
+        expect(await screen.findByRole('heading', {name: 'Abstimmungen', level: 3})).toBeVisible();
     });
 
     it('removes protected content and shows login when the visible area expires', async () => {
@@ -462,7 +462,7 @@ describe('Admin vote administration', () => {
 
         expect(await screen.findByRole('heading', {name: 'Stimmen', level: 3})).toBeVisible();
         expect(screen.getByText('Aktuelle Stimmen').parentElement).toHaveTextContent('51');
-        expect(screen.getByText('Betroffene Polls').parentElement).toHaveTextContent('2');
+        expect(screen.getByText('Betroffene Abstimmungen').parentElement).toHaveTextContent('2');
         expect(screen.getByText('Unterschiedliche Identitäten').parentElement).toHaveTextContent('2');
         const voteList = screen.getByRole('list');
         expect(within(voteList).getAllByText('Alpha')).toHaveLength(50);
@@ -470,10 +470,10 @@ describe('Admin vote administration', () => {
         expect(getAdminVotes).toHaveBeenCalledWith(0, 50);
         expect(getAdminVotes).toHaveBeenCalledWith(1, 50);
 
-        fireEvent.change(screen.getByLabelText('Poll filtern'), {target: {value: 'p_v1_beta'}});
+        fireEvent.change(screen.getByLabelText('Abstimmung filtern'), {target: {value: 'p_v1_beta'}});
         expect(await within(voteList).findByText('Beta')).toBeVisible();
         expect(within(voteList).queryByText('Alpha')).toBeNull();
-        fireEvent.change(screen.getByLabelText('Poll filtern'), {target: {value: ''}});
+        fireEvent.change(screen.getByLabelText('Abstimmung filtern'), {target: {value: ''}});
 
         fireEvent.click(screen.getByRole('button', {name: 'Nächste Seite'}));
 
@@ -523,7 +523,7 @@ describe('Admin vote administration', () => {
         expect(invalidateQueries).toHaveBeenCalledWith({queryKey: queryKeys.pollAudit('p_v1_poll')});
         expect(await screen.findByText('Noch keine Daten vorhanden')).toBeVisible();
         expect(screen.queryByRole('dialog')).toBeNull();
-        expect(screen.getByLabelText('Poll filtern')).toHaveFocus();
+        expect(screen.getByLabelText('Abstimmung filtern')).toHaveFocus();
     });
 
     it('traps removal dialog focus, closes with Escape, and restores the trigger focus', async () => {
@@ -798,7 +798,7 @@ describe('Admin poll lifecycle', () => {
 
         renderAdmin('/admin/create');
 
-        const title = await screen.findByLabelText('Poll-Titel');
+        const title = await screen.findByLabelText('Abstimmungs-Titel');
         const group = screen.getByLabelText('Vorlagengruppe');
         fireEvent.change(title, {target: {value: 'A corrected title'}});
         fireEvent.change(group, {target: {value: 'g_v1_full'}});
@@ -820,7 +820,7 @@ describe('Admin poll lifecycle', () => {
 
         renderAdmin('/admin/create');
 
-        fireEvent.change(await screen.findByLabelText('Poll-Titel'), {target: {value: 'Created draft'}});
+        fireEvent.change(await screen.findByLabelText('Abstimmungs-Titel'), {target: {value: 'Created draft'}});
         fireEvent.change(screen.getByLabelText('Vorlagengruppe'), {target: {value: 'g_v1_full'}});
         fireEvent.click(screen.getByRole('button', {name: 'Speichern'}));
 
