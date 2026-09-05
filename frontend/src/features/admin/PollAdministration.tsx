@@ -98,8 +98,7 @@ function PollAdministrationCard({poll}: { poll: Poll }) {
         <div className="poll-admin-heading">
             <div><h4>{poll.title}</h4><p
                 className="poll-admin-meta">{t(poll.visibility === 'public' ? 'admin.public' : 'admin.private')} · {t(stateTranslationKey(poll.state))} · {poll.endsAt ? formatDate(poll.endsAt, locale) : t('admin.noExpiry')}</p>
-            </div>
-            <span className="poll-id">{poll.id}</span></div>
+             </div></div>
         <div className="poll-admin-columns">
             <section aria-labelledby={`snapshot-${poll.id}`}><h5 id={`snapshot-${poll.id}`}>{t('admin.snapshot')}</h5>
                 <p>

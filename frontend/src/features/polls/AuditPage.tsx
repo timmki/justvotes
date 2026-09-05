@@ -11,7 +11,7 @@ export function AuditPage() {
     const {t} = useI18n();
     const {pollId = ''} = useParams();
     const query = usePollAuditQuery(pollId);
-    return <DataPage eyebrow={`${t('common.pollLabel')} ${pollId}`} title={t('audit.title')}
+    return <DataPage eyebrow={t('common.pollLabel')} title={t('audit.title')}
                      description={t('common.auditDescription')}>
         <QueryState query={query}>{(entries) => entries.length === 0 ? <RouteState status="empty"/> :
             <AuditDetail projection={projectPollDomainEvents(entries, t)}/>}</QueryState>

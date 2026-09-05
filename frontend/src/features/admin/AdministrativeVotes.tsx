@@ -138,7 +138,7 @@ export function AdminVotes() {
             <ul className="admin-vote-list">{visibleVotes.map((vote) => <li className="admin-vote-item"
                                                                             key={vote.voteId}>
                 <div className="admin-vote-details">
-                    <strong>{vote.poll.title}</strong><span>{t('voteAdmin.pollId')}: {vote.poll.id}</span><span>{t('voteAdmin.option')} {vote.option.number}: {vote.option.text}</span><span>{vote.userID}</span><span>{t('voteAdmin.voteId')}: {vote.voteId}</span>
+                    <strong>{vote.poll.title}</strong><span>{t('voteAdmin.option')} {vote.option.number}: {vote.option.text}</span><span>{vote.userID}</span><span>{t('voteAdmin.voteId')}: {vote.voteId}</span>
                     <time dateTime={vote.votedAt}>{formatDate(vote.votedAt, locale)}</time>
                 </div>
                 <button className="secondary-button destructive-button" type="button" onClick={(event) => openRemoval(vote, event.currentTarget)}

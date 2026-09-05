@@ -54,7 +54,7 @@ describe('AdminPage session gate', () => {
         expect(screen.queryByLabelText('Benutzername')).toBeNull();
     });
 
-    it('shows five active subroute tabs and loads only the visible area', async () => {
+    it('loads only the visible area while leaving navigation to the shell', async () => {
         const getAdminSession = vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
         const getAdminVotes = vi.spyOn(apiClient, 'getAdminVotes').mockResolvedValue({
             votes: [],
@@ -69,8 +69,7 @@ describe('AdminPage session gate', () => {
         renderAdmin('/admin/votes');
 
         expect(await screen.findByRole('heading', {name: 'Stimmen', level: 3})).toBeVisible();
-        expect(screen.getAllByRole('link')).toHaveLength(5);
-        expect(screen.getByRole('link', {name: 'Stimmen'})).toHaveAttribute('aria-current', 'page');
+        expect(screen.queryAllByRole('link')).toHaveLength(0);
         expect(getAdminSession).toHaveBeenCalledTimes(1);
         expect(getAdminVotes).toHaveBeenCalledTimes(1);
         expect(getAdminPolls).not.toHaveBeenCalled();
@@ -118,7 +117,6 @@ describe('AdminPage session gate', () => {
         fireEvent.click(screen.getByRole('button', {name: 'Anmelden'}));
 
         expect(await screen.findByRole('heading', {name: 'Polls', level: 3})).toBeVisible();
-        expect(screen.getByRole('link', {name: 'Polls'})).toHaveAttribute('aria-current', 'page');
     });
 
     it('removes protected content and shows login when the visible area expires', async () => {
@@ -167,7 +165,6 @@ describe('AdminPage session gate', () => {
 
         expect(await screen.findByRole('alert')).toHaveTextContent('Die Anfrage konnte nicht verarbeitet werden.');
         expect(screen.getByRole('heading', {name: 'Stimmen', level: 3})).toBeVisible();
-        expect(screen.getByRole('link', {name: 'Stimmen'})).toHaveAttribute('aria-current', 'page');
     });
 
     it('searches templates and paginates in pages of twenty', async () => {
@@ -505,7 +502,7 @@ describe('Admin vote administration', () => {
 
         const vote = (await within(await screen.findByRole('list')).findByText('A poll')).closest('li');
         expect(vote).not.toBeNull();
-        expect(vote).toHaveTextContent('p_v1_poll');
+        expect(vote).not.toHaveTextContent('p_v1_poll');
         expect(vote).toHaveTextContent('Option 1: Yes');
         expect(vote).toHaveTextContent('v_v1_vote');
         fireEvent.click(within(vote as HTMLElement).getByRole('button', {name: 'Stimme entfernen'}));

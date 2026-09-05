@@ -19,7 +19,7 @@ export function PollPage() {
     const {t} = useI18n();
     const {pollId = ''} = useParams();
     const query = usePollQuery(pollId);
-    return <DataPage eyebrow={`${t('common.pollLabel')} ${pollId}`} title={t('polls.detail')}
+    return <DataPage eyebrow={t('common.pollLabel')} title={t('polls.detail')}
                      description={t('common.pollDescription')}>
         <QueryState query={query}>{(poll) => poll.visibility === 'public' ? <PollDetail poll={poll}/> :
             <RouteState status="error" error={notFoundError}/>}</QueryState>

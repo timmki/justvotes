@@ -150,7 +150,7 @@ describe('PollsPage', () => {
         const card = await screen.findByRole('link', {name: /Welcher Titel/});
         expect(card).toHaveAttribute('href', '/poll/opaque-poll-id-123456789');
         expect(card).toHaveTextContent('0');
-        expect(card).toHaveTextContent('opaque-poll-id-123456789');
+        expect(card).not.toHaveTextContent('opaque-poll-id-123456789');
         expect(card).toHaveTextContent('Admin');
         expect(card).toHaveTextContent('aktiv');
         expect(card).toHaveTextContent('05.01.2025');

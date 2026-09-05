@@ -72,7 +72,8 @@ describe('app shell', () => {
         expect(screen.getByRole('heading', {name: 'JustVotes'})).toBeVisible();
         const navigation = screen.getAllByRole('navigation', {name: 'Hauptnavigation'})[0];
         expect(within(navigation).getByRole('link', {name: 'Polls'})).toBeVisible();
-        expect(within(navigation).getByRole('link', {name: 'Admin'})).toBeVisible();
+        expect(within(navigation).queryByRole('link', {name: 'Admin'})).toBeNull();
+        expect(within(screen.getByRole('contentinfo')).getByRole('link', {name: 'Admin'})).toHaveAttribute('href', '/admin');
         expect(screen.getByRole('button', {name: 'English anzeigen'})).toBeVisible();
     });
 
@@ -183,16 +184,17 @@ describe('app shell', () => {
         renderApp('/admin/polls');
 
         expect(await screen.findByRole('heading', {name: 'Polls', level: 3})).toBeVisible();
-        const navigations = screen.getAllByRole('navigation', {name: 'Adminnavigation'})
+        const navigations = screen.getAllByRole('navigation', {name: 'Admin-Navigation'})
             .filter((navigation) => navigation.classList.contains('sidebar-navigation') || navigation.classList.contains('mobile-navigation'));
         expect(navigations).toHaveLength(2);
+        expect(screen.getAllByRole('navigation', {name: 'Admin-Navigation'})).toHaveLength(2);
         for (const navigation of navigations) {
             expect(within(navigation).getAllByRole('link')).toHaveLength(5);
             expect(within(navigation).getByRole('link', {name: 'Polls'})).toHaveAttribute('aria-current', 'page');
             expect(within(navigation).queryByRole('link', {name: 'Startseite'})).toBeNull();
         }
         expect(screen.queryAllByRole('navigation', {name: 'Hauptnavigation'})).toHaveLength(0);
-        expect(screen.queryByRole('link', {name: 'Startseite'})).toBeNull();
+        expect(screen.getByRole('link', {name: 'Startseite'})).toHaveAttribute('href', '/');
         expect(screen.queryByRole('link', {name: 'JustVotes'})).toBeNull();
     });
 
@@ -201,7 +203,7 @@ describe('app shell', () => {
         renderApp('/admin');
 
         expect(await screen.findByRole('heading', {name: 'Stimmen', level: 3})).toBeVisible();
-        const sidebar = screen.getAllByRole('navigation', {name: 'Adminnavigation'})
+        const sidebar = screen.getAllByRole('navigation', {name: 'Admin-Navigation'})
             .find((navigation) => navigation.classList.contains('sidebar-navigation'));
         expect(sidebar).toBeDefined();
         expect(within(sidebar!).getByRole('link', {name: 'Stimmen'})).toHaveAttribute('aria-current', 'page');
@@ -227,7 +229,7 @@ describe('app shell', () => {
         renderApp('/admin/polls');
 
         expect(await screen.findByLabelText('Benutzername')).toBeVisible();
-        expect(screen.queryAllByRole('navigation', {name: 'Adminnavigation'})).toHaveLength(0);
+        expect(screen.queryAllByRole('navigation', {name: 'Admin-Navigation'})).toHaveLength(0);
         expect(screen.queryAllByRole('navigation', {name: 'Hauptnavigation'})).toHaveLength(0);
         expect(screen.queryByRole('link', {name: 'JustVotes'})).toBeNull();
     });

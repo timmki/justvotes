@@ -31,7 +31,8 @@ test('keeps the public navigation reachable on a narrow viewport', async ({ page
   await expect(navigation).toBeVisible();
   await expect(navigation.getByRole('link', { name: 'Startseite' })).toBeVisible();
   await expect(navigation.getByRole('link', { name: 'Polls' })).toHaveAttribute('aria-current', 'page');
-  await expect(navigation.getByRole('link', { name: 'Admin' })).toBeVisible();
+  await page.goto('/');
+  await expect(page.getByRole('link', { name: 'Admin' })).toHaveAttribute('href', '/admin');
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
   expect(await page.locator('.mobile-navigation .nav-item').first().evaluate((element) => element.getBoundingClientRect().height)).toBeGreaterThanOrEqual(44);
 });
@@ -41,6 +42,49 @@ test('keeps central routes within supported viewport widths', async ({ page }) =
     await page.setViewportSize({width, height: 720});
     for (const route of centralRoutes) {
       await page.goto(route);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth), `${route} at ${width}px`).toBeLessThanOrEqual(width);
+    }
+  }
+});
+
+test('keeps populated public and admin surfaces within supported viewport widths', async ({ page }) => {
+  const poll = {
+    id: 'p_responsive',
+    title: 'Responsive browser poll',
+    visibility: 'public',
+    state: 'active',
+    createdAt: '2026-08-31T12:00:00.000Z',
+    endsAt: '2099-01-01T00:00:00.000Z',
+    totalVotes: 1,
+    templateGroup: { id: 'g_responsive', name: 'Responsive group', description: '' },
+    templateSnapshotOptions: [{ number: 1, text: 'Yes' }, { number: 2, text: 'No' }],
+    options: [{ number: 1, text: 'Yes' }, { number: 2, text: 'No' }],
+  };
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request();
+    const url = request.url();
+    if (url.endsWith('/admin/session')) return route.fulfill({ status: 204 });
+    if (url.endsWith('/polls/p_responsive/results')) return route.fulfill({ json: {
+      ...poll,
+      options: [{ number: 1, text: 'Yes', voteCount: 1, votes: [{ userID: 'alice', votedAt: poll.createdAt }] }, { number: 2, text: 'No', voteCount: 0, votes: [] }],
+    } });
+    if (url.endsWith('/polls/p_responsive/audit')) return route.fulfill({ json: [
+      { event: 'VoteCast', actor: 'alice', occurredAt: poll.createdAt, selection: 'Yes', userID: 'alice', optionNumber: 1, votedAt: poll.createdAt },
+    ] });
+    if (url.endsWith('/polls/p_responsive')) return route.fulfill({ json: poll });
+    if (url.endsWith('/admin/polls')) return route.fulfill({ json: [poll] });
+    if (url.endsWith('/polls')) return route.fulfill({ json: [poll] });
+    return route.fulfill({ json: [] });
+  });
+
+  for (const width of [320, 600, 900, 1280]) {
+    await page.setViewportSize({width, height: 720});
+    for (const route of ['/polls', '/poll/p_responsive', '/poll/results/p_responsive', '/poll/results/p_responsive/option/1', '/poll/audit/p_responsive', '/admin/polls']) {
+      await page.goto(route);
+      const content = route.includes('/audit')
+        ? page.getByRole('heading', { name: 'Stimme abgegeben', level: 3 })
+        : page.getByText('Responsive browser poll').first();
+      await expect(content).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth), `${route} at ${width}px`).toBeLessThanOrEqual(width);
     }
   }
@@ -119,7 +163,7 @@ test('renders public poll cards from one list request without N+1 detail request
 
   const card = page.getByRole('link', { name: /A long poll title/ });
   await expect(card).toContainText('0');
-  await expect(card).toContainText('opaque-poll-id-123456789');
+  await expect(card).not.toContainText('opaque-poll-id-123456789');
   await expect(card).toContainText('Admin');
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
   expect(requests.filter((url) => url.endsWith('/polls'))).toHaveLength(1);
@@ -522,9 +566,14 @@ test('logs in, restores the active admin area after reload, and logs out', async
   await page.getByRole('button', { name: 'Anmelden' }).click();
 
   await expect(page.getByRole('heading', { name: 'Stimmen', level: 3 })).toBeVisible();
+  await expect(page.locator('.back-link')).toHaveAttribute('href', '/');
+  await page.goto('/admin/polls');
+  await expect(page.locator('.back-link')).toHaveAttribute('href', '/');
+  await page.goto('/admin');
+  await expect(page.getByRole('heading', { name: 'Stimmen', level: 3 })).toBeVisible();
   await expect(page.locator('.sidebar-navigation').getByRole('link', { name: 'Polls' })).toBeVisible();
   await expect(page.locator('.sidebar-navigation').getByRole('link')).toHaveCount(5);
-  await expect(page.locator('.admin-tabs').getByRole('link', { name: 'Stimmen' })).toHaveAttribute('aria-current', 'page');
+  await expect(page.locator('.sidebar-navigation').getByRole('link', { name: 'Stimmen' })).toHaveAttribute('aria-current', 'page');
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Stimmen', level: 3 })).toBeVisible();
   await page.setViewportSize({ width: 320, height: 720 });
@@ -578,7 +627,9 @@ test('removes an administrative vote through the browser flow', async ({ page })
   });
 
   await page.goto('/admin/votes');
-  await expect(page.locator('.admin-vote-list').getByText('Browser poll')).toBeVisible();
+  const adminVote = page.locator('.admin-vote-list').getByText('Browser poll').locator('..');
+  await expect(adminVote).toBeVisible();
+  await expect(adminVote).not.toContainText('p_v1_browser');
   await expect(page.getByText('Aktuelle Stimmen').locator('..')).toContainText('1');
   await page.getByRole('button', { name: 'Stimme entfernen' }).click();
 
@@ -592,12 +643,17 @@ test('removes an administrative vote through the browser flow', async ({ page })
 
   await page.goto('/poll/results/p_v1_browser');
   await expect(page.getByRole('heading', { name: 'Browser poll', level: 3 })).toBeVisible();
+  await expect(page.getByRole('main')).not.toContainText('p_v1_browser');
+  await expect(page.getByRole('heading', { name: 'Browser poll', level: 3 })).not.toHaveAccessibleName(/p_v1_browser/);
   await expect(page.locator('.result-summary dd')).toHaveText(['0', '0 %']);
   await page.goto('/poll/results/p_v1_browser/option/1');
   await expect(page.getByText('Noch keine Daten vorhanden')).toBeVisible();
   await expect(page.getByText('alice')).toHaveCount(0);
+  await expect(page.getByRole('main')).not.toContainText('p_v1_browser');
   await page.goto('/poll/audit/p_v1_browser');
   await expect(page.getByRole('heading', { name: 'Stimme administrativ entfernt', level: 3 })).toBeVisible();
+  await expect(page.getByRole('main')).not.toContainText('p_v1_browser');
+  await expect(page.getByRole('heading', { name: 'Stimme administrativ entfernt', level: 3 })).not.toHaveAccessibleName(/p_v1_browser/);
 });
 
 test('shows login on session expiry and restores the previous admin route', async ({ page }) => {
@@ -625,7 +681,7 @@ test('shows login on session expiry and restores the previous admin route', asyn
   await page.getByRole('button', { name: 'Anmelden' }).click();
 
   await expect(page.getByRole('heading', { name: 'Polls', level: 3 })).toBeVisible();
-  await expect(page.locator('.admin-tabs').getByRole('link', { name: 'Polls' })).toHaveAttribute('aria-current', 'page');
+  await expect(page.locator('.sidebar-navigation').getByRole('link', { name: 'Polls' })).toHaveAttribute('aria-current', 'page');
 });
 
 test('runs an admin poll through publication, expiry, archive, restore and destructive deletion', async ({ page }) => {
@@ -669,6 +725,7 @@ test('runs an admin poll through publication, expiry, archive, restore and destr
   await page.getByLabel('Vorlagengruppe').selectOption('g_v1_lifecycle');
   await page.getByRole('button', { name: 'Speichern' }).click();
   await expect(page.getByRole('heading', { name: lifecycleTitle, level: 4 })).toBeVisible();
+  await expect(page.locator('.poll-admin-card')).not.toContainText('p_v1_lifecycle');
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
 
   await page.getByLabel('Veröffentlichen').fill('2099-01-01T12:00');

@@ -17,7 +17,7 @@ export function ResultsPage() {
     const {pollId = ''} = useParams();
     const identityQuery = useApiQuery(queryKeys.identity, () => apiClient.getIdentity());
     const query = usePollingResultsQuery(pollId);
-    return <DataPage eyebrow={`${t('common.pollLabel')} ${pollId}`} title={t('polls.results')}
+    return <DataPage eyebrow={t('common.pollLabel')} title={t('polls.results')}
                      description={t('common.resultsDescription')}>
         <QueryState query={query}>{(results) => <ResultsDetail results={results}
                                                                    identity={identityQuery.data?.userID ?? null}

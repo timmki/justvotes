@@ -70,7 +70,6 @@ function NavigationLinks() {
     return <ul className="nav-list">
         <li><NavLink className="nav-item" to="/" end>{t('common.home')}</NavLink></li>
         <li><NavLink className="nav-item" to="/polls">{t('common.polls')}</NavLink></li>
-        <li><NavLink className="nav-item" to="/admin">{t('common.admin')}</NavLink></li>
     </ul>;
 }
 
@@ -119,7 +118,7 @@ export function Header() {
 function routeContext(pathname: string, t: ReturnType<typeof useI18n>['t']) {
     const route = routeKind(pathname);
     if (route.kind === 'home') return null;
-    if (route.kind === 'admin') return null;
+    if (route.kind === 'admin') return {to: '/', label: t('common.home')};
     if (route.kind === 'polls') return {to: '/', label: t('common.home')};
     if (route.kind === 'results' || route.kind === 'option' || route.kind === 'audit') {
         return {to: route.pollId ? `/poll/${route.pollId}` : '/polls', label: t('polls.detail')};

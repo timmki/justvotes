@@ -1,5 +1,5 @@
 import {type FormEvent, useState, useSyncExternalStore} from 'react';
-import {NavLink, useLocation, useNavigate} from 'react-router-dom';
+import {useLocation, useNavigate} from 'react-router-dom';
 import {apiClient, sessionCoordinator} from '../../shared/api/client';
 import {ApiError, type FrontendError} from '../../shared/api/errors';
 import {queryClient} from '../../shared/api/queryClient';
@@ -89,14 +89,6 @@ function AdminShell({section}: { section: AdminSectionName }) {
     const navigate = useNavigate();
     const [pending, setPending] = useState(false);
     const [error, setError] = useState<FrontendError | null>(null);
-    const tabs: { section: AdminSectionName; path: string; label: string }[] = [
-        {section: 'votes', path: '/admin/votes', label: t('admin.votes')},
-        {section: 'polls', path: '/admin/polls', label: t('admin.polls')},
-        {section: 'groups', path: '/admin/groups', label: t('admin.groups')},
-        {section: 'templates', path: '/admin/templates', label: t('admin.templates')},
-        {section: 'create', path: '/admin/create', label: t('admin.createPoll')},
-    ];
-
     async function logout() {
         setPending(true);
         setError(null);
@@ -112,10 +104,6 @@ function AdminShell({section}: { section: AdminSectionName }) {
 
     return <PageFrame eyebrow={t('common.privateArea')} title={t('admin.title')}
                       description={t('common.adminDescription')}>
-        <nav className="admin-tabs" aria-label={t('common.adminNavigation')}>
-            {tabs.map((tab) => <NavLink key={tab.section} className="admin-tab" to={tab.path}
-                                        aria-current={section === tab.section ? 'page' : undefined}>{tab.label}</NavLink>)}
-        </nav>
         <div className="admin-toolbar">
             <button className="text-button" type="button" onClick={logout}
                     disabled={pending}>{pending ? t('common.loggingOut') : t('common.logout')}</button>

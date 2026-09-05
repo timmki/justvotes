@@ -266,7 +266,7 @@ button:active, a:active {
     background: var(--surface);
 }
 
-.mobile-navigation .nav-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.mobile-navigation .nav-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .mobile-navigation .admin-nav-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
 .mobile-navigation .nav-item {
@@ -439,37 +439,6 @@ main {
     border-radius: .7rem;
     color: inherit;
     background: var(--raised);
-}
-
-.admin-tabs {
-    display: flex;
-    flex-wrap: wrap;
-    gap: .45rem;
-    padding: .35rem;
-    border: 1px solid var(--separator);
-    border-radius: 1rem;
-    background: var(--raised);
-}
-
-.admin-tab {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex: 1 1 8rem;
-    min-height: 2.75rem;
-    padding: .7rem .8rem;
-    border-radius: .7rem;
-    color: var(--muted);
-    font-size: .85rem;
-    font-weight: 700;
-    text-align: center;
-    text-decoration: none;
-}
-
-.admin-tab:hover, .admin-tab[aria-current='page'] {
-    color: inherit;
-    background: var(--surface);
-    box-shadow: var(--shadow);
 }
 
 .admin-toolbar {
@@ -865,6 +834,12 @@ main {
 .home-discovery {
     display: grid;
     gap: 2rem;
+}
+
+.home-footer {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0 .25rem;
 }
 
 .home-featured {
@@ -1922,11 +1897,6 @@ main {
 
 .poll-card-meta > * {
     min-width: 0;
-}
-
-.poll-id {
-    overflow-wrap: anywhere;
-    font-family: monospace;
 }
 
 .route-state.error {

@@ -52,7 +52,7 @@ export const messages = {
             history: 'Historie',
             privateArea: 'Privater Bereich',
             mainNavigation: 'Hauptnavigation',
-            adminNavigation: 'Adminnavigation',
+            adminNavigation: 'Admin-Navigation',
             logout: 'Abmelden',
             loggingOut: 'Abmeldung läuft',
             saving: 'Speichern läuft',
@@ -255,7 +255,6 @@ export const messages = {
              allPolls: 'Alle Polls',
              noMatches: 'Keine passenden Stimmen',
              noMatchesText: 'Passe Suche oder Poll-Filter an.',
-             pollId: 'Poll-ID',
              option: 'Option',
              voteId: 'Stimmen-ID'
         },
@@ -514,7 +513,6 @@ export const messages = {
              allPolls: 'All polls',
              noMatches: 'No matching votes',
              noMatchesText: 'Adjust the search or poll filter.',
-             pollId: 'Poll ID',
              option: 'Option',
              voteId: 'Vote ID'
         },

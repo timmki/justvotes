@@ -20,7 +20,6 @@ export function PublicPollCard({poll, featured = false}: {poll: PublicPoll; feat
             <span className="poll-card-state">{t(pollStateTranslationKey(poll.state))}</span>
             <span>{t('polls.createdBy')} {t('common.admin')}</span>
             <time dateTime={poll.createdAt}>{formatTimestamp(poll.createdAt, locale)}</time>
-            <span className="poll-id">{poll.id}</span>
             <span className="poll-card-arrow"><ChevronRightIcon/></span>
         </span>
     </Link>;
