@@ -84,14 +84,24 @@ test('keeps populated public and admin surfaces within supported viewport widths
     return route.fulfill({ json: [] });
   });
 
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Theme auswählen' }).click();
+  await page.getByRole('radio', { name: 'Hell' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+
   for (const width of [320, 600, 900, 1280]) {
     await page.setViewportSize({width, height: 720});
-    for (const route of ['/polls', '/poll/p_responsive', '/poll/results/p_responsive', '/poll/results/p_responsive/option/1', '/poll/audit/p_responsive', '/admin/polls']) {
+    for (const route of ['/', '/polls', '/poll/p_responsive', '/poll/results/p_responsive', '/poll/results/p_responsive/option/1', '/poll/audit/p_responsive', '/admin/polls']) {
       await page.goto(route);
       const content = route.includes('/audit')
         ? page.getByRole('heading', { name: 'Stimme abgegeben', level: 3 })
         : page.getByText('Responsive browser poll').first();
       await expect(content).toBeVisible();
+      if (route === '/') {
+        const featured = page.getByRole('region', { name: 'Im Fokus' });
+        await expect(featured).toBeVisible();
+        await expect(featured).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+      }
       expect(await page.evaluate(() => document.documentElement.scrollWidth), `${route} at ${width}px`).toBeLessThanOrEqual(width);
     }
   }

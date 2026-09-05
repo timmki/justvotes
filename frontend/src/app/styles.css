@@ -888,8 +888,8 @@ main {
     gap: 1.15rem;
     padding: clamp(1.4rem, 4vw, 2.5rem);
     border-radius: 1.5rem;
-    color: #f5f5f7;
-    background: #1d1d1f;
+    color: inherit;
+    background: var(--surface);
     box-shadow: var(--shadow);
 }
 
@@ -898,12 +898,12 @@ main {
     gap: .35rem;
 }
 
-.home-featured .eyebrow { color: #2997ff; }
+.home-featured .eyebrow { color: var(--accent-text); }
 
 .home-featured-heading p:last-child {
     max-width: 34rem;
     margin: 0;
-    color: #d2d2d7;
+    color: var(--muted);
 }
 
 .featured-poll-card {
@@ -924,16 +924,16 @@ main {
     letter-spacing: -.04em;
 }
 
-.featured-poll-card .poll-card-meta { color: #aeaeb2; }
+.featured-poll-card .poll-card-meta { color: var(--muted); }
 
 .featured-poll-card .poll-card-state {
-    border-color: #48484a;
-    color: #64b5ff;
+    border-color: var(--separator);
+    color: var(--accent-text);
 }
 
 .featured-poll-card .poll-vote-badge {
-    color: #001b36;
-    background: #2997ff;
+    color: var(--accent-on);
+    background: var(--accent);
 }
 
 .featured-fallback {
@@ -947,7 +947,7 @@ main {
     letter-spacing: -.04em;
 }
 
-.home-featured .text-link { color: #64b5ff; }
+.home-featured .text-link { color: var(--accent-text); }
 
 .discovery-stats {
     display: grid;
@@ -1895,8 +1895,8 @@ main {
 }
 
 .poll-card.featured-poll-card, .poll-card.featured-poll-card:hover {
-    color: #f5f5f7;
-    background: #1d1d1f;
+    color: inherit;
+    background: var(--surface);
 }
 
 .poll-card-heading {
