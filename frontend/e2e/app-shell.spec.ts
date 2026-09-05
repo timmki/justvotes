@@ -55,7 +55,7 @@ test('keeps the polls page header separated from its poll list status', async ({
 });
 
 test('does not stretch the compact identity bar on a narrow viewport', async ({ page }) => {
-  await page.setViewportSize({ width: 565, height: 456 });
+  await page.setViewportSize({ width: 440, height: 956 });
   await page.goto('/polls');
 
   const sidebar = await page.locator('.sidebar').boundingBox();
