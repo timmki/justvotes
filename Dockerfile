@@ -1,4 +1,4 @@
-FROM maven:3.9.9-eclipse-temurin-21 AS build
+FROM --platform=$BUILDPLATFORM maven:3.9.9-eclipse-temurin-21 AS build
 WORKDIR /workspace
 ARG VITE_APP_NAME=JustVotes
 ENV VITE_APP_NAME=${VITE_APP_NAME}

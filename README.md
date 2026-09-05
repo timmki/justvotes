@@ -1,11 +1,11 @@
 # JustVotes
 
-JustVotes verwaltet öffentliche und private Abstimmungen.
+JustVotes manages public and private polls.
 
-## Starten
+## Getting Started
 
-Die Anwendung benötigt Java 21. Maven muss in dieser Umgebung mit dem eingecheckten
-Settings-File ausgeführt werden:
+The application requires Java 21. Maven must be run in this environment with the checked-in
+settings file:
 
 ```powershell
 mvn -s .mvn/settings.xml test
@@ -16,14 +16,14 @@ For separate backend development, start the Spring Boot module with
 `ADMIN_USERNAME` and `ADMIN_PASSWORD_HASH` in the environment. Run the SPA
 from `frontend/` with `pnpm dev`; Vite proxies `/api` to the backend.
 
-Der Standarddatenbankpfad ist `/data/justvotes.db`. Er lässt sich mit
-`DATABASE_URL` überschreiben. Beim Start validiert und führt Flyway die Migrationen
-unter `bootstrap/src/main/resources/db/migration` aus; bei einer abweichenden
-Migrationshistorie wird der Start abgebrochen.
+The default database path is `/data/justvotes.db`. It can be overridden with
+`DATABASE_URL`. At startup, Flyway validates and runs the migrations in
+`bootstrap/src/main/resources/db/migration`; startup is aborted if the migration
+history differs.
 
-Zusätzlich müssen bei der Installation genau ein Systemadmin und dessen BCrypt-Hash
-konfiguriert werden: `ADMIN_USERNAME` und `ADMIN_PASSWORD_HASH`. Die Anwendung
-startet nicht ohne diese Werte.
+Exactly one system administrator and their BCrypt hash must also be configured during
+installation: `ADMIN_USERNAME` and `ADMIN_PASSWORD_HASH`. The application does not
+start without these values.
 
 ```powershell
 docker build -t justvotes .
@@ -32,27 +32,27 @@ docker run --rm -p 8080:8080 -v justvotes-data:/data `
   -e ADMIN_PASSWORD_HASH="$2a$10$yXyXCUgriz0cm1V1n0fypOPqDx.vQRVFpB42WFqYRQgPWd/vDC40m" justvotes
 ```
 
-Die Anwendung liefert ihre statischen Dateien unter derselben Origin aus. Betriebsendpunkte:
+The application serves its static files from the same origin. Operational endpoints:
 
 - `GET /actuator/health`
 - `GET /actuator/health/readiness`
 
-SQLite nutzt WAL, einen `busy_timeout` von fünf Sekunden und einen begrenzten
-Verbindungspool. Logs werden als JSON auf Standardausgabe ausgegeben. Forwarded
-Headers werden auf Tomcat-Ebene verarbeitet, damit auch vom Container gesetzte
-Session-Cookies das externe HTTPS-Schema sehen. Der TLS-Proxy muss dafür
-`X-Forwarded-Proto` setzen; direkte, nicht vertrauenswürdige Forwarded-Header
-dürfen nicht zugelassen werden.
+SQLite uses WAL, a five-second `busy_timeout`, and a bounded connection pool. Logs are
+written as JSON to standard output. Forwarded headers are processed at the Tomcat level
+so that session cookies set by the container also see the external HTTPS scheme. The TLS
+proxy must set `X-Forwarded-Proto` for this to work; direct, untrusted forwarded headers
+must not be allowed.
 
-## Systemadmin-Sitzung
+## System Administrator Session
 
-`GET /api/v1/csrf` liefert den CSRF-Token und setzt das zugehörige Cookie.
-`POST /api/v1/admin/login` erwartet JSON mit `username` und `password`; der Token
-muss im Header `X-XSRF-TOKEN` gesendet werden. Erfolgreiche Anmeldungen erhalten
-eine serverseitige HTTP-Session. `POST /api/v1/admin/logout` benötigt ebenfalls den
-CSRF-Token und beendet die Sitzung. Nicht angemeldete Zugriffe unter `/api/v1/admin`
-erhalten `401` als RFC-9457-Problem-Details.
-## API contract and documentation
+`GET /api/v1/csrf` returns the CSRF token and sets the associated cookie.
+`POST /api/v1/admin/login` expects JSON with `username` and `password`; the token
+must be sent in the `X-XSRF-TOKEN` header. Successful logins receive a server-side
+HTTP session. `POST /api/v1/admin/logout` also requires the CSRF token and ends the
+session. Unauthenticated requests to `/api/v1/admin` receive `401` as RFC 9457
+problem details.
+
+## API Contract and Documentation
 
 The versioned OpenAPI contract is maintained at `api-contract/src/main/openapi/justvotes-v1.yaml`. Maven validates it and generates the server interfaces and DTOs; generated sources remain under `target/generated-sources`.
 
