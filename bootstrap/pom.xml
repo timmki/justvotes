@@ -104,6 +104,7 @@
                                     <goal>copy-resources</goal>
                                 </goals>
                                 <configuration>
+                                    <overwrite>true</overwrite>
                                     <outputDirectory>${project.build.outputDirectory}/static</outputDirectory>
                                     <resources>
                                         <resource>

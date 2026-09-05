@@ -87,13 +87,14 @@ The generated API client is intentionally not committed. `mvn -s .mvn/settings.x
 Build and smoke-test the final image with a temporary SQLite volume:
 
 ```bash
-docker build --build-arg VITE_APP_NAME=JustVotes -t justvotes .
+docker build --build-arg VITE_APP_NAME="Foo App" -t justvotes .
 docker run --rm -p 8080:8080 -v justvotes-data:/data \
   -e ADMIN_USERNAME=admin \
   -e ADMIN_PASSWORD_HASH="$2a$10$yXyXCUgriz0cm1V1n0fypOPqDx.vQRVFpB42WFqYRQgPWd/vDC40m" justvotes
 ```
 
 ```cmd
+docker build --build-arg VITE_APP_NAME="Foo App" -t justvotes .
 docker run --rm -p 8080:8080 -e ADMIN_USERNAME=admin -e ADMIN_PASSWORD_HASH="$2a$10$yXyXCUgriz0cm1V1n0fypOPqDx.vQRVFpB42WFqYRQgPWd/vDC40m" -e DATABASE_URL=jdbc:sqlite:/data/justvotes.db justvotes
 ```
 
