@@ -1000,12 +1000,14 @@ main {
 
 .discovery-stats > div {
     display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
     gap: .35rem;
     min-width: 0;
     padding: 1.1rem;
     border-radius: 1rem;
     background: var(--surface);
     box-shadow: 0 0 0 1px var(--separator);
+    align-items: start;
 }
 
 .discovery-stats dt {
@@ -2191,8 +2193,28 @@ main {
         grid-template-columns: 1fr;
     }
 
-    .poll-list, .discovery-stats {
+    .poll-list {
         grid-template-columns: 1fr;
+    }
+
+    .discovery-stats {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: .5rem;
+    }
+
+    .discovery-stats > div {
+        gap: .2rem;
+        padding: .75rem .6rem;
+        border-radius: .75rem;
+    }
+
+    .discovery-stats dt {
+        font-size: .68rem;
+        line-height: 1.25;
+    }
+
+    .discovery-stats dd {
+        font-size: 1.4rem;
     }
 
     .poll-layout {

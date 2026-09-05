@@ -1,5 +1,5 @@
 import {afterEach, describe, expect, it, vi} from 'vitest';
-import {getAppName} from './appConfig';
+import {getAppInitials, getAppName} from './appConfig';
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -14,5 +14,10 @@ describe('app configuration', () => {
         vi.stubEnv('VITE_APP_NAME', '  PollBoard  ');
 
         expect(getAppName()).toBe('PollBoard');
+    });
+
+    it('derives uppercase initials from every app name word', () => {
+        expect(getAppInitials('Foo App')).toBe('FA');
+        expect(getAppInitials('JustVotes')).toBe('J');
     });
 });

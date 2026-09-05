@@ -4,6 +4,7 @@
   "packageManager": "pnpm@10.6.1",
   "type": "module",
   "scripts": {
+    "dev:foo": "cross-env VITE_APP_NAME=\"Foo App\" pnpm dev",
     "dev": "vite",
     "build": "pnpm generate:api && vite build",
     "typecheck": "tsc --noEmit",
@@ -13,6 +14,32 @@
     "test:e2e:all": "playwright test",
     "generate:api": "openapi-typescript ../api-contract/src/main/openapi/justvotes-v1.yaml -o src/shared/api/generated/justvotes.ts"
   },
-  "dependencies": { "@fontsource/work-sans": "^5.2.5", "@tanstack/react-query": "^5.66.0", "react": "^19.0.0", "react-dom": "^19.0.0", "react-router-dom": "^7.1.5" },
-  "devDependencies": { "@axe-core/playwright": "^4.10.2", "@eslint/js": "^9.19.0", "@playwright/test": "^1.50.0", "@testing-library/jest-dom": "^6.6.3", "@testing-library/react": "^16.1.0", "@types/react": "^19.0.8", "@types/react-dom": "^19.0.3", "@typescript-eslint/parser": "^8.22.0", "@vitejs/plugin-react": "^4.3.4", "eslint": "^9.19.0", "eslint-plugin-react-hooks": "^5.0.0", "eslint-plugin-react-refresh": "^0.4.18", "globals": "^15.14.0", "jsdom": "^26.0.0", "openapi-typescript": "^7.6.1", "typescript": "^5.7.3", "vite": "^6.1.0", "vitest": "^3.0.5" }
+  "dependencies": {
+    "@fontsource/work-sans": "^5.2.5",
+    "@tanstack/react-query": "^5.66.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.1.5"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.10.2",
+    "@eslint/js": "^9.19.0",
+    "@playwright/test": "^1.50.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
+    "@types/react": "^19.0.8",
+    "@types/react-dom": "^19.0.3",
+    "@typescript-eslint/parser": "^8.22.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "cross-env": "^10.1.0",
+    "eslint": "^9.19.0",
+    "eslint-plugin-react-hooks": "^5.0.0",
+    "eslint-plugin-react-refresh": "^0.4.18",
+    "globals": "^15.14.0",
+    "jsdom": "^26.0.0",
+    "openapi-typescript": "^7.6.1",
+    "typescript": "^5.7.3",
+    "vite": "^6.1.0",
+    "vitest": "^3.0.5"
+  }
 }

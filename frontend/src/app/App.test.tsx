@@ -44,12 +44,13 @@ function renderApp(initialEntry = '/') {
 
 describe('app shell', () => {
     it('uses the configured app name in the shared shell', () => {
-        vi.stubEnv('VITE_APP_NAME', 'PollBoard');
+        vi.stubEnv('VITE_APP_NAME', 'Foo App');
 
         renderApp();
 
-        expect(screen.getByRole('link', {name: 'PollBoard'})).toBeVisible();
-        expect(screen.getByText('PollBoard', {selector: '.eyebrow'})).toBeVisible();
+        expect(screen.getByRole('link', {name: 'Foo App'})).toBeVisible();
+        expect(screen.getByRole('link', {name: 'Foo App'}).querySelector('.brand-mark')).toHaveTextContent('FA');
+        expect(screen.getByText('Foo App', {selector: '.eyebrow'})).toBeVisible();
     });
 
     it('provides compact and desktop navigation with one page heading', () => {

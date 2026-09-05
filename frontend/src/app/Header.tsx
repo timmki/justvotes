@@ -7,10 +7,13 @@ import {apiClient, sessionCoordinator} from '../shared/api/client';
 import {ChevronLeftIcon, MoonIcon, SunIcon} from '../shared/ui/Icons';
 import {IdentityEditor} from '../shared/ui/IdentityEditor';
 import {themeOptions, useTheme, type Theme} from './theme';
+import {getAppInitials} from '../shared/config/appConfig';
 
 export function AppShell({children}: {children: ReactNode}) {
     const {t} = useI18n();
     const navigation = useShellNavigation();
+    const appName = t('common.appName');
+    const appInitials = getAppInitials(appName);
     const identityQuery = useApiQuery(queryKeys.identity, () => apiClient.getIdentity());
     const identity = identityQuery.data?.userID ?? null;
     const identityState = identityQuery.isError ? 'error' : identityQuery.isPending ? 'loading' : 'ready';
@@ -18,9 +21,9 @@ export function AppShell({children}: {children: ReactNode}) {
     return <div className="app-shell">
         <aside className="sidebar" aria-label={t('common.identity')}>
             {navigation === 'public' ? <Link className="brand" to="/" aria-label={t('common.appName')}>
-                <span className="brand-mark" aria-hidden="true">JV</span><h2>{t('common.appName')}</h2>
+                <span className="brand-mark" aria-hidden="true">{appInitials}</span><h2>{appName}</h2>
             </Link> : <div className="brand" aria-label={t('common.appName')}>
-                <span className="brand-mark" aria-hidden="true">JV</span><h2>{t('common.appName')}</h2>
+                <span className="brand-mark" aria-hidden="true">{appInitials}</span><h2>{appName}</h2>
             </div>}
             <ShellNavigation className="sidebar-navigation" navigation={navigation} showLabel/>
             <div className="sidebar-bottom">
