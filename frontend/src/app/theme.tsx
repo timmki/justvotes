@@ -1,25 +1,61 @@
-import {createContext, type ReactNode, useContext, useEffect, useState} from 'react';
+import {createContext, type ReactNode, useContext, useEffect, useLayoutEffect, useState} from 'react';
 import {browserStorage} from '../shared/storage';
+import type {TranslationKey} from '../shared/i18n/translations';
 
 export type Theme = 'light' | 'dark';
+export type ThemeOption = { value: Theme; labelKey: TranslationKey };
+
+export const themeOptions: readonly ThemeOption[] = [
+    {value: 'light', labelKey: 'common.lightThemeName'},
+    {value: 'dark', labelKey: 'common.darkThemeName'},
+];
 
 const themeStorageKey = 'justvotes-theme';
-const ThemeContext = createContext<{ theme: Theme; toggleTheme: () => void } | null>(null);
+const ThemeContext = createContext<{ theme: Theme; setTheme: (theme: Theme) => void } | null>(null);
+
+function themeFromValue(value: string | null): Theme {
+    return value === 'dark' ? 'dark' : 'light';
+}
 
 function storedTheme(): Theme {
-    return browserStorage()?.getItem(themeStorageKey) === 'dark' ? 'dark' : 'light';
+    try {
+        return themeFromValue(browserStorage()?.getItem(themeStorageKey) ?? null);
+    } catch {
+        return 'light';
+    }
+}
+
+function persistTheme(theme: Theme) {
+    try {
+        browserStorage()?.setItem(themeStorageKey, theme);
+    } catch {
+        // Theme changes remain available for the current session when storage is blocked.
+    }
 }
 
 export function ThemeProvider({children}: { children: ReactNode }) {
     const [theme, setTheme] = useState<Theme>(storedTheme);
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         document.documentElement.dataset.theme = theme;
-        browserStorage()?.setItem(themeStorageKey, theme);
     }, [theme]);
 
+    useEffect(() => {
+        persistTheme(theme);
+    }, [theme]);
+
+    useEffect(() => {
+        function handleStorage(event: StorageEvent) {
+            if (event.key !== themeStorageKey && event.key !== null) return;
+            setTheme(themeFromValue(event.key === null ? null : event.newValue));
+        }
+
+        window.addEventListener('storage', handleStorage);
+        return () => window.removeEventListener('storage', handleStorage);
+    }, []);
+
     return (
-        <ThemeContext value={{theme, toggleTheme: () => setTheme((value) => (value === 'light' ? 'dark' : 'light'))}}>
+        <ThemeContext value={{theme, setTheme}}>
             {children}
         </ThemeContext>
     );

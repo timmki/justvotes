@@ -99,17 +99,101 @@ describe('app shell', () => {
         expect(screen.getByRole('heading', {name: 'Seite nicht gefunden', level: 1})).toBeVisible();
     });
 
-    it('persists language and theme without using identity storage', () => {
+    it('persists language and selected theme without using identity storage', () => {
         renderApp();
 
         fireEvent.click(screen.getAllByRole('button', {name: 'English anzeigen'})[0]);
         expect(screen.getByRole('button', {name: 'Show German'})).toBeVisible();
-        fireEvent.click(screen.getByRole('button', {name: 'Enable dark mode'}));
+        fireEvent.click(screen.getByRole('button', {name: 'Choose theme'}));
+        fireEvent.click(screen.getByRole('radio', {name: 'Dark'}));
 
         expect(screen.getByRole('heading', {name: 'Home'})).toBeVisible();
         expect(window.localStorage.getItem('justvotes-locale')).toBe('en');
         expect(window.localStorage.getItem('justvotes-theme')).toBe('dark');
         expect(window.localStorage.getItem('identity')).toBeNull();
+        expect(document.documentElement).toHaveAttribute('data-theme', 'dark');
+    });
+
+    it('falls back to light for an unknown stored theme', () => {
+        window.localStorage.setItem('justvotes-theme', 'sepia');
+
+        renderApp();
+
+        expect(document.documentElement).toHaveAttribute('data-theme', 'light');
+        expect(window.localStorage.getItem('justvotes-theme')).toBe('light');
+    });
+
+    it('opens an exclusive theme menu and closes it after selection or Escape', () => {
+        renderApp();
+
+        const button = screen.getByRole('button', {name: 'Theme auswählen'});
+        fireEvent.click(button);
+
+        expect(screen.getByRole('radiogroup', {name: 'Theme auswählen'})).toBeVisible();
+        expect(screen.getByRole('radio', {name: 'Hell'})).toBeChecked();
+        expect(screen.getByRole('radio', {name: 'Dunkel'})).not.toBeChecked();
+        expect(document.activeElement).toBe(screen.getByRole('radio', {name: 'Hell'}));
+
+        fireEvent.click(screen.getByRole('radio', {name: 'Dunkel'}));
+        expect(screen.queryByRole('radiogroup', {name: 'Theme auswählen'})).toBeNull();
+        expect(button).toHaveFocus();
+
+        fireEvent.click(button);
+        fireEvent.click(document.body);
+        expect(screen.queryByRole('radiogroup', {name: 'Theme auswählen'})).toBeNull();
+        expect(button).toHaveFocus();
+
+        fireEvent.click(button);
+        fireEvent.click(screen.getByRole('radio', {name: 'Dunkel'}));
+        expect(screen.queryByRole('radiogroup', {name: 'Theme auswählen'})).toBeNull();
+
+        fireEvent.click(button);
+        fireEvent.keyDown(document, {key: 'Escape'});
+        expect(screen.queryByRole('radiogroup', {name: 'Theme auswählen'})).toBeNull();
+        expect(button).toHaveFocus();
+
+        fireEvent.click(button);
+        fireEvent.click(screen.getAllByRole('link', {name: 'Polls'})[0]);
+        expect(screen.queryByRole('radiogroup', {name: 'Theme auswählen'})).toBeNull();
+        expect(button).toHaveFocus();
+    });
+
+    it('updates the selected theme when another tab changes it', async () => {
+        renderApp();
+
+        fireEvent.click(screen.getByRole('button', {name: 'Theme auswählen'}));
+        expect(screen.getByRole('radio', {name: 'Hell'})).toBeChecked();
+        window.dispatchEvent(new StorageEvent('storage', {key: 'justvotes-theme', newValue: 'dark'}));
+
+        await vi.waitFor(() => expect(document.documentElement).toHaveAttribute('data-theme', 'dark'));
+        expect(screen.getByRole('radio', {name: 'Dunkel'})).toBeChecked();
+
+        window.dispatchEvent(new StorageEvent('storage', {key: 'justvotes-theme', newValue: 'unknown'}));
+        await vi.waitFor(() => expect(document.documentElement).toHaveAttribute('data-theme', 'light'));
+        window.dispatchEvent(new StorageEvent('storage', {key: null, newValue: null}));
+        await vi.waitFor(() => expect(screen.getByRole('radio', {name: 'Hell'})).toBeChecked());
+    });
+
+    it('falls back to light when theme storage cannot be read', () => {
+        vi.spyOn(window.localStorage, 'getItem').mockImplementation((key) => {
+            if (key === 'justvotes-theme') throw new Error('storage blocked');
+            return null;
+        });
+
+        renderApp();
+
+        expect(document.documentElement).toHaveAttribute('data-theme', 'light');
+    });
+
+    it('keeps theme selection available when theme storage cannot be written', () => {
+        renderApp();
+        vi.spyOn(window.localStorage, 'setItem').mockImplementation(() => {
+            throw new Error('storage blocked');
+        });
+
+        fireEvent.click(screen.getByRole('button', {name: 'Theme auswählen'}));
+        fireEvent.click(screen.getByRole('radio', {name: 'Dunkel'}));
+
         expect(document.documentElement).toHaveAttribute('data-theme', 'dark');
     });
 
@@ -220,7 +304,8 @@ describe('app shell', () => {
             .find((navigation) => navigation.classList.contains('sidebar-navigation'));
         expect(within(adminNavigation!).getByRole('link', {name: 'Polls'})).toBeVisible();
         expect(within(adminNavigation!).getByRole('link', {name: 'Polls'})).toHaveAttribute('aria-current', 'page');
-        fireEvent.click(screen.getByRole('button', {name: 'Enable dark mode'}));
+        fireEvent.click(screen.getByRole('button', {name: 'Choose theme'}));
+        fireEvent.click(screen.getByRole('radio', {name: 'Dark'}));
         expect(document.documentElement).toHaveAttribute('data-theme', 'dark');
     });
 

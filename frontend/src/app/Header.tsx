@@ -1,12 +1,12 @@
 import {NavLink, Link, useLocation} from 'react-router-dom';
-import {useSyncExternalStore, type ReactNode} from 'react';
+import {useEffect, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
 import {useI18n} from '../shared/i18n/I18nProvider';
 import {queryKeys} from '../shared/api/queryKeys';
 import {useApiQuery} from '../shared/api/useApiQuery';
 import {apiClient, sessionCoordinator} from '../shared/api/client';
 import {ChevronLeftIcon, MoonIcon, SunIcon} from '../shared/ui/Icons';
 import {IdentityEditor} from '../shared/ui/IdentityEditor';
-import {useTheme} from './theme';
+import {themeOptions, useTheme, type Theme} from './theme';
 
 export function AppShell({children}: {children: ReactNode}) {
     const {t} = useI18n();
@@ -91,9 +91,53 @@ function AdminNavigationLink({to, active, children}: { to: string; active: boole
 
 export function Header() {
     const {locale, setLocale, t} = useI18n();
-    const {theme, toggleTheme} = useTheme();
+    const {theme, setTheme} = useTheme();
+    const [themeMenuOpen, setThemeMenuOpen] = useState(false);
+    const themeMenuRef = useRef<HTMLDivElement>(null);
+    const themeButtonRef = useRef<HTMLButtonElement>(null);
+    const themeOptionRefs = useRef<Record<Theme, HTMLInputElement | null>>({light: null, dark: null});
     const location = useLocation();
+    const previousPathname = useRef(location.pathname);
     const context = routeContext(location.pathname, t);
+
+    useEffect(() => {
+        if (!themeMenuOpen) return;
+
+        themeOptionRefs.current[theme]?.focus();
+        function closeOnOutsideClick(event: MouseEvent) {
+            if (!themeMenuRef.current?.contains(event.target as Node)) {
+                setThemeMenuOpen(false);
+                themeButtonRef.current?.focus();
+            }
+        }
+        function closeOnEscape(event: KeyboardEvent) {
+            if (event.key === 'Escape') {
+                setThemeMenuOpen(false);
+                themeButtonRef.current?.focus();
+            }
+        }
+
+        document.addEventListener('click', closeOnOutsideClick);
+        document.addEventListener('keydown', closeOnEscape);
+        return () => {
+            document.removeEventListener('click', closeOnOutsideClick);
+            document.removeEventListener('keydown', closeOnEscape);
+        };
+    }, [theme, themeMenuOpen]);
+
+    useEffect(() => {
+        if (previousPathname.current === location.pathname) return;
+        previousPathname.current = location.pathname;
+        if (!themeMenuOpen) return;
+        setThemeMenuOpen(false);
+        themeButtonRef.current?.focus();
+    }, [location.pathname, themeMenuOpen]);
+
+    function selectTheme(value: Theme) {
+        setTheme(value);
+        setThemeMenuOpen(false);
+        themeButtonRef.current?.focus();
+    }
 
     return <header className="app-header">
         <div className="header-inner">
@@ -105,11 +149,23 @@ export function Header() {
                 <button className="control-button" type="button"
                         aria-label={locale === 'de' ? t('common.english') : t('common.german')}
                         onClick={() => setLocale(locale === 'de' ? 'en' : 'de')}>{locale.toUpperCase()}</button>
-                <button className="icon-button" type="button"
-                        aria-label={theme === 'light' ? t('common.darkTheme') : t('common.lightTheme')}
-                        aria-pressed={theme === 'dark'} onClick={toggleTheme}>
-                    {theme === 'light' ? <MoonIcon/> : <SunIcon/>}
-                </button>
+                <div className="theme-menu" ref={themeMenuRef}>
+                    <button ref={themeButtonRef} className="icon-button" type="button"
+                            aria-label={t('common.chooseTheme')} aria-expanded={themeMenuOpen}
+                            aria-controls="theme-menu-panel" onClick={() => setThemeMenuOpen((open) => !open)}>
+                        {theme === 'light' ? <MoonIcon/> : <SunIcon/>}
+                    </button>
+                    {themeMenuOpen && <div id="theme-menu-panel" className="theme-menu-panel" role="radiogroup"
+                                             aria-label={t('common.chooseTheme')}>
+                        {themeOptions.map((option) => <label className="theme-option" key={option.value}>
+                            <input ref={(element) => { themeOptionRefs.current[option.value] = element; }}
+                                   type="radio" name="theme" value={option.value} checked={theme === option.value}
+                                   onChange={() => selectTheme(option.value)}
+                                   onClick={() => { if (theme === option.value) selectTheme(option.value); }}/>
+                            <span>{t(option.labelKey)}</span>
+                        </label>)}
+                    </div>}
+                </div>
             </div>
         </div>
     </header>;

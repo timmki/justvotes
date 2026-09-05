@@ -15,7 +15,8 @@ test('persists language and theme choices', async ({ page }) => {
   await page.goto('/');
 
   await page.getByRole('button', { name: 'English anzeigen' }).click();
-  await page.getByRole('button', { name: 'Enable dark mode' }).click();
+  await page.getByRole('button', { name: 'Choose theme' }).click();
+  await page.getByRole('radio', { name: 'Dark' }).click();
   await page.reload();
 
   await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible();
@@ -33,6 +34,12 @@ test('keeps the public navigation reachable on a narrow viewport', async ({ page
   await expect(navigation.getByRole('link', { name: 'Polls' })).toHaveAttribute('aria-current', 'page');
   await page.goto('/');
   await expect(page.getByRole('link', { name: 'Admin' })).toHaveAttribute('href', '/admin');
+  const themeButton = page.getByRole('button', { name: 'Theme auswählen' });
+  await themeButton.click();
+  await expect(page.getByRole('radiogroup', { name: 'Theme auswählen' })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('radiogroup', { name: 'Theme auswählen' })).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
   expect(await page.locator('.mobile-navigation .nav-item').first().evaluate((element) => element.getBoundingClientRect().height)).toBeGreaterThanOrEqual(44);
 });
