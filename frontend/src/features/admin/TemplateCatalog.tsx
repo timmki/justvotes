@@ -1,26 +1,24 @@
 import {type FormEvent, useEffect, useState} from 'react';
-import {apiClient} from '../../shared/api/client';
 import {ApiError, type FrontendError} from '../../shared/api/errors';
-import {queryClient} from '../../shared/api/queryClient';
-import {queryKeys} from '../../shared/api/queryKeys';
-import {useApiQuery} from '../../shared/api/useApiQuery';
 import {useI18n} from '../../shared/i18n/I18nProvider';
 import {QueryState} from '../../shared/ui/QueryState';
 import {RouteState} from '../../shared/ui/RouteState';
+import {
+    catalogCommands,
+    type CatalogGroup,
+    type CatalogTemplate,
+    normalizeName,
+} from './catalogCommands';
+import {catalogQueries} from './catalogQueries';
 
-type CatalogTemplate = { id: string; name: string };
-type CatalogGroup = { id: string; name: string; description: string };
 type FailedEntry = { name: string; error: FrontendError | null };
 type BatchResult = { created: string[]; skipped: string[]; failed: FailedEntry[] };
 type DeleteResult = { deleted: string[]; failed: FailedEntry[] };
 type BusyMessage = 'common.saving' | 'common.processing';
-
-// Keep batch traffic bounded while allowing independent requests to continue.
-const BATCH_CONCURRENCY = 3;
 const PAGE_SIZE = 20;
 
 export function TemplateCatalogTemplates() {
-    const query = useApiQuery(queryKeys.templates, () => apiClient.getTemplates());
+    const query = catalogQueries.useCatalogTemplates();
     return <QueryState query={query}>{(templates) => <TemplateManager templates={templates}/>}</QueryState>;
 }
 
@@ -73,13 +71,6 @@ function TemplateManager({templates}: { templates: CatalogTemplate[] }) {
         });
     }
 
-    async function refresh() {
-        await Promise.all([
-            queryClient.invalidateQueries({queryKey: queryKeys.templates}),
-            queryClient.invalidateQueries({queryKey: queryKeys.groups}),
-        ]);
-    }
-
     async function createTemplate(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         const name = normalizeName(newName);
@@ -89,9 +80,8 @@ function TemplateManager({templates}: { templates: CatalogTemplate[] }) {
         setError(null);
         setBatchResult(null);
         try {
-            await apiClient.createTemplate(name);
+            await catalogCommands.createTemplate(name);
             setNewName('');
-            await refresh();
         } catch (cause) {
             setError(frontendError(cause));
         } finally {
@@ -105,35 +95,15 @@ function TemplateManager({templates}: { templates: CatalogTemplate[] }) {
         setBusyMessage('common.saving');
         setError(null);
         setDeleteResult(null);
-        const existingNames = new Set(templates.map((template) => normalizeName(template.name)));
-        const seenNames = new Set<string>();
-        const skipped: string[] = [];
-        const candidates: string[] = [];
-
-        for (const rawValue of batchInput.split(',')) {
-            const name = normalizeName(rawValue);
-            if (!name) skipped.push(t('admin.emptyBatchValue'));
-            else if (seenNames.has(name) || existingNames.has(name)) skipped.push(name);
-            else {
-                seenNames.add(name);
-                candidates.push(name);
-            }
-        }
-
-        const created: string[] = [];
-        const failed: FailedEntry[] = [];
-        await runWithConcurrency(candidates, BATCH_CONCURRENCY, async (name) => {
-            try {
-                await apiClient.createTemplate(name);
-                created.push(name);
-            } catch (cause) {
-                failed.push({name, error: frontendError(cause)});
-            }
-        });
-        setBatchResult({created, skipped, failed});
-        setBatchInput(failed.length === 0 ? '' : failed.map((entry) => entry.name).join(', '));
         try {
-            await refresh();
+            const result = await catalogCommands.importTemplates(batchInput, templates);
+            const failed = result.failed.map((entry) => ({name: entry.name, error: frontendError(entry.error)}));
+            setBatchResult({
+                created: result.created.map((entry) => entry.name),
+                skipped: result.skipped.map((entry) => entry.kind === 'empty' ? t('admin.emptyBatchValue') : entry.name),
+                failed,
+            });
+            setBatchInput(failed.length === 0 ? '' : failed.map((entry) => entry.name).join(', '));
         } catch (cause) {
             setError(frontendError(cause));
         } finally {
@@ -156,9 +126,8 @@ function TemplateManager({templates}: { templates: CatalogTemplate[] }) {
         setBusyMessage('common.saving');
         setError(null);
         try {
-            await apiClient.renameTemplate(renameId, name);
+            await catalogCommands.renameTemplate(renameId, name);
             setRenameId(null);
-            await refresh();
         } catch (cause) {
             setError(frontendError(cause));
         } finally {
@@ -172,22 +141,13 @@ function TemplateManager({templates}: { templates: CatalogTemplate[] }) {
         setBusyMessage('common.processing');
         setError(null);
         setBatchResult(null);
-        const deleted: string[] = [];
-        const deletedIds: string[] = [];
-        const failed: FailedEntry[] = [];
-        await runWithConcurrency(toDelete, BATCH_CONCURRENCY, async (template) => {
-            try {
-                await apiClient.deleteTemplate(template.id);
-                deleted.push(template.name);
-                deletedIds.push(template.id);
-            } catch (cause) {
-                failed.push({name: template.name, error: frontendError(cause)});
-            }
-        });
-        setSelected((current) => new Set([...current].filter((id) => !deletedIds.includes(id))));
-        setDeleteResult({deleted, failed});
         try {
-            await refresh();
+            const result = await catalogCommands.deleteTemplates(toDelete);
+            const deletedIds = result.deleted.map((template) => template.id);
+            const deleted = result.deleted.map((template) => template.name);
+            const failed = result.failed.map((entry) => ({name: entry.name, error: frontendError(entry.error)}));
+            setSelected((current) => new Set([...current].filter((id) => !deletedIds.includes(id))));
+            setDeleteResult({deleted, failed});
         } catch (cause) {
             setError(frontendError(cause));
         } finally {
@@ -284,12 +244,12 @@ function Pagination({page, pageCount, onPageChange}: {
 }
 
 export function TemplateCatalogGroups() {
-    const groupsQuery = useApiQuery(queryKeys.groups, () => apiClient.getGroups());
-    const templatesQuery = useApiQuery(queryKeys.templates, () => apiClient.getTemplates());
+    const groupsQuery = catalogQueries.useCatalogGroups();
+    const templatesQuery = catalogQueries.useCatalogTemplates();
     const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
     const groups = groupsQuery.data ?? [];
     const activeGroup = groups.find((group) => group.id === activeGroupId) ?? groups[0];
-    const groupTemplatesQuery = useApiQuery(queryKeys.groupTemplates(activeGroup?.id ?? ''), () => apiClient.getTemplatesInGroup(activeGroup?.id ?? ''), {enabled: Boolean(activeGroup)});
+    const groupTemplatesQuery = catalogQueries.useCatalogGroupTemplates(activeGroup?.id ?? '', Boolean(activeGroup));
 
     useEffect(() => {
         if (!activeGroup || !groups.some((group) => group.id === activeGroupId)) setActiveGroupId(groups[0]?.id ?? null);
@@ -305,7 +265,7 @@ function GroupManager({groups, templates, activeGroup, groupTemplatesQuery, onSe
     groups: CatalogGroup[];
     templates: CatalogTemplate[];
     activeGroup?: CatalogGroup;
-    groupTemplatesQuery: ReturnType<typeof useApiQuery<CatalogTemplate[]>>;
+    groupTemplatesQuery: ReturnType<typeof catalogQueries.useCatalogGroupTemplates>;
     onSelectGroup: (id: string) => void
 }) {
     const {t} = useI18n();
@@ -321,10 +281,6 @@ function GroupManager({groups, templates, activeGroup, groupTemplatesQuery, onSe
         setRenameValue(activeGroup?.name ?? '');
     }, [activeGroup?.id, activeGroup?.name]);
 
-    async function refreshGroups() {
-        await queryClient.invalidateQueries({queryKey: queryKeys.groups});
-    }
-
     async function createGroup(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         const name = normalizeName(newName);
@@ -333,10 +289,9 @@ function GroupManager({groups, templates, activeGroup, groupTemplatesQuery, onSe
         setBusyMessage('common.saving');
         setError(null);
         try {
-            const created = await apiClient.createGroup({name, description: newDescription.trim()});
+            const created = await catalogCommands.createGroup({name, description: newDescription});
             setNewName('');
             setNewDescription('');
-            await refreshGroups();
             onSelectGroup(created.id);
         } catch (cause) {
             setError(frontendError(cause));
@@ -354,8 +309,7 @@ function GroupManager({groups, templates, activeGroup, groupTemplatesQuery, onSe
         setBusyMessage('common.saving');
         setError(null);
         try {
-            await apiClient.renameGroup(activeGroup.id, name);
-            await refreshGroups();
+            await catalogCommands.renameGroup(activeGroup.id, name);
         } catch (cause) {
             setError(frontendError(cause));
         } finally {
@@ -369,9 +323,7 @@ function GroupManager({groups, templates, activeGroup, groupTemplatesQuery, onSe
         setBusyMessage('common.processing');
         setError(null);
         try {
-            await apiClient.deleteGroup(activeGroup.id);
-            queryClient.removeQueries({queryKey: queryKeys.groupTemplates(activeGroup.id)});
-            await refreshGroups();
+            await catalogCommands.deleteGroup(activeGroup.id);
         } catch (cause) {
             setError(frontendError(cause));
         } finally {
@@ -386,9 +338,8 @@ function GroupManager({groups, templates, activeGroup, groupTemplatesQuery, onSe
         setBusyMessage('common.processing');
         setError(null);
         try {
-            await apiClient.assignTemplateToGroup(activeGroup.id, assignId);
+            await catalogCommands.assignTemplateToGroup(activeGroup.id, assignId);
             setAssignId('');
-            await queryClient.invalidateQueries({queryKey: queryKeys.groupTemplates(activeGroup.id)});
         } catch (cause) {
             setError(frontendError(cause));
         } finally {
@@ -402,8 +353,7 @@ function GroupManager({groups, templates, activeGroup, groupTemplatesQuery, onSe
         setBusyMessage('common.processing');
         setError(null);
         try {
-            await apiClient.removeTemplateFromGroup(activeGroup.id, templateId);
-            await queryClient.invalidateQueries({queryKey: queryKeys.groupTemplates(activeGroup.id)});
+            await catalogCommands.removeTemplateFromGroup(activeGroup.id, templateId);
         } catch (cause) {
             setError(frontendError(cause));
         } finally {
@@ -471,24 +421,6 @@ function GroupManager({groups, templates, activeGroup, groupTemplatesQuery, onSe
     </section>;
 }
 
-function normalizeName(value: string) {
-    return value.trim();
-}
-
 function frontendError(cause: unknown) {
     return cause instanceof ApiError ? cause.frontend : null;
-}
-
-async function runWithConcurrency<T>(items: T[], limit: number, worker: (item: T) => Promise<void>) {
-    let nextIndex = 0;
-
-    async function consume() {
-        while (nextIndex < items.length) {
-            const index = nextIndex;
-            nextIndex += 1;
-            await worker(items[index]);
-        }
-    }
-
-    await Promise.all(Array.from({length: Math.min(limit, items.length)}, consume));
 }

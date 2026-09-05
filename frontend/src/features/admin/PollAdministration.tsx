@@ -1,4 +1,4 @@
-import {useMutation, useQueries} from '@tanstack/react-query';
+import {useMutation} from '@tanstack/react-query';
 import {type FormEvent, useEffect, useState} from 'react';
 import {Link, useNavigate} from 'react-router-dom';
 import type {components} from '../../shared/api/generated/justvotes';
@@ -10,6 +10,7 @@ import {useApiQuery} from '../../shared/api/useApiQuery';
 import {useI18n} from '../../shared/i18n/I18nProvider';
 import {QueryState} from '../../shared/ui/QueryState';
 import {RouteState} from '../../shared/ui/RouteState';
+import {catalogQueries} from './catalogQueries';
 
 type Poll = components['schemas']['Poll'];
 type PollState = Poll['state'];
@@ -204,14 +205,9 @@ export function CreatePoll() {
     const [title, setTitle] = useState('');
     const [groupId, setGroupId] = useState('');
     const [error, setError] = useState<FrontendError | null>(null);
-    const groupsQuery = useApiQuery(queryKeys.groups, () => apiClient.getGroups());
+    const groupsQuery = catalogQueries.useCatalogGroups();
     const groups = groupsQuery.data ?? [];
-    const membershipQueries = useQueries({
-        queries: groups.map((group) => ({
-            queryKey: queryKeys.groupTemplates(group.id),
-            queryFn: () => apiClient.getTemplatesInGroup(group.id)
-        }))
-    });
+    const membershipQueries = catalogQueries.useCatalogGroupMemberships(groups);
     const availableGroups = groups.filter((_, index) => (membershipQueries[index]?.data?.length ?? 0) > 0);
     const membershipError = membershipQueries.find((query) => query.isError)?.error;
     const membershipPending = membershipQueries.some((query) => query.isPending);

@@ -326,6 +326,33 @@ describe('AdminPage session gate', () => {
         expect(screen.getByRole('status')).toHaveTextContent('Gelöscht: 1');
         expect(screen.getByRole('status')).toHaveTextContent('Fehlgeschlagen: 1');
         expect(screen.getByRole('status')).toHaveTextContent('Two');
+        expect(screen.getByRole('checkbox', {name: 'Vorlage auswählen Two'})).toBeChecked();
+    });
+
+    it('retries only the failed template deletion', async () => {
+        vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+        vi.spyOn(apiClient, 'getTemplates').mockResolvedValue([{id: 't_v1_one', name: 'One'}, {
+            id: 't_v1_two',
+            name: 'Two'
+        }]);
+        let attempts = 0;
+        const deleteTemplate = vi.spyOn(apiClient, 'deleteTemplate').mockImplementation(async (id) => {
+            if (id === 't_v1_two' && attempts++ === 0) throw problemError({status: 409, code: 'conflict'}, 409);
+        });
+        vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+        renderAdmin('/admin/templates');
+
+        await screen.findByRole('heading', {name: 'Optionsvorlagen', level: 3});
+        fireEvent.click(screen.getByRole('checkbox', {name: 'Vorlage auswählen Two'}));
+        fireEvent.click(screen.getByRole('button', {name: 'Ausgewählte löschen (1)'}));
+        await screen.findByText('Lösch-Ergebnis');
+
+        fireEvent.click(screen.getByRole('button', {name: 'Ausgewählte löschen (1)'}));
+
+        await waitFor(() => expect(deleteTemplate).toHaveBeenCalledTimes(2));
+        expect(screen.getByRole('status')).toHaveTextContent('Gelöscht: 1');
+        expect(screen.getByRole('status')).toHaveTextContent('Fehlgeschlagen: 0');
     });
 
     it('adds and removes memberships without deleting the global template', async () => {
