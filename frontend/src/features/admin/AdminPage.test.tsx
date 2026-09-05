@@ -696,7 +696,7 @@ describe('Admin poll lifecycle', () => {
         fireEvent.click(scoped.getByRole('button', {name: 'Speichern'}));
         await waitFor(() => expect(replacePollOptions).toHaveBeenCalledWith('p_v1_draft_private', ['First', 'Second']));
         fireEvent.click(scoped.getByRole('button', {name: 'Veröffentlichen'}));
-        await waitFor(() => expect(publishPoll).toHaveBeenCalledWith('p_v1_draft_private', '2099-01-01T11:00:00.000Z'));
+        await waitFor(() => expect(publishPoll).toHaveBeenCalledWith('p_v1_draft_private', new Date('2099-01-01T12:00').toISOString()));
     });
 
     it('keeps option values after replacing options fails', async () => {
@@ -737,7 +737,7 @@ describe('Admin poll lifecycle', () => {
     it('executes the remaining allowed lifecycle actions', async () => {
         vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
         const makePrivate = vi.spyOn(apiClient, 'makePollPrivate').mockResolvedValue(testPoll('active', 'private'));
-        const changedExpiryPoll = {...testPoll('expired'), endsAt: '2099-02-01T11:00:00.000Z'};
+        const changedExpiryPoll = {...testPoll('expired'), endsAt: new Date('2099-02-01T12:00').toISOString()};
         const changeExpiry = vi.spyOn(apiClient, 'changePollExpiry').mockResolvedValue(changedExpiryPoll);
         const reopen = vi.spyOn(apiClient, 'reopenPoll').mockResolvedValue(testPoll('active'));
         const restore = vi.spyOn(apiClient, 'restorePoll').mockResolvedValue(testPoll('archived'));
@@ -756,7 +756,7 @@ describe('Admin poll lifecycle', () => {
         card = (await screen.findByRole('heading', {name: 'expired poll', level: 4})).closest('li') as HTMLElement;
         fireEvent.change(within(card).getByLabelText('Ablauf ändern'), {target: {value: '2099-02-01T12:00'}});
         fireEvent.click(within(card).getByRole('button', {name: 'Ablauf ändern'}));
-        await waitFor(() => expect(changeExpiry).toHaveBeenCalledWith('p_v1_expired_private', '2099-02-01T11:00:00.000Z'));
+        await waitFor(() => expect(changeExpiry).toHaveBeenCalledWith('p_v1_expired_private', new Date('2099-02-01T12:00').toISOString()));
         fireEvent.click(within(card).getByRole('button', {name: 'Wieder öffnen'}));
         await waitFor(() => expect(reopen).toHaveBeenCalledWith('p_v1_expired_private'));
 
