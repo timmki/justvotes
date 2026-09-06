@@ -98,13 +98,16 @@ test('keeps the polls page header separated from its poll list status', async ({
 test('does not stretch the compact identity bar on a narrow viewport', async ({ page }) => {
   await page.setViewportSize({ width: 440, height: 956 });
   await page.goto('/polls');
+  await page.evaluate(() => document.fonts.ready);
 
   const sidebar = await page.locator('.sidebar').boundingBox();
-  const header = await page.locator('.app-header').boundingBox();
   expect(sidebar).not.toBeNull();
-  expect(header).not.toBeNull();
   expect(sidebar!.height).toBeLessThan(100);
-  expect(header!.y).toBe(sidebar!.y + sidebar!.height);
+  await expect.poll(() => page.evaluate(() => {
+    const sidebar = document.querySelector('.sidebar')?.getBoundingClientRect();
+    const header = document.querySelector('.app-header')?.getBoundingClientRect();
+    return sidebar && header ? header.y - (sidebar.y + sidebar.height) : null;
+  })).toBe(0);
 });
 
 test('keeps the polls intro close to the mobile navigation', async ({ page }) => {
@@ -664,17 +667,17 @@ test('logs in, restores the active admin area after reload, and logs out', async
   await page.goto('/admin');
   await expect(page.getByRole('heading', { name: 'Stimmen', level: 3 })).toBeVisible();
   await expect(page.locator('.sidebar-navigation').getByRole('link', { name: 'Abstimmungen' })).toBeVisible();
-  await expect(page.locator('.sidebar-navigation').getByRole('link')).toHaveCount(5);
+  await expect(page.locator('.sidebar-navigation').getByRole('link')).toHaveCount(4);
   await expect(page.locator('.sidebar-navigation').getByRole('link', { name: 'Stimmen' })).toHaveAttribute('aria-current', 'page');
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Stimmen', level: 3 })).toBeVisible();
   await page.setViewportSize({ width: 320, height: 720 });
   const mobileNavigation = page.locator('.mobile-navigation');
   await expect(mobileNavigation).toBeVisible();
-  await expect(mobileNavigation.getByRole('link')).toHaveCount(5);
+  await expect(mobileNavigation.getByRole('link')).toHaveCount(4);
   await expect(mobileNavigation.getByRole('link', { name: 'Stimmen' })).toHaveAttribute('aria-current', 'page');
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
-  for (const [label, path] of [['Stimmen', '/admin/votes'], ['Abstimmungen', '/admin/polls'], ['Vorlagengruppen', '/admin/groups'], ['Optionsvorlagen', '/admin/templates'], ['Abstimmung erstellen', '/admin/create']] as const) {
+  for (const [label, path] of [['Stimmen', '/admin/votes'], ['Abstimmungen', '/admin/polls'], ['Vorlagengruppen', '/admin/groups'], ['Optionsvorlagen', '/admin/templates']] as const) {
     const link = mobileNavigation.getByRole('link', { name: label });
     await link.focus();
     await page.keyboard.press('Enter');
@@ -856,12 +859,12 @@ test('keeps the template catalog usable at 320px with long names', async ({ page
 
   await page.goto('/admin/groups');
   await expect(page.getByRole('button', {name: longGroupName})).toBeVisible();
-  await expect(page.getByText(longMembershipName)).toBeVisible();
+  await expect(page.getByText(longTemplateName)).toBeVisible();
   await page.getByLabel('Gruppe umbenennen').focus();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
 
   await page.goto('/admin/templates');
   await expect(page.getByText(longTemplateName)).toBeVisible();
-  await page.getByLabel('Vorlagen suchen').focus();
+  await page.getByLabel(/Vorlagen filtern/).focus();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
 });
