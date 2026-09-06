@@ -41,10 +41,13 @@ const actionMatrix: Record<PollState, readonly PollAction[]> = {
 export function AdminPolls() {
     const {t} = useI18n();
     const query = useApiQuery(queryKeys.adminPolls, () => apiClient.getAdminPolls());
-    return <QueryState query={query}>{(polls) => <section className="admin-panel">
-        <h3>{t('admin.polls')}</h3>{polls.length === 0 ? <RouteState status="empty"/> :
-        <ul className="poll-admin-list">{polls.map((poll) => <PollAdministrationCard key={poll.id} poll={poll}/>)}</ul>}
-    </section>}</QueryState>;
+    return <>
+        <CreatePoll/>
+        <QueryState query={query}>{(polls) => <section className="admin-panel">
+            <h3>{t('admin.polls')}</h3>{polls.length === 0 ? <RouteState status="empty"/> :
+            <ul className="poll-admin-list">{polls.map((poll) => <PollAdministrationCard key={poll.id} poll={poll}/>)}</ul>}
+        </section>}</QueryState>
+    </>;
 }
 
 function PollAdministrationCard({poll}: { poll: Poll }) {

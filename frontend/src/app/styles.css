@@ -729,6 +729,16 @@ main {
     resize: vertical;
 }
 
+.catalog-filter-input {
+    width: 100%;
+    min-height: 2.75rem;
+    padding: .6rem .75rem;
+    border: 1px solid var(--separator);
+    border-radius: .7rem;
+    color: inherit;
+    background: var(--raised);
+}
+
 .form-status {
     margin: 0;
     color: var(--muted);
@@ -736,7 +746,7 @@ main {
     font-weight: 600;
 }
 
-.catalog-form input:focus-visible, .catalog-form textarea:focus-visible, .catalog-form select:focus-visible, .catalog-list input:focus-visible {
+.catalog-filter-input:focus-visible, .catalog-form input:focus-visible, .catalog-form textarea:focus-visible, .catalog-form select:focus-visible, .catalog-actions input:focus-visible, .catalog-list input:focus-visible {
     outline: 3px solid #007aff;
     outline-offset: 2px;
 }
@@ -816,6 +826,59 @@ main {
     flex-wrap: wrap;
     align-items: end;
     gap: .55rem;
+}
+
+.catalog-actions input {
+    min-width: 0;
+    min-height: 2.75rem;
+    padding: .6rem .75rem;
+    border: 1px solid var(--separator);
+    border-radius: .7rem;
+    color: inherit;
+    background: var(--raised);
+}
+
+.catalog-membership-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    gap: .55rem;
+    width: 100%;
+}
+
+.catalog-membership-toolbar label {
+    flex-basis: 100%;
+    color: var(--muted);
+    font-size: .8rem;
+    font-weight: 700;
+}
+
+.catalog-membership-toolbar input {
+    flex: 1 1 16rem;
+    min-width: 0;
+    min-height: 2.75rem;
+    padding: .6rem .75rem;
+    border: 1px solid var(--separator);
+    border-radius: .7rem;
+    color: inherit;
+    background: var(--raised);
+}
+
+.catalog-membership-options {
+    display: grid;
+    flex-basis: 100%;
+    gap: .3rem;
+    min-width: 0;
+    margin: 0;
+    padding: .7rem 1rem 1rem;
+}
+
+.catalog-membership-options label {
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+    min-height: 2.75rem;
+    overflow-wrap: anywhere;
 }
 
 .catalog-item-actions input {

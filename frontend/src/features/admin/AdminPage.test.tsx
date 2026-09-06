@@ -181,7 +181,7 @@ describe('AdminPage session gate', () => {
         fireEvent.click(screen.getByRole('button', {name: 'Weiter'}));
         expect(screen.getByText('Template 21')).toBeVisible();
         expect(screen.getAllByRole('listitem')).toHaveLength(1);
-        fireEvent.change(screen.getByLabelText('Vorlagen suchen'), {target: {value: 'Template 2'}});
+        fireEvent.change(screen.getByLabelText('Vorlagen filtern (Glob)'), {target: {value: '*Template 2*'}});
         expect(screen.getByText('Template 2')).toBeVisible();
         expect(screen.getByText('Template 20')).toBeVisible();
     });
@@ -363,12 +363,12 @@ describe('AdminPage session gate', () => {
         renderAdmin('/admin/groups');
 
         expect(await screen.findByRole('heading', {name: 'Vorlagengruppen', level: 3})).toBeVisible();
-        expect(await screen.findByText('One')).toBeVisible();
-        fireEvent.click(screen.getByRole('checkbox', {name: 'Vorlage auswählen Two'}));
-        fireEvent.click(screen.getByRole('button', {name: 'Hinzufügen'}));
-        await waitFor(() => expect(assign).toHaveBeenCalledWith('g_v1_group', 't_v1_two'));
-        fireEvent.click(screen.getByRole('button', {name: 'Mitgliedschaft entfernen'}));
+        const one = await screen.findByRole('checkbox', {name: 'Vorlage auswählen One'});
+        expect(one).toBeChecked();
+        fireEvent.click(one);
         await waitFor(() => expect(remove).toHaveBeenCalledWith('g_v1_group', 't_v1_one'));
+        fireEvent.click(screen.getByRole('checkbox', {name: 'Vorlage auswählen Two'}));
+        await waitFor(() => expect(assign).toHaveBeenCalledWith('g_v1_group', 't_v1_two'));
         expect(deleteTemplate).not.toHaveBeenCalled();
     });
 
@@ -380,26 +380,55 @@ describe('AdminPage session gate', () => {
             name: 'Two'
         }, {id: 't_v1_three', name: 'Three'}]);
         const getTemplatesInGroup = vi.spyOn(apiClient, 'getTemplatesInGroup').mockResolvedValue([]);
+        const memberships: Array<{ id: string; name: string }> = [];
+        getTemplatesInGroup.mockImplementation(async () => memberships);
         const assign = vi.spyOn(apiClient, 'assignTemplateToGroup').mockImplementation(async (_groupId, templateId) => {
             if (templateId === 't_v1_two') throw problemError({status: 409, code: 'conflict'}, 409);
+            memberships.push({id: templateId, name: templateId === 't_v1_one' ? 'One' : 'Two'});
         });
 
         renderAdmin('/admin/groups');
 
         expect(await screen.findByRole('heading', {name: 'Vorlagengruppen', level: 3})).toBeVisible();
-        fireEvent.click(screen.getByRole('checkbox', {name: 'Vorlage auswählen One'}));
-        fireEvent.click(screen.getByRole('checkbox', {name: 'Vorlage auswählen Two'}));
-        fireEvent.click(screen.getByRole('button', {name: 'Hinzufügen'}));
+        const one = screen.getByRole('checkbox', {name: 'Vorlage auswählen One'});
+        fireEvent.click(one);
+        await waitFor(() => expect(assign).toHaveBeenCalledWith('g_v1_group', 't_v1_one'));
+        const two = screen.getByRole('checkbox', {name: 'Vorlage auswählen Two'});
+        fireEvent.click(two);
+        await waitFor(() => expect(assign).toHaveBeenCalledWith('g_v1_group', 't_v1_two'));
+        await waitFor(() => expect(one).toBeChecked());
+        expect(two).not.toBeChecked();
+        expect(screen.getByRole('alert')).toBeVisible();
+    });
 
-        expect(await screen.findByText('Zuweisungs-Ergebnis')).toBeVisible();
-        expect(assign.mock.calls).toEqual([
-            ['g_v1_group', 't_v1_one'],
-            ['g_v1_group', 't_v1_two'],
+    it('filters all templates with globs and applies select all immediately', async () => {
+        vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+        vi.spyOn(apiClient, 'getGroups').mockResolvedValue([{id: 'g_v1_group', name: 'Board', description: ''}]);
+        vi.spyOn(apiClient, 'getTemplates').mockResolvedValue([
+            {id: 't_v1_one', name: 'Board One'},
+            {id: 't_v1_two', name: 'Board Two'},
+            {id: 't_v1_other', name: 'Other'},
         ]);
-        expect(screen.getByRole('status')).toHaveTextContent('Zugeordnet: 1');
-        expect(screen.getByRole('status')).toHaveTextContent('Fehlgeschlagen: 1');
-        expect(screen.getByRole('status')).toHaveTextContent('Two');
-        await waitFor(() => expect(getTemplatesInGroup).toHaveBeenCalledTimes(2));
+        vi.spyOn(apiClient, 'getTemplatesInGroup').mockResolvedValue([]);
+        const assign = vi.spyOn(apiClient, 'assignTemplateToGroup').mockResolvedValue(undefined);
+
+        renderAdmin('/admin/groups');
+
+        expect(await screen.findByRole('heading', {name: 'Vorlagengruppen', level: 3})).toBeVisible();
+        const filter = screen.getByLabelText('Vorlagen filtern (Glob)');
+        fireEvent.change(filter, {target: {value: 'Board *'}});
+        expect(screen.getByRole('checkbox', {name: 'Vorlage auswählen Board One'})).toBeVisible();
+        expect(screen.queryByRole('checkbox', {name: 'Vorlage auswählen Other'})).toBeNull();
+
+        fireEvent.click(screen.getByRole('button', {name: 'Alle angezeigten hinzufügen'}));
+        await waitFor(() => expect(assign).toHaveBeenCalledTimes(2));
+        expect(assign).toHaveBeenNthCalledWith(1, 'g_v1_group', 't_v1_one');
+        expect(assign).toHaveBeenNthCalledWith(2, 'g_v1_group', 't_v1_two');
+
+        fireEvent.change(filter, {target: {value: 'Other'}});
+        fireEvent.change(filter, {target: {value: 'Board *'}});
+        expect(screen.getByRole('checkbox', {name: 'Vorlage auswählen Board One'})).toBeVisible();
+        expect(screen.getByRole('checkbox', {name: 'Vorlage auswählen Board Two'})).toBeVisible();
     });
 
     it('creates, renames, and deletes a template group explicitly', async () => {
@@ -797,6 +826,7 @@ describe('Admin poll lifecycle', () => {
 
     it('offers only non-empty template groups for poll creation', async () => {
         vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+        vi.spyOn(apiClient, 'getAdminPolls').mockResolvedValue([]);
         vi.spyOn(apiClient, 'getGroups').mockResolvedValue([
             {id: 'g_v1_empty', name: 'Empty', description: ''},
             {id: 'g_v1_full', name: 'Full', description: ''},
@@ -806,7 +836,7 @@ describe('Admin poll lifecycle', () => {
             name: 'One'
         }] : []);
 
-        renderAdmin('/admin/create');
+        renderAdmin('/admin/polls');
 
         const select = await screen.findByLabelText('Vorlagengruppe');
         expect(within(select).queryByRole('option', {name: 'Empty'})).toBeNull();
@@ -818,11 +848,12 @@ describe('Admin poll lifecycle', () => {
 
     it('keeps poll creation values after the server rejects the snapshot', async () => {
         vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+        vi.spyOn(apiClient, 'getAdminPolls').mockResolvedValue([]);
         vi.spyOn(apiClient, 'getGroups').mockResolvedValue([{id: 'g_v1_full', name: 'Full', description: ''}]);
         vi.spyOn(apiClient, 'getTemplatesInGroup').mockResolvedValue([{id: 't_v1_one', name: 'One'}]);
         vi.spyOn(apiClient, 'createPoll').mockRejectedValue(problemError({status: 409, code: 'poll_state_conflict'}, 409));
 
-        renderAdmin('/admin/create');
+        renderAdmin('/admin/polls');
 
         const title = await screen.findByLabelText('Abstimmungs-Titel');
         const group = screen.getByLabelText('Vorlagengruppe');
@@ -844,7 +875,7 @@ describe('Admin poll lifecycle', () => {
         const createPoll = vi.spyOn(apiClient, 'createPoll').mockResolvedValue(created);
         vi.spyOn(apiClient, 'getAdminPolls').mockResolvedValue([created]);
 
-        renderAdmin('/admin/create');
+        renderAdmin('/admin/polls');
 
         fireEvent.change(await screen.findByLabelText('Abstimmungs-Titel'), {target: {value: 'Created draft'}});
         fireEvent.change(screen.getByLabelText('Vorlagengruppe'), {target: {value: 'g_v1_full'}});

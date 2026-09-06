@@ -9,10 +9,10 @@ import {useI18n} from '../../shared/i18n/I18nProvider';
 import {PageFrame} from '../../shared/ui/PageFrame';
 import {RouteState} from '../../shared/ui/RouteState';
 import {AdminVotes} from './AdministrativeVotes';
-import {AdminPolls, CreatePoll} from './PollAdministration';
+import {AdminPolls} from './PollAdministration';
 import {TemplateCatalogGroups, TemplateCatalogTemplates} from './TemplateCatalog';
 
-type AdminSectionName = 'votes' | 'polls' | 'groups' | 'templates' | 'create';
+type AdminSectionName = 'votes' | 'polls' | 'groups' | 'templates';
 
 export function AdminPage() {
     const {t} = useI18n();
@@ -118,7 +118,7 @@ function AdminSectionView({section}: { section: AdminSectionName }) {
     if (section === 'polls') return <AdminPolls/>;
     if (section === 'groups') return <TemplateCatalogGroups/>;
     if (section === 'templates') return <TemplateCatalogTemplates/>;
-    return <CreatePoll/>;
+    return <AdminPolls/>;
 }
 
 function sectionFromPath(pathname: string): AdminSectionName | null {
@@ -126,7 +126,7 @@ function sectionFromPath(pathname: string): AdminSectionName | null {
     if (pathname === '/admin/polls') return 'polls';
     if (pathname === '/admin/groups') return 'groups';
     if (pathname === '/admin/templates') return 'templates';
-    if (pathname === '/admin/create') return 'create';
+    if (pathname === '/admin/create') return 'polls';
     return null;
 }
 

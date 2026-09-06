@@ -14,7 +14,6 @@ import {catalogQueries} from './catalogQueries';
 type FailedEntry = { name: string; error: FrontendError | null };
 type BatchResult = { created: string[]; skipped: string[]; failed: FailedEntry[] };
 type DeleteResult = { deleted: string[]; failed: FailedEntry[] };
-type AssignmentResult = { assigned: string[]; failed: FailedEntry[] };
 type BusyMessage = 'common.saving' | 'common.processing';
 const PAGE_SIZE = 20;
 
@@ -38,8 +37,7 @@ function TemplateManager({templates}: { templates: CatalogTemplate[] }) {
     const [batchResult, setBatchResult] = useState<BatchResult | null>(null);
     const [deleteResult, setDeleteResult] = useState<DeleteResult | null>(null);
 
-    const normalizedSearch = normalizeName(search);
-    const filtered = templates.filter((template) => normalizeName(template.name).includes(normalizedSearch));
+    const filtered = templates.filter((template) => matchesGlob(template.name, search));
     const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
     const currentPage = Math.min(page, pageCount - 1);
     const visible = filtered.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
@@ -172,7 +170,8 @@ function TemplateManager({templates}: { templates: CatalogTemplate[] }) {
             <button className="secondary-button" type="submit" disabled={busy}>{t('admin.importTemplates')}</button>
         </form>
         <label htmlFor="template-search">{t('admin.searchTemplates')}</label>
-        <input id="template-search" value={search} onChange={(event) => {
+        <input className="catalog-filter-input" id="template-search" value={search}
+               placeholder={t('admin.filterTemplatesPlaceholder')} onChange={(event) => {
             setSearch(event.target.value);
             setPage(0);
         }}/>
@@ -228,13 +227,6 @@ function DeleteResultView({result}: { result: DeleteResult }) {
         <span key={entry.name}>{entry.name}: {t(entry.error?.messageKey ?? 'errors.generic')}</span>)}</div>;
 }
 
-function AssignmentResultView({result}: { result: AssignmentResult }) {
-    const {t} = useI18n();
-    return <div className="catalog-result" role="status">
-        <strong>{t('admin.assignmentSummary')}</strong><span>{t('admin.assigned')}: {result.assigned.length} ({result.assigned.join(', ')})</span><span>{t('admin.failed')}: {result.failed.length}</span>{result.failed.map((entry) =>
-        <span key={entry.name}>{entry.name}: {t(entry.error?.messageKey ?? 'errors.generic')}</span>)}</div>;
-}
-
 function Pagination({page, pageCount, onPageChange}: {
     page: number;
     pageCount: number;
@@ -283,17 +275,16 @@ function GroupManager({groups, templates, activeGroup, groupTemplatesQuery, onSe
     const [busy, setBusy] = useState(false);
     const [busyMessage, setBusyMessage] = useState<BusyMessage>('common.saving');
     const [error, setError] = useState<FrontendError | null>(null);
-    const [selectedTemplateIds, setSelectedTemplateIds] = useState<Set<string>>(new Set());
-    const [assignmentResult, setAssignmentResult] = useState<AssignmentResult | null>(null);
+    const [templateFilter, setTemplateFilter] = useState('');
+    const [membershipIds, setMembershipIds] = useState<Set<string>>(new Set());
 
     useEffect(() => {
         setRenameValue(activeGroup?.name ?? '');
     }, [activeGroup?.id, activeGroup?.name]);
 
     useEffect(() => {
-        setSelectedTemplateIds(new Set());
-        setAssignmentResult(null);
-    }, [activeGroup?.id]);
+        setMembershipIds(new Set((groupTemplatesQuery.data ?? []).map((template) => template.id)));
+    }, [activeGroup?.id, groupTemplatesQuery.data]);
 
     async function createGroup(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -345,45 +336,61 @@ function GroupManager({groups, templates, activeGroup, groupTemplatesQuery, onSe
         }
     }
 
-    async function assignTemplates(event: FormEvent<HTMLFormElement>) {
-        event.preventDefault();
+    async function persistMembership(templateId: string, checked: boolean) {
         if (!activeGroup) return;
-        const selectedTemplates = availableTemplates.filter((template) => selectedTemplateIds.has(template.id));
-        if (selectedTemplates.length === 0) return;
+        if (checked) await catalogCommands.assignTemplateToGroup(activeGroup.id, templateId);
+        else await catalogCommands.removeTemplateFromGroup(activeGroup.id, templateId);
+    }
+
+    async function toggleMembership(templateId: string, checked: boolean) {
+        if (!activeGroup || membershipIds.has(templateId) === checked) return;
+        setMembershipIds((current) => withMembership(current, templateId, checked));
         setBusy(true);
         setBusyMessage('common.processing');
         setError(null);
         try {
-            const result = await catalogCommands.assignTemplatesToGroup(activeGroup.id, selectedTemplates);
-            setAssignmentResult({
-                assigned: result.assigned.map((template) => template.name),
-                failed: result.failed.map((entry) => ({name: entry.name, error: frontendError(entry.error)})),
-            });
-            setSelectedTemplateIds(new Set(result.failed.map((entry) => entry.id)));
+            await persistMembership(templateId, checked);
         } catch (cause) {
+            setMembershipIds((current) => withMembership(current, templateId, !checked));
             setError(frontendError(cause));
         } finally {
             setBusy(false);
         }
     }
 
-    async function removeMembership(templateId: string) {
+    function changeTemplateFilter(value: string) {
+        setTemplateFilter(value);
+    }
+
+    async function toggleVisibleTemplates() {
         if (!activeGroup) return;
+        const checked = !allVisibleTemplatesSelected;
+        const changes = visibleTemplates.filter((template) => membershipIds.has(template.id) !== checked);
+        if (changes.length === 0) return;
+        setMembershipIds((current) => changes.reduce((next, template) => withMembership(next, template.id, checked), current));
         setBusy(true);
         setBusyMessage('common.processing');
         setError(null);
+        let failure: unknown = null;
         try {
-            await catalogCommands.removeTemplateFromGroup(activeGroup.id, templateId);
-        } catch (cause) {
-            setError(frontendError(cause));
+            for (const template of changes) {
+                try {
+                    await persistMembership(template.id, checked);
+                } catch (cause) {
+                    failure = cause;
+                    setMembershipIds((current) => withMembership(current, template.id, !checked));
+                }
+            }
+            if (failure) setError(frontendError(failure));
         } finally {
             setBusy(false);
         }
     }
 
-    const members = groupTemplatesQuery.data ?? [];
-    const memberIds = new Set(members.map((template) => template.id));
-    const availableTemplates = templates.filter((template) => !memberIds.has(template.id));
+    const visibleTemplates = templates.filter((template) => matchesGlob(template.name, templateFilter));
+    const visibleTemplateIds = visibleTemplates.map((template) => template.id);
+    const allVisibleTemplatesSelected = visibleTemplateIds.length > 0
+        && visibleTemplateIds.every((id) => membershipIds.has(id));
 
     return <section className="admin-panel">
         <h3>{t('admin.groups')}</h3>
@@ -414,34 +421,31 @@ function GroupManager({groups, templates, activeGroup, groupTemplatesQuery, onSe
                         void deleteGroup();
                     }}>{t('admin.delete')}</button>
                 </div>
-                <QueryState query={groupTemplatesQuery}>{(memberships) => <>
+                <QueryState query={groupTemplatesQuery}>{() => <>
                     <h4>{t('admin.memberships')}</h4>
-                    <form className="catalog-form-row" onSubmit={assignTemplates}>
-                        <fieldset disabled={busy || availableTemplates.length === 0}>
-                            <legend>{t('admin.addMembership')}</legend>
-                            {availableTemplates.map((template) => <label key={template.id}>
-                                <input type="checkbox" checked={selectedTemplateIds.has(template.id)}
+                    <div className="catalog-form-row catalog-membership-form">
+                        <div className="catalog-membership-toolbar">
+                            <label htmlFor="group-template-filter">{t('admin.filterTemplates')}</label>
+                            <input id="group-template-filter" value={templateFilter}
+                                   placeholder={t('admin.filterTemplatesPlaceholder')}
+                                   onChange={(event) => changeTemplateFilter(event.target.value)} disabled={busy}/>
+                            <button className="text-button" type="button"
+                                    disabled={busy || visibleTemplates.length === 0}
+                                    onClick={() => void toggleVisibleTemplates()}>
+                                {t(allVisibleTemplatesSelected ? 'admin.removeVisibleTemplates' : 'admin.addVisibleTemplates')}
+                            </button>
+                        </div>
+                        <fieldset disabled={busy || visibleTemplates.length === 0} className="catalog-membership-options">
+                            <legend>{t('admin.allTemplates')}</legend>
+                            {visibleTemplates.map((template) => <label key={template.id}>
+                                <input type="checkbox" checked={membershipIds.has(template.id)}
                                        aria-label={`${t('admin.selectTemplate')} ${template.name}`}
-                                       onChange={() => setSelectedTemplateIds((current) => {
-                                           const next = new Set(current);
-                                           if (next.has(template.id)) next.delete(template.id);
-                                           else next.add(template.id);
-                                           return next;
-                                       })}/>
+                                       onChange={(event) => void toggleMembership(template.id, event.target.checked)}/>
                                 {template.name}
                             </label>)}
                         </fieldset>
-                        <button className="secondary-button" type="submit"
-                                disabled={busy || selectedTemplateIds.size === 0}>{t('admin.add')}</button>
-                    </form>
-                    {assignmentResult && <AssignmentResultView result={assignmentResult}/>}
-                    {memberships.length === 0 ? <RouteState status="empty"/> :
-                        <ul className="data-list catalog-list">{memberships.map((template) => <li key={template.id}>
-                            <strong>{template.name}</strong>
-                            <button className="text-button" type="button" disabled={busy} onClick={() => {
-                                void removeMembership(template.id);
-                            }}>{t('admin.removeMembership')}</button>
-                        </li>)}</ul>}
+                    </div>
+                    {visibleTemplates.length === 0 ? <RouteState status="empty"/> : null}
                 </>}</QueryState>
             </>}
         </>}
@@ -450,4 +454,17 @@ function GroupManager({groups, templates, activeGroup, groupTemplatesQuery, onSe
 
 function frontendError(cause: unknown) {
     return cause instanceof ApiError ? cause.frontend : null;
+}
+
+function withMembership(current: Set<string>, templateId: string, checked: boolean) {
+    const next = new Set(current);
+    if (checked) next.add(templateId);
+    else next.delete(templateId);
+    return next;
+}
+
+function matchesGlob(value: string, pattern: string) {
+    if (!pattern) return true;
+    const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`^${escaped.replace(/\*/g, '.*').replace(/\?/g, '.')}$`, 'i').test(value);
 }

@@ -81,10 +81,9 @@ function AdminNavigationLinks() {
     const {pathname} = useLocation();
     return <ul className="nav-list admin-nav-list">
         <li><AdminNavigationLink to="/admin/votes" active={pathname === '/admin' || pathname === '/admin/votes'}>{t('admin.votes')}</AdminNavigationLink></li>
-        <li><AdminNavigationLink to="/admin/polls" active={pathname === '/admin/polls'}>{t('admin.polls')}</AdminNavigationLink></li>
+        <li><AdminNavigationLink to="/admin/polls" active={pathname === '/admin/polls' || pathname === '/admin/create'}>{t('admin.polls')}</AdminNavigationLink></li>
         <li><AdminNavigationLink to="/admin/groups" active={pathname === '/admin/groups'}>{t('admin.groups')}</AdminNavigationLink></li>
         <li><AdminNavigationLink to="/admin/templates" active={pathname === '/admin/templates'}>{t('admin.templates')}</AdminNavigationLink></li>
-        <li><AdminNavigationLink to="/admin/create" active={pathname === '/admin/create'}>{t('admin.createPoll')}</AdminNavigationLink></li>
     </ul>;
 }
 

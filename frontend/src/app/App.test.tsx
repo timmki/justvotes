@@ -313,7 +313,7 @@ describe('app shell', () => {
         expect(navigations).toHaveLength(2);
         expect(screen.getAllByRole('navigation', {name: 'Admin-Navigation'})).toHaveLength(2);
         for (const navigation of navigations) {
-            expect(within(navigation).getAllByRole('link')).toHaveLength(5);
+            expect(within(navigation).getAllByRole('link')).toHaveLength(4);
             expect(within(navigation).getByRole('link', {name: 'Abstimmungen'})).toHaveAttribute('aria-current', 'page');
             expect(within(navigation).queryByRole('link', {name: 'Startseite'})).toBeNull();
         }
