@@ -67,18 +67,18 @@ const discoveryPolls = [
 
 describe('HomePage identity', () => {
     it('shows the first eight characters while keeping the complete identity accessible', async () => {
-        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'abcdefghijk'});
+        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'Älice #42'});
 
         renderHome();
 
-        expect(await screen.findByText('abcdefgh…')).toBeTruthy();
-        expect(screen.getByLabelText('abcdefghijk')).toBeTruthy();
+        expect(await screen.findByText('Älice #4…')).toBeTruthy();
+        expect(screen.getByLabelText('Älice #42')).toBeTruthy();
     });
 
-    it('supports first assignment, confirmation, and refetches the normalized server value', async () => {
+    it('supports first assignment, confirmation, and refetches the exact server value', async () => {
         const getIdentity = vi.spyOn(apiClient, 'getIdentity')
             .mockResolvedValueOnce({userID: null})
-            .mockResolvedValueOnce({userID: 'alice_1'});
+            .mockResolvedValueOnce({userID: 'Älice #1'});
         const changeIdentity = vi.spyOn(apiClient, 'changeIdentity').mockResolvedValue(undefined);
         const getPublicPolls = vi.mocked(apiClient.getPublicPolls);
         const withdrawVote = vi.spyOn(apiClient, 'withdrawVote');
@@ -87,28 +87,28 @@ describe('HomePage identity', () => {
 
         renderHome();
         fireEvent.click(await screen.findByRole('button', {name: 'Identität bearbeiten'}));
-        fireEvent.change(screen.getByLabelText('Neue Identität'), {target: {value: ' Alice_1 '}});
+        fireEvent.change(screen.getByLabelText('Neue Identität'), {target: {value: 'Älice #1'}});
         fireEvent.click(screen.getByRole('button', {name: 'Speichern'}));
 
         expect(screen.getByRole('dialog')).toBeTruthy();
         expect(changeIdentity).not.toHaveBeenCalled();
         fireEvent.click(screen.getByRole('button', {name: 'Änderung bestätigen'}));
 
-        await waitFor(() => expect(changeIdentity).toHaveBeenCalledWith({userID: 'alice_1'}));
+        await waitFor(() => expect(changeIdentity).toHaveBeenCalledWith({userID: 'Älice #1'}));
         expect(withdrawVote).not.toHaveBeenCalled();
-        expect(await screen.findByTitle('alice_1')).toBeTruthy();
+        expect(await screen.findByTitle('Älice #1')).toBeTruthy();
         expect(getIdentity).toHaveBeenCalledTimes(2);
         await waitFor(() => expect(getPublicPolls).toHaveBeenCalledTimes(2));
         expect(queryClient.getQueryState(queryKeys.pollResults('poll-1'))?.isInvalidated).toBe(true);
     });
 
-    it('treats a differently formatted equivalent identity as a no-op', async () => {
+    it('treats the exact same identity as a no-op', async () => {
         const getIdentity = vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
         const changeIdentity = vi.spyOn(apiClient, 'changeIdentity').mockResolvedValue(undefined);
 
         renderHome();
         fireEvent.click(await screen.findByRole('button', {name: 'Identität bearbeiten'}));
-        fireEvent.change(screen.getByLabelText('Neue Identität'), {target: {value: ' Alice '}});
+        fireEvent.change(screen.getByLabelText('Neue Identität'), {target: {value: 'alice'}});
         fireEvent.click(screen.getByRole('button', {name: 'Speichern'}));
 
         expect(changeIdentity).not.toHaveBeenCalled();
@@ -166,19 +166,19 @@ describe('HomePage identity', () => {
         renderHome();
         fireEvent.click(await screen.findByRole('button', {name: 'Identität bearbeiten'}));
         const input = screen.getByLabelText('Neue Identität');
-        fireEvent.change(input, {target: {value: 'ab'}});
+        fireEvent.change(input, {target: {value: ''}});
         fireEvent.click(screen.getByRole('button', {name: 'Speichern'}));
 
-        expect(screen.getByRole('alert')).toHaveTextContent('Die Identität muss 3 bis 32 Zeichen enthalten');
+        expect(screen.getByRole('alert')).toHaveTextContent('Die Identität muss 1 bis 64 Zeichen enthalten');
         expect(screen.queryByRole('dialog')).toBeNull();
-        expect(input).toHaveValue('ab');
+        expect(input).toHaveValue('');
 
-        fireEvent.change(input, {target: {value: 'bob'}});
+        fireEvent.change(input, {target: {value: 'Älice #1'}});
         fireEvent.click(screen.getByRole('button', {name: 'Speichern'}));
         fireEvent.click(screen.getByRole('button', {name: 'Änderung bestätigen'}));
 
         expect(await screen.findByRole('alert')).toHaveTextContent(message);
-        expect(input).toHaveValue('bob');
+        expect(input).toHaveValue('Älice #1');
         expect(screen.getByTitle('alice')).toBeTruthy();
         expect(screen.getByRole('button', {name: 'Speichern'})).toHaveFocus();
     });

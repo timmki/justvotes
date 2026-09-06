@@ -70,11 +70,11 @@ describe('app shell', () => {
 
         const sidebar = screen.getByRole('complementary', {name: 'Identität'});
         fireEvent.click(within(sidebar).getByRole('button', {name: 'Identität bearbeiten'}));
-        fireEvent.change(screen.getByLabelText('Neue Identität'), {target: {value: ' Bob '}});
+        fireEvent.change(screen.getByLabelText('Neue Identität'), {target: {value: 'Bob'}});
         fireEvent.click(screen.getByRole('button', {name: 'Speichern'}));
         fireEvent.click(screen.getByRole('button', {name: 'Änderung bestätigen'}));
 
-        await vi.waitFor(() => expect(changeIdentity).toHaveBeenCalledWith({userID: 'bob'}));
+        await vi.waitFor(() => expect(changeIdentity).toHaveBeenCalledWith({userID: 'Bob'}));
     });
 
     it('renders the home navigation in German by default', () => {

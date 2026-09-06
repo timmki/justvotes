@@ -135,10 +135,13 @@ class CsrfSessionHttpTest {
                 .header("X-Forwarded-Proto", "https")
                 .header(HttpHeaders.COOKIE, csrfCookie + "; " + cookies(login))
                 .header("X-XSRF-TOKEN", token)
-                .contentType(MediaType.APPLICATION_JSON).body("{\"userID\":\"Alice\"}");
+                .contentType(MediaType.APPLICATION_JSON).body("{\"userID\":\"Älice #42\"}");
         ResponseEntity<String> identity = client.exchange(identityRequest, String.class);
         assertStatus(identity, 204);
         assertCookie(identity, "userID", true, true);
+        ResponseEntity<String> current = client.exchange(RequestEntity.get(baseUrl + "/identity")
+                .header(HttpHeaders.COOKIE, cookies(identity)).build(), String.class);
+        assertThat(current.getBody()).isEqualTo("{\"userID\":\"Älice #42\"}");
     }
 
     @Test
@@ -154,11 +157,11 @@ class CsrfSessionHttpTest {
         ResponseEntity<String> present = client.exchange(RequestEntity.get(baseUrl + "/identity?userID=mallory")
                 .header(HttpHeaders.COOKIE, "userID=Alice_1").build(), String.class);
         assertStatus(present, 200);
-        assertThat(present.getBody()).isEqualTo("{\"userID\":\"alice_1\"}");
+        assertThat(present.getBody()).isEqualTo("{\"userID\":\"Alice_1\"}");
         assertNoCookieSideEffects(present);
 
         ResponseEntity<String> malformed = client.exchange(RequestEntity.get(baseUrl + "/identity")
-                .header(HttpHeaders.COOKIE, "userID=ab").build(), String.class);
+                .header(HttpHeaders.COOKIE, "userID=").build(), String.class);
         assertStatus(malformed, 200);
         assertThat(malformed.getBody()).isEqualTo("{\"userID\":null}");
         assertNoCookieSideEffects(malformed);

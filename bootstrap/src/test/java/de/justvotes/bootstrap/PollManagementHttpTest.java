@@ -324,7 +324,7 @@ class PollManagementHttpTest {
     }
 
     @Test
-    void storesNormalizedIdentityAndReportsCreatedReplacedAndUnchangedVotesInThePublicAudit() {
+    void storesExactIdentityAndReportsCreatedReplacedAndUnchangedVotesInThePublicAudit() {
         String catalogUrl = "http://localhost:" + port + "/api/v1/admin/template-catalog";
         String pollsUrl = "http://localhost:" + port + "/api/v1/admin/polls";
         String publicPollsUrl = "http://localhost:" + port + "/api/v1/polls";
@@ -338,11 +338,11 @@ class PollManagementHttpTest {
         admin.put(pollsUrl + "/" + pollId + "/publication", "{\"endsAt\":\"2099-01-01T00:00:00Z\"}");
 
         PublicVisitor visitor = publicVisitor();
-        ResponseEntity<String> identity = visitor.post("http://localhost:" + port + "/api/v1/identity", "{\"userID\":\"  Alice_1  \"}");
+        ResponseEntity<String> identity = visitor.post("http://localhost:" + port + "/api/v1/identity", "{\"userID\":\"Älice #1\"}");
         assertEquals(204, identity.getStatusCode().value(), identity.getBody());
         assertTrue(identity.getHeaders().getCacheControl().contains("no-store"));
-        assertTrue(identity.getHeaders().get(HttpHeaders.SET_COOKIE).stream().anyMatch(cookie -> cookie.startsWith("userID=alice_1;")));
-        visitor = new PublicVisitor(visitor.client(), visitor.cookies() + "; userID=alice_1", visitor.csrfToken());
+        assertTrue(identity.getHeaders().get(HttpHeaders.SET_COOKIE).stream().anyMatch(cookie -> cookie.startsWith("userID=v2.")));
+        visitor = new PublicVisitor(visitor.client(), visitor.cookies() + "; " + cookieHeader(identity.getHeaders()), visitor.csrfToken());
 
         ResponseEntity<String> csrfRejectedVote = visitor.postWithoutCsrf(publicPollsUrl + "/" + pollId + "/votes", "{\"optionNumber\":1}");
         assertEquals(403, csrfRejectedVote.getStatusCode().value());
@@ -364,7 +364,7 @@ class PollManagementHttpTest {
         ResponseEntity<String> audit = visitor.get(publicPollsUrl + "/" + pollId + "/audit");
         assertEquals(200, audit.getStatusCode().value(), audit.getBody());
         assertTrue(audit.getHeaders().getCacheControl().contains("no-store"));
-        assertTrue(audit.getBody().contains("alice_1"));
+        assertTrue(audit.getBody().contains("Älice #1"));
         assertTrue(audit.getBody().contains("VoteCast"));
         assertTrue(audit.getBody().contains("VoteReplaced"));
         assertTrue(

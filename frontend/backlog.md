@@ -17,7 +17,7 @@ Nach dem Verschieben dieser Datei ist der lokale OpenAPI-Vertrag im Monorepo die
 
 - **Poll:** Eine vom Admin erstellte Auswahlfrage mit mehreren nummerierten Poll Options, Lebenszyklus und Sichtbarkeit.
 - **Admin:** Der authentifizierte Betreiber, der Polls erstellt, verwaltet und administrative Korrekturen ausführt.
-- **Voter Identity:** Veränderbares öffentliches Pseudonym und zugleich technische Identität des Teilnehmers. Gleiche normalisierte Pseudonyme bezeichnen dieselbe Identität; es gibt keine zusätzliche verborgene Identity-ID.
+- **Voter Identity:** Veränderbares öffentliches Pseudonym und zugleich technische Identität des Teilnehmers. Gleiche exakte Pseudonyme bezeichnen dieselbe Identität; es gibt keine zusätzliche verborgene Identity-ID.
 - **Vote:** Die aktuell gültige Auswahl einer Voter Identity in einem Poll. In einem aktiven Poll kann sie ersetzt oder zurückgezogen werden.
 - **Poll Results:** Aggregierte Stimmenzahlen sowie die öffentlich sichtbaren aktuellen Voter Identities und Abstimmungszeitpunkte.
 - **Private Poll:** Ausschließlich für den Admin sichtbar; weder gelistet noch über einen Freigabelink erreichbar.
@@ -232,10 +232,10 @@ Das angezeigte Pseudonym ist zugleich die technische Identität, unter der Votes
 **Contract-Skizze für das Ticket:**
 
 - Ergänze `GET /api/v1/identity`; der Request verändert weder Cookie noch Votes und benötigt keinen CSRF-Token.
-- Antworte immer mit `200`, `Cache-Control: no-store` und `{ "userID": "normalisiert" }` beziehungsweise `{ "userID": null }`, wenn kein Identity-Cookie existiert.
+- Antworte immer mit `200`, `Cache-Control: no-store` und `{ "userID": "exakt" }` beziehungsweise `{ "userID": null }`, wenn kein Identity-Cookie existiert.
 - Eine beliebige fremde Identity darf weder als Path- noch als Queryparameter angefragt werden können.
 
-**Backendtests:** fehlendes Cookie, gültiges Cookie, normalisierte Kleinschreibung, keine `Set-Cookie`-Nebenwirkung, `no-store` und keine CSRF-Anforderung bei `GET`.
+**Backendtests:** fehlendes Cookie, gültiges Cookie mit Großschreibung und Unicode, keine `Set-Cookie`-Nebenwirkung, `no-store` und keine CSRF-Anforderung bei `GET`.
 
 ### BE-05 – Identitätswechsel integrieren – bereits implementiert
 
@@ -245,13 +245,13 @@ Das angezeigte Pseudonym ist zugleich die technische Identität, unter der Votes
 
 **Eingebettetes Legacy-Verhalten:** Der Bestätigungsdialog versprach, beim Identitätswechsel die bisherigen Votes der alten Identität zu löschen. Der Client führte dafür zuerst einen separaten Delete-All-Request mit frei übermittelter User-ID aus und schrieb erst danach `localStorage`. Dieser unsichere Zwei-Schritt-Ablauf wird nicht übernommen; die neue SPA delegiert Wechsel, Vote-Entfernung und Audit vollständig an einen einzelnen transaktionalen Backendaufruf.
 
-**Vorhandene Backendfähigkeit:** `POST /identity` normalisiert die neue Voter Identity, entfernt innerhalb einer Transaktion die bisherigen Votes der alten Identität aus öffentlichen aktiven Polls und erzeugt dafür Audit-Ereignisse. Votes aus abgeschlossenen Polls und die Historie bleiben erhalten. Bei fehlender alter Identität oder unverändertem normalisiertem Wert werden keine Votes entfernt.
+**Vorhandene Backendfähigkeit:** `POST /identity` übernimmt die neue Voter Identity exakt, entfernt innerhalb einer Transaktion die bisherigen Votes der alten Identität aus öffentlichen aktiven Polls und erzeugt dafür Audit-Ereignisse. Votes aus abgeschlossenen Polls und die Historie bleiben erhalten. Bei fehlender alter Identität oder unverändertem Wert werden keine Votes entfernt.
 
 **Frontend-Akzeptanzkriterien:**
 
 - Die SPA zeigt vor dem Wechsel die bestätigte Warnung über die Auswirkungen auf aktive Votes.
 - Sie lädt einen CSRF-Token und sendet genau einen `POST /identity` mit `credentials: same-origin`; sie führt keinen zusätzlichen Vote-Delete-Aufruf aus.
-- Eingaben werden als 3 bis 32 Zeichen aus Buchstaben, Ziffern, `_` und `-` validiert; die Anzeige verwendet anschließend den serverseitig normalisierten Wert.
+- Eingaben werden als 1 bis 64 Unicode-Zeichen validiert; Groß-/Kleinschreibung und sonstige Zeichen bleiben erhalten.
 - Nach `204 No Content` werden Identity-, Poll- und Results-Caches verworfen und die Identität über BE-04 erneut geladen.
 - `400`-Problem-Details und CSRF-Fehler werden verständlich angezeigt, ohne den lokalen Sitzungszustand vorzeitig umzuschalten.
 
@@ -380,7 +380,7 @@ Ein Teilnehmer darf auch nach Einsicht der aktuellen Ergebnisse ersetzen oder zu
 
 ### CT-02 – Cookievertrag festschreiben
 
-- Für `userID` werden der normalisierte Wert, `Path=/`, zehn Jahre Lebensdauer, `HttpOnly`, `SameSite=Lax` und `Secure` bei HTTPS dokumentiert.
+- Für `userID` werden der codierte exakte Wert, `Path=/`, zehn Jahre Lebensdauer, `HttpOnly`, `SameSite=Lax` und `Secure` bei HTTPS dokumentiert.
 - Namen, Lebensdauer, Path, `SameSite`, `Secure` und `HttpOnly` für Session- und CSRF-Cookies werden dokumentiert.
 - Das Verhalten hinter einem TLS-terminierenden Reverse Proxy ist festgelegt und getestet.
 - Der generierte Client beziehungsweise seine Fetch-Abstraktion sendet Same-Origin-Credentials bewusst mit.
@@ -508,12 +508,12 @@ Die folgenden Tickets werden im neuen Monorepo umgesetzt. Jeder Ticketabschluss 
 
 - Lade die aktive Voter Identity über `GET /identity`; zeige bei vorhandenem Wert die ersten acht Zeichen plus Ellipse und biete Bearbeiten, Speichern und Abbrechen.
 - Halte die geladene Identität ausschließlich im Query-/React-Sitzungszustand. `localStorage` darf nicht zur technischen Identitätsquelle werden.
-- Validiere 3 bis 32 Zeichen aus Buchstaben, Ziffern, `_` und `-`; zeige nach Erfolg den serverseitig normalisierten Kleinbuchstabenwert.
+- Validiere 1 bis 64 Unicode-Zeichen; zeige nach Erfolg den serverseitig unveränderten Wert.
 - Zeige vor einer echten Änderung einen modalen Hinweis, dass Votes aus öffentlichen aktiven Polls entfernt und auditiert werden, abgeschlossene Historie aber erhalten bleibt.
 - Sende genau einen CSRF-geschützten `POST /identity`. Nach `204` Identity-, Poll- und Results-Queries invalidieren und Identity erneut laden.
 - Biete primäre Navigation zu `/polls` und dezente Navigation zu `/admin`.
 
-**Akzeptanz:** Erstsetzung ohne Cookie, No-op bei gleichem normalisiertem Wert, erfolgreicher Wechsel, `400`, CSRF-Fehler und Netzwerkfehler sind getestet; kein Vote-Delete-Request wird vom Client gesendet.
+**Akzeptanz:** Erstsetzung ohne Cookie, No-op bei gleichem Wert, erfolgreicher Wechsel, `400`, CSRF-Fehler und Netzwerkfehler sind getestet; kein Vote-Delete-Request wird vom Client gesendet.
 
 ### FE-04 – Öffentliche Poll-Liste implementieren
 

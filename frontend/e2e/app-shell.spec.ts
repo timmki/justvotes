@@ -225,10 +225,50 @@ test('changes the identity once after confirming the warning', async ({ page }) 
 
   await expect(page.getByRole('dialog')).toContainText('Stimmen der bisherigen Identität');
   await page.getByRole('button', { name: 'Änderung bestätigen' }).click();
-  await expect(page.getByTitle('alice_1')).toHaveCount(2);
+  await expect(page.getByTitle('Alice_1')).toHaveCount(2);
 
   expect(requests.filter(({ method, url }) => method === 'POST' && url.endsWith('/identity'))).toHaveLength(1);
   expect(requests.filter(({ method, url }) => method === 'DELETE' && url.includes('/votes'))).toHaveLength(0);
+});
+
+test('keeps the identity confirmation above poll content', async ({ page }) => {
+  await page.setViewportSize({ width: 969, height: 900 });
+  await page.route('**/api/v1/**', async (route) => {
+    const url = route.request().url();
+    if (url.endsWith('/identity')) return route.fulfill({ json: { userID: 'alice' } });
+    if (url.endsWith('/polls/poll-z-index')) return route.fulfill({ json: {
+      id: 'poll-z-index',
+      title: 'Poll behind identity dialog',
+      visibility: 'public',
+      state: 'active',
+      createdAt: '2026-08-31T12:00:00.000Z',
+      endsAt: null,
+      totalVotes: 0,
+      options: [{ number: 1, text: 'Yes' }, { number: 2, text: 'No' }],
+    } });
+    if (url.endsWith('/polls/poll-z-index/results')) return route.fulfill({ json: {
+      id: 'poll-z-index',
+      totalVotes: 0,
+      options: [{ number: 1, text: 'Yes', voteCount: 0, votes: [] }, { number: 2, text: 'No', voteCount: 0, votes: [] }],
+    } });
+    return route.fulfill({ json: [] });
+  });
+
+  await page.goto('/poll/poll-z-index');
+  await expect(page.getByText('Poll behind identity dialog')).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, 450));
+  await page.locator('.identity-shell-editor').getByRole('button', { name: 'Identität bearbeiten' }).click();
+  await page.getByLabel('Neue Identität').fill('bob');
+  await page.locator('.identity-shell-editor').getByRole('button', { name: 'Speichern' }).click();
+
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  expect(await dialog.evaluate((element) => element.closest('.sidebar'))).toBeNull();
+  expect(await dialog.evaluate((element) => {
+    const bounds = element.getBoundingClientRect();
+    const topmost = document.elementFromPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2);
+    return topmost?.closest('[role="dialog"]') === element;
+  })).toBe(true);
 });
 
 test('renders public poll cards from one list request without N+1 detail requests', async ({ page }) => {

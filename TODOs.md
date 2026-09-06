@@ -1,0 +1,3 @@
+- Identity name should be set freely without enforcing lowercase or no spaces.
+- Z-axis on identity dialog
+- 

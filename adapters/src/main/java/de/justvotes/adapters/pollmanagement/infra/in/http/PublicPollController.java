@@ -49,9 +49,9 @@ public class PublicPollController implements PublicPollsApi {
         HttpServletRequest request = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest();
         if (request.getCookies() != null) {
             for (var cookie : request.getCookies()) {
-                if ("userID".equals(cookie.getName())) {
+                if (IdentityCookieCodec.NAME.equals(cookie.getName())) {
                     try {
-                        return Identity.of(cookie.getValue());
+                        return IdentityCookieCodec.decode(cookie.getValue());
                     } catch (IllegalArgumentException exception) {
                         return null;
                     }

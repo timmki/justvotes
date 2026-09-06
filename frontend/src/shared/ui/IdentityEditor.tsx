@@ -1,5 +1,6 @@
 import {useMutation} from '@tanstack/react-query';
 import {useEffect, useId, useRef, useState} from 'react';
+import {createPortal} from 'react-dom';
 import {apiClient} from '../api/client';
 import {ApiError, type FrontendError} from '../api/errors';
 import {queryClient} from '../api/queryClient';
@@ -67,12 +68,11 @@ export function IdentityEditor({identity, variant = 'card', identityState = 'rea
     }
 
     function requestSave() {
-        const normalized = normalizeIdentity(draft);
-        if (!identityPattern.test(normalized)) {
+        if (!isValidIdentity(draft)) {
             setValidationError(true);
             return;
         }
-        if (normalized === identity) {
+        if (draft === identity) {
             cancelEditing();
             return;
         }
@@ -115,7 +115,7 @@ export function IdentityEditor({identity, variant = 'card', identityState = 'rea
                 setConfirmOpen(false);
                 saveButtonRef.current?.focus();
             }}
-            onConfirm={() => mutation.mutate(normalizeIdentity(draft))}
+            onConfirm={() => mutation.mutate(draft)}
             pending={mutation.isPending}/>
         }
     </section>;
@@ -130,7 +130,7 @@ function IdentityConfirmation({onCancel, onConfirm, pending}: {
     const dialogRef = useRef<HTMLDivElement>(null);
     useDialogFocusTrap(dialogRef, onCancel);
 
-    return <div className="modal-backdrop">
+    return createPortal(<div className="modal-backdrop">
         <div ref={dialogRef} className="identity-dialog" role="dialog" aria-modal="true" tabIndex={-1}
              aria-labelledby="identity-dialog-heading" aria-describedby="identity-dialog-warning">
             <h3 id="identity-dialog-heading">{t('common.identityChangeTitle')}</h3>
@@ -142,15 +142,14 @@ function IdentityConfirmation({onCancel, onConfirm, pending}: {
                         disabled={pending}>{t('forms.cancel')}</button>
             </div>
         </div>
-    </div>;
+    </div>, document.body);
 }
 
-const identityPattern = /^[a-z0-9_-]{3,32}$/;
-
-function normalizeIdentity(value: string) {
-    return value.trim().toLowerCase();
+function isValidIdentity(value: string) {
+    return value.length > 0 && [...value].length <= 64;
 }
 
 function displayIdentity(identity: string) {
-    return identity.length > 8 ? `${identity.slice(0, 8)}…` : identity;
+    const characters = [...identity];
+    return characters.length > 8 ? `${characters.slice(0, 8).join('')}…` : identity;
 }

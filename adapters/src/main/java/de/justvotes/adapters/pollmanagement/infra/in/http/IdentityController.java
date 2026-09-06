@@ -16,7 +16,6 @@ import java.time.Duration;
 
 @RestController
 public class IdentityController implements IdentityApi {
-    private static final String COOKIE = "userID";
     private final ManageVotes votes;
 
     public IdentityController(ManageVotes votes) {
@@ -37,7 +36,7 @@ public class IdentityController implements IdentityApi {
         Identity identity = Identity.of(request.getUserID());
         votes.changeIdentity(cookieIdentity(servletRequest), identity);
         return ResponseEntity.noContent().cacheControl(CacheControl.noStore())
-                .header("Set-Cookie", ResponseCookie.from(COOKIE, identity.value())
+                .header("Set-Cookie", ResponseCookie.from(IdentityCookieCodec.NAME, IdentityCookieCodec.encode(identity))
                         .path("/")
                         .maxAge(Duration.ofDays(3650))
                         .sameSite("Lax")
@@ -47,13 +46,8 @@ public class IdentityController implements IdentityApi {
     }
 
     private Identity cookieIdentity(HttpServletRequest request) {
-        if (request.getCookies() == null) {
-            return null;
-        }
-        for (var cookie : request.getCookies())
-            if (COOKIE.equals(cookie.getName())) {
-                return Identity.of(cookie.getValue());
-            }
+        if (request.getCookies() == null) return null;
+        for (var cookie : request.getCookies()) if (IdentityCookieCodec.NAME.equals(cookie.getName())) return IdentityCookieCodec.decode(cookie.getValue());
         return null;
     }
 

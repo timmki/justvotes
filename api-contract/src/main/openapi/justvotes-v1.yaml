@@ -7,7 +7,7 @@ info:
 
     ## Cookie contract
 
-    The browser client uses same-origin credentials (`credentials: "same-origin"`), so it sends and stores these cookies automatically. `userID` is the normalized identity value, valid for ten years, `Path=/`, `HttpOnly`, `SameSite=Lax`, and `Secure` when the effective external request protocol is HTTPS. JavaScript must not read or mirror it. `JSESSIONID` is a server-managed session cookie: `Path=/`, session lifetime, `HttpOnly`, `SameSite=Lax`, and `Secure` for effective external HTTPS. `XSRF-TOKEN` is a CSRF bootstrap cookie: `Path=/`, session lifetime, readable by JavaScript (`HttpOnly` absent/false), `SameSite=Lax`, and `Secure` for effective external HTTPS; the client reads it only to send the matching `X-XSRF-TOKEN` header. The application trusts forwarded protocol headers only after deployment behind its trusted proxy; direct untrusted forwarding headers must not be accepted.
+    The browser client uses same-origin credentials (`credentials: "same-origin"`), so it sends and stores these cookies automatically. `userID` is the exact identity value encoded in a URL-safe cookie representation, valid for ten years, `Path=/`, `HttpOnly`, `SameSite=Lax`, and `Secure` when the effective external request protocol is HTTPS. JavaScript must not read or mirror it. `JSESSIONID` is a server-managed session cookie: `Path=/`, session lifetime, `HttpOnly`, `SameSite=Lax`, and `Secure` for effective external HTTPS. `XSRF-TOKEN` is a CSRF bootstrap cookie: `Path=/`, session lifetime, readable by JavaScript (`HttpOnly` absent/false), `SameSite=Lax`, and `Secure` for effective external HTTPS; the client reads it only to send the matching `X-XSRF-TOKEN` header. The application trusts forwarded protocol headers only after deployment behind its trusted proxy; direct untrusted forwarding headers must not be accepted.
 
     ## Session and CSRF flow
 
@@ -126,7 +126,7 @@ paths:
       operationId: currentIdentity
       responses:
         '200':
-          description: The normalized identity from the current request cookie, or null when no identity cookie is present.
+          description: The exact identity from the current request cookie, or null when no identity cookie is present.
           headers:
             Cache-Control:
               $ref: '#/components/headers/NoStore'
@@ -145,7 +145,7 @@ paths:
         $ref: '#/components/requestBodies/Identity'
       responses:
         '204':
-          description: Identity changed; sets the normalized `userID` cookie used for voting; ten-year lifetime, Path=/, SameSite=Lax, HttpOnly=true, Secure for effective HTTPS. Browser-managed; clients do not read or mirror it.
+          description: Identity changed; sets an encoded `userID` cookie containing the exact identity used for voting; ten-year lifetime, Path=/, SameSite=Lax, HttpOnly=true, Secure for effective HTTPS. Browser-managed; clients do not read or mirror it.
           headers:
             Cache-Control:
               $ref: '#/components/headers/NoStore'
@@ -1295,7 +1295,8 @@ components:
       properties:
         userID:
           type: string
-          pattern: '^\s*[A-Za-z0-9_-]{3,32}\s*$'
+          description: A non-empty identity containing at most 64 Unicode code points.
+          minLength: 1
     CurrentIdentity:
       type: object
       additionalProperties: false
@@ -1305,7 +1306,8 @@ components:
         userID:
           type: string
           nullable: true
-          pattern: '^[a-z0-9_-]{3,32}$'
+          description: The exact identity, containing at most 64 Unicode code points.
+          minLength: 1
     Name:
       type: object
       additionalProperties: false
