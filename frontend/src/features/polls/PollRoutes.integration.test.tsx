@@ -77,7 +77,7 @@ afterEach(() => {
     vi.restoreAllMocks();
 });
 
-function renderPolls(initialEntry = '/polls') {
+function renderPolls(initialEntry = '/polls?date=date&from=2020-01-01&to=2099-12-31') {
     return render(
         <MemoryRouter initialEntries={[initialEntry]}>
             <QueryClientProvider client={queryClient}>
@@ -98,6 +98,20 @@ function LocationSearch() {
 
 function localIso(year: number, month: number, day: number, hour = 12) {
     return new Date(year, month - 1, day, hour).toISOString();
+}
+
+function relativeLocalIso(offset: number, hour = 12) {
+    const date = new Date();
+    date.setHours(hour, 0, 0, 0);
+    date.setDate(date.getDate() + offset);
+    return date.toISOString();
+}
+
+function relativeLocalDate(offset = 0) {
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() + offset);
+    return [date.getFullYear().toString().padStart(4, '0'), (date.getMonth() + 1).toString().padStart(2, '0'), date.getDate().toString().padStart(2, '0')].join('-');
 }
 
 function listPoll(id: string, title: string, createdAt: string) {
@@ -245,10 +259,34 @@ describe('PollsPage', () => {
         ]);
     });
 
+    it('defaults to today and supports yesterday, tomorrow, and custom dates', async () => {
+        vi.spyOn(apiClient, 'getPublicPolls').mockResolvedValue([
+            listPoll('yesterday', 'Yesterday poll', relativeLocalIso(-1)),
+            listPoll('today', 'Today poll', relativeLocalIso(0)),
+            listPoll('tomorrow', 'Tomorrow poll', relativeLocalIso(1)),
+        ]);
+
+        renderPolls('/polls');
+
+        expect(screen.getByLabelText('Datum')).toHaveValue('today');
+        expect(screen.queryByLabelText('Von')).toBeNull();
+        expect(await screen.findByRole('link', {name: /Today poll/})).toBeVisible();
+        expect(screen.queryByRole('link', {name: /Yesterday poll/})).toBeNull();
+        fireEvent.change(screen.getByLabelText('Datum'), {target: {value: 'yesterday'}});
+        expect(await screen.findByRole('link', {name: /Yesterday poll/})).toBeVisible();
+        expect(screen.queryByRole('link', {name: /Today poll/})).toBeNull();
+        fireEvent.change(screen.getByLabelText('Datum'), {target: {value: 'tomorrow'}});
+        expect(await screen.findByRole('link', {name: /Tomorrow poll/})).toBeVisible();
+        expect(screen.queryByRole('link', {name: /Yesterday poll/})).toBeNull();
+        fireEvent.change(screen.getByLabelText('Datum'), {target: {value: 'date'}});
+        expect(screen.getByLabelText('Von')).toBeVisible();
+        expect(screen.getByLabelText('Bis')).toBeVisible();
+    });
+
     it('reads and writes the allowlisted sort state in the URL', async () => {
         vi.spyOn(apiClient, 'getPublicPolls').mockResolvedValue([
-            listPoll('old', 'Old', '2026-08-01T10:00:00Z'),
-            listPoll('new', 'New', '2026-08-02T10:00:00Z'),
+            listPoll('old', 'Old', relativeLocalIso(0, 10)),
+            listPoll('new', 'New', relativeLocalIso(0, 12)),
         ]);
 
         render(
@@ -264,10 +302,12 @@ describe('PollsPage', () => {
         ]);
         fireEvent.change(screen.getByLabelText('Sortierung'), {target: {value: 'newest'}});
         await waitFor(() => expect(screen.getByLabelText('URL-Suche')).toHaveTextContent('?sort=newest'));
+        fireEvent.change(screen.getByLabelText('Datum'), {target: {value: 'date'}});
+        await waitFor(() => expect(screen.getByLabelText('URL-Suche')).toHaveTextContent('?sort=newest&date=date'));
         fireEvent.change(screen.getByLabelText('Von'), {target: {value: '2026-08-01'}});
-        await waitFor(() => expect(screen.getByLabelText('URL-Suche')).toHaveTextContent('?sort=newest&from=2026-08-01'));
+        await waitFor(() => expect(screen.getByLabelText('URL-Suche')).toHaveTextContent('?sort=newest&date=date&from=2026-08-01'));
         fireEvent.change(screen.getByLabelText('Bis'), {target: {value: '2026-08-03'}});
-        await waitFor(() => expect(screen.getByLabelText('URL-Suche')).toHaveTextContent('?sort=newest&from=2026-08-01&to=2026-08-03'));
+        await waitFor(() => expect(screen.getByLabelText('URL-Suche')).toHaveTextContent('?sort=newest&date=date&from=2026-08-01&to=2026-08-03'));
     });
 
     it('filters a local calendar range with an inclusive start and exclusive end', async () => {
@@ -278,7 +318,7 @@ describe('PollsPage', () => {
             listPoll('end', 'End', localIso(2026, 8, 3, 0)),
         ]);
 
-        renderPolls('/polls?from=2026-08-02&to=2026-08-03');
+        renderPolls('/polls?date=date&from=2026-08-02&to=2026-08-03');
 
         expect((await screen.findAllByRole('link')).map((link) => link.textContent)).toEqual([
             expect.stringContaining('Inside'), expect.stringContaining('Start'),
@@ -291,7 +331,7 @@ describe('PollsPage', () => {
             listPoll('day-end', 'Day end', localIso(2026, 8, 3, 0)),
         ]);
 
-        renderPolls('/polls?from=2026-08-02&to=2026-08-02');
+        renderPolls('/polls?date=date&from=2026-08-02&to=2026-08-02');
 
         expect(await screen.findByRole('link', {name: /Day start/})).toBeVisible();
         expect(screen.queryByRole('link', {name: /Day end/})).toBeNull();
@@ -309,7 +349,7 @@ describe('PollsPage', () => {
     });
 
     it('ignores invalid query values and removes them from the canonical URL', async () => {
-        vi.spyOn(apiClient, 'getPublicPolls').mockResolvedValue([polls[0]]);
+        vi.spyOn(apiClient, 'getPublicPolls').mockResolvedValue([listPoll('today', polls[0].title, relativeLocalIso(0))]);
 
         render(
             <MemoryRouter initialEntries={['/polls?sort=sideways&from=2026-02-30&to=nope&extra=value']}>
@@ -325,11 +365,11 @@ describe('PollsPage', () => {
 
     it('resets sort and date filters from both controls and the URL', async () => {
         vi.spyOn(apiClient, 'getPublicPolls').mockResolvedValue([
-            listPoll('old', 'Old', '2026-08-01T10:00:00Z'), listPoll('new', 'New', '2026-08-02T10:00:00Z'),
+            listPoll('old', 'Old', relativeLocalIso(0, 10)), listPoll('new', 'New', relativeLocalIso(0, 12)),
         ]);
 
         render(
-            <MemoryRouter initialEntries={['/polls?sort=oldest&from=2026-08-01&to=2026-08-03']}>
+            <MemoryRouter initialEntries={[`/polls?sort=oldest&date=date&from=${relativeLocalDate()}&to=${relativeLocalDate()}`]}>
                 <QueryClientProvider client={queryClient}><I18nProvider><Routes>
                     <Route path="/polls" element={<><PollsPage/><LocationSearch/></>}/>
                 </Routes></I18nProvider></QueryClientProvider>
@@ -339,8 +379,9 @@ describe('PollsPage', () => {
         await screen.findByRole('link', {name: /Old/});
         fireEvent.click(screen.getByRole('button', {name: 'Filter zurücksetzen'}));
         expect(screen.getByLabelText('Sortierung')).toHaveValue('newest');
-        expect(screen.getByLabelText('Von')).toHaveValue('');
-        expect(screen.getByLabelText('Bis')).toHaveValue('');
+        expect(screen.getByLabelText('Datum')).toHaveValue('today');
+        expect(screen.queryByLabelText('Von')).toBeNull();
+        expect(screen.queryByLabelText('Bis')).toBeNull();
         expect(screen.getByLabelText('URL-Suche')).toHaveTextContent('');
         expect((screen.getAllByRole('link')).map((link) => link.textContent)).toEqual([
             expect.stringContaining('New'), expect.stringContaining('Old'),

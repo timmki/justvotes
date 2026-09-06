@@ -17,7 +17,7 @@ describe('PollsPage', () => {
             templateSnapshotOptions: [], options: [],
         }]);
 
-        renderPollTest('/polls', <Routes><Route path="/polls" element={<PollsPage/>}/></Routes>);
+        renderPollTest('/polls?date=date&from=2020-01-01&to=2099-12-31', <Routes><Route path="/polls" element={<PollsPage/>}/></Routes>);
 
         expect(await screen.findByRole('link', {name: /Team-Ausflug/})).toBeVisible();
     });

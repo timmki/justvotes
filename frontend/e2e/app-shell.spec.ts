@@ -169,7 +169,7 @@ test('keeps populated public and admin surfaces within supported viewport widths
 
   for (const width of [320, 600, 900, 1280]) {
     await page.setViewportSize({width, height: 720});
-    for (const route of ['/', '/polls', '/poll/p_responsive', '/poll/results/p_responsive', '/poll/results/p_responsive/option/1', '/poll/audit/p_responsive', '/admin/polls']) {
+    for (const route of ['/', '/polls?date=date&from=2026-08-01&to=2026-09-30', '/poll/p_responsive', '/poll/results/p_responsive', '/poll/results/p_responsive/option/1', '/poll/audit/p_responsive', '/admin/polls']) {
       await page.goto(route);
       const content = route.includes('/audit')
         ? page.getByRole('heading', { name: 'Stimme abgegeben', level: 3 })
@@ -254,7 +254,7 @@ test('renders public poll cards from one list request without N+1 detail request
     return route.fulfill({ json: [] });
   });
 
-  await page.goto('/polls');
+  await page.goto('/polls?date=date&from=2025-01-01&to=2025-12-31');
 
   const card = page.getByRole('link', { name: /A long poll title/ });
   await expect(card).toContainText('0');

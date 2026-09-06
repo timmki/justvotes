@@ -5,7 +5,7 @@ import {QueryState} from '../../shared/ui/QueryState';
 import {RouteState} from '../../shared/ui/RouteState';
 import {PublicPollCard} from './PublicPollCard';
 import {DataPage} from './pollPageShared';
-import {hasInvalidPollDateRange, parsePollListState, projectPollListState, serializePollListState, type PollSort} from './pollListState';
+import {hasInvalidPollDateRange, parsePollListState, projectPollListState, serializePollListState, type PollDateFilter, type PollSort} from './pollListState';
 import {projectPollList} from './pollProjections';
 import {usePollsQuery} from './pollQueries';
 
@@ -22,7 +22,7 @@ export function PollsPage() {
         if (canonicalSearch !== searchParams.toString()) setSearchParams(canonicalSearch, {replace: true});
     }, [searchParams, setSearchParams, state]);
 
-    function updateState(changes: Partial<{sort: PollSort; from: string; to: string}>) {
+    function updateState(changes: Partial<{sort: PollSort; dateFilter: PollDateFilter; from: string; to: string}>) {
         const next = {...state, ...changes};
         const serialized = serializePollListState(next);
         if (changes.sort === 'newest' || (changes.sort === undefined && searchParams.get('sort') === 'newest')) {
@@ -43,8 +43,16 @@ export function PollsPage() {
                         <option value="newest">{t('polls.newest')}</option>
                         <option value="oldest">{t('polls.oldest')}</option>
                     </select></label>
-                    <label>{t('polls.from')}<input aria-label={t('polls.from')} type="date" value={state.from ?? ''} onChange={(event) => updateState({from: event.target.value})}/></label>
-                    <label>{t('polls.to')}<input aria-label={t('polls.to')} type="date" value={state.to ?? ''} onChange={(event) => updateState({to: event.target.value})}/></label>
+                    <label>{t('polls.dateFilter')}<select aria-label={t('polls.dateFilter')} value={state.dateFilter} onChange={(event) => updateState({dateFilter: event.target.value as PollDateFilter})}>
+                        <option value="yesterday">{t('polls.yesterday')}</option>
+                        <option value="today">{t('polls.today')}</option>
+                        <option value="tomorrow">{t('polls.tomorrow')}</option>
+                        <option value="date">{t('polls.date')}</option>
+                    </select></label>
+                    {state.dateFilter === 'date' && <>
+                        <label>{t('polls.from')}<input aria-label={t('polls.from')} type="date" value={state.from ?? ''} onChange={(event) => updateState({from: event.target.value})}/></label>
+                        <label>{t('polls.to')}<input aria-label={t('polls.to')} type="date" value={state.to ?? ''} onChange={(event) => updateState({to: event.target.value})}/></label>
+                    </>}
                     <button className="text-button" type="button" onClick={clearState}>{t('polls.resetFilters')}</button>
                 </div>
                 {hasInvalidPollDateRange(state) && <p className="poll-filter-error" role="alert">{t('polls.invalidDateRange')}</p>}
