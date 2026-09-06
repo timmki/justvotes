@@ -111,6 +111,7 @@ public final class JpaPollPersistenceAdapter implements PollRepository {
     @Override
     public void delete(Poll poll) {
         events.deleteAllByPollId(poll.id().value());
+        votes.deleteAllByPoll_Id(poll.id().value());
         polls.deleteById(poll.id().value());
     }
 

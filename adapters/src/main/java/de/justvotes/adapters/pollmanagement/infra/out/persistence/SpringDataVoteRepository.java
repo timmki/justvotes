@@ -6,6 +6,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
 public interface SpringDataVoteRepository extends JpaRepository<VoteEntity, Integer> {
+    void deleteAllByPoll_Id(String pollId);
+
     @Query(value = """
             select v.id as voteId,
                    v.userId as userId,

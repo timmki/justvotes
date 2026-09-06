@@ -67,7 +67,7 @@ export const messages = {
             sessionRequiredText: 'Deine Sitzung ist abgelaufen. Geschützte Daten wurden entfernt.',
             pollDescription: 'Abstimmungs-Details und Optionen.',
             resultsDescription: 'Ergebnisse und aktuelle Stimmen.',
-            optionDescription: 'Aktuelle Voter Identities dieser Option.',
+            optionDescription: 'Aktuelle abstimmende Identitäten dieser Option.',
             auditDescription: 'Chronologische Ereignisse der Abstimmung.',
             adminDescription: 'Anmeldung und Verwaltung.',
         },

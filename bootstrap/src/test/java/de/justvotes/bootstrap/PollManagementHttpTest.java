@@ -299,6 +299,32 @@ class PollManagementHttpTest {
     }
 
     @Test
+    void permanentlyDeletesADeletedPollThatContainsVotes() {
+        String catalogUrl = "http://localhost:" + port + "/api/v1/admin/template-catalog";
+        String pollsUrl = "http://localhost:" + port + "/api/v1/admin/polls";
+        String publicPollsUrl = "http://localhost:" + port + "/api/v1/polls";
+        AuthenticatedAdmin admin = login();
+        String template = createdId(admin.post(catalogUrl + "/templates", "{\"name\":\"Permanent-Delete-Option\"}"));
+        String group = createdId(admin.post(catalogUrl + "/groups", "{\"name\":\"Permanent-Delete-Group\",\"description\":\"\"}"));
+        admin.put(catalogUrl + "/groups/" + group + "/templates/" + template);
+        String pollId = stringField(admin.post(pollsUrl, "{\"title\":\"Permanent-Delete\",\"templateGroupId\":\"" + group + "\"}"), "id");
+        admin.put(pollsUrl + "/" + pollId + "/publication", "{\"endsAt\":\"2099-01-01T00:00:00Z\"}");
+
+        PublicVisitor visitor = publicVisitor();
+        ResponseEntity<String> identity = visitor.post("http://localhost:" + port + "/api/v1/identity", "{\"userID\":\"DeleteUser\"}");
+        assertEquals(204, identity.getStatusCode().value());
+        visitor = new PublicVisitor(visitor.client(), visitor.cookies() + "; userID=deleteuser", visitor.csrfToken());
+        assertEquals(200, visitor.post(publicPollsUrl + "/" + pollId + "/votes", "{\"optionNumber\":1}").getStatusCode().value());
+
+        assertEquals(200, admin.delete(pollsUrl + "/" + pollId).getStatusCode().value());
+        ResponseEntity<String> deleted = admin.post(pollsUrl + "/" + pollId + "/permanent-deletion", "{\"confirmation\":\"DELETE\"}");
+
+        assertEquals(204, deleted.getStatusCode().value(), deleted.getBody());
+        assertNoStore(deleted);
+        assertFalse(admin.get(pollsUrl).getBody().contains(pollId));
+    }
+
+    @Test
     void keepsTheTemplateGroupSnapshotAfterTheSourceGroupIsRenamedAndDeleted() {
         String catalogUrl = "http://localhost:" + port + "/api/v1/admin/template-catalog";
         String pollsUrl = "http://localhost:" + port + "/api/v1/admin/polls";

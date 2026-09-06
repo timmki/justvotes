@@ -85,4 +85,25 @@ class PollPersistenceIntegrationTest {
         assertEquals(List.of(1, 0), summaries.stream().map(PollSummary::totalVotes).toList());
         assertEquals(1, sessionFactory.getStatistics().getPrepareStatementCount());
     }
+
+    @Test
+    @Transactional
+    void permanentlyDeletesPollsThatContainVotes() {
+        Poll poll = Poll.privateDraftFrom(
+                new Poll.TemplateGroup(Poll.TemplateGroupId.of(1), "Gruppe", ""),
+                "Delete-Test", "systemadmin", List.of("Option"));
+        poll.publish("systemadmin", Instant.parse("2099-01-01T00:00:00Z"));
+        poll.castOrReplace(de.justvotes.pollmanagement.core.model.Identity.of("alice"), 1,
+                Instant.parse("2026-08-30T10:00:00Z"));
+        poll.softDelete();
+
+        polls.save(poll);
+        entityManager.flush();
+        entityManager.clear();
+        polls.delete(polls.findById(poll.id()).orElseThrow());
+        entityManager.flush();
+        entityManager.clear();
+
+        assertEquals(java.util.Optional.empty(), polls.findById(poll.id()));
+    }
 }
