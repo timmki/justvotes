@@ -1,7 +1,8 @@
 const defaultAppName = 'JustVotes';
 
 export function getAppName() {
-    const configured = import.meta.env.VITE_APP_NAME?.trim();
+    const runtimeConfigured = window.__JUSTVOTES_CONFIG__?.appName?.trim();
+    const configured = runtimeConfigured || import.meta.env.VITE_APP_NAME?.trim();
     return configured || defaultAppName;
 }
 

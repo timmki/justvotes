@@ -3,26 +3,30 @@ package de.justvotes.adapters.pollmanagement.infra.in.transaction;
 import de.justvotes.pollmanagement.core.model.AdminVotePage;
 import de.justvotes.pollmanagement.core.ports.in.ManageAdminVotes;
 import de.justvotes.pollmanagement.core.ports.in.ViewAdminVotes;
-import org.springframework.transaction.annotation.Transactional;
+import de.justvotes.adapters.sqlite.SqliteRetryingTransaction;
 
 public class TransactionalAdminVoteManagement implements ManageAdminVotes, ViewAdminVotes {
     private final ManageAdminVotes commands;
     private final ViewAdminVotes queries;
+    private final SqliteRetryingTransaction transactions;
 
-    public TransactionalAdminVoteManagement(ManageAdminVotes commands, ViewAdminVotes queries) {
+    public TransactionalAdminVoteManagement(ManageAdminVotes commands, ViewAdminVotes queries,
+                                            SqliteRetryingTransaction transactions) {
         this.commands = commands;
         this.queries = queries;
+        this.transactions = transactions;
     }
 
     @Override
-    @Transactional
     public void removeAdminVote(long voteId, String adminId, String reason) {
-        commands.removeAdminVote(voteId, adminId, reason);
+        transactions.execute(() -> {
+            commands.removeAdminVote(voteId, adminId, reason);
+            return null;
+        });
     }
 
     @Override
-    @Transactional(readOnly = true)
     public AdminVotePage adminVotes(int page, int size) {
-        return queries.adminVotes(page, size);
+        return transactions.executeReadOnly(() -> queries.adminVotes(page, size));
     }
 }

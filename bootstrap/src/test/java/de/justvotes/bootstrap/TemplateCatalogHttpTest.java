@@ -115,6 +115,18 @@ class TemplateCatalogHttpTest {
         assertNoStore(duplicateGroupAfterDelete);
     }
 
+    @Test
+    void createsFiveTemplatesAgainstTheSqliteApplication() {
+        String baseUrl = "http://localhost:" + port + "/api/v1/admin/template-catalog";
+        AuthenticatedAdmin admin = login();
+
+        for (int index = 1; index <= 5; index++) {
+            ResponseEntity<String> created = admin.post(baseUrl + "/templates", "{\"name\":\"Batch " + index + "\"}");
+            assertEquals(201, created.getStatusCode().value());
+            assertNoStore(created);
+        }
+    }
+
     private AuthenticatedAdmin login() {
         TestRestTemplate client = new TestRestTemplate();
         String origin = "http://localhost:" + port;

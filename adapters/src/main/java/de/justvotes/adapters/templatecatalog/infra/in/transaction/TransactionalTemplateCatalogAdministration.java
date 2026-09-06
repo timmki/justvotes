@@ -4,82 +4,80 @@ import de.justvotes.templatecatalog.core.model.OptionTemplate;
 import de.justvotes.templatecatalog.core.model.OptionTemplateGroup;
 import de.justvotes.templatecatalog.core.ports.in.ManageTemplateCatalog;
 import de.justvotes.templatecatalog.core.ports.in.ViewTemplateCatalog;
-import org.springframework.transaction.annotation.Transactional;
+import de.justvotes.adapters.sqlite.SqliteRetryingTransaction;
 
 import java.util.List;
 
 public class TransactionalTemplateCatalogAdministration implements ManageTemplateCatalog, ViewTemplateCatalog {
     private final ManageTemplateCatalog commands;
     private final ViewTemplateCatalog queries;
+    private final SqliteRetryingTransaction transactions;
 
-    public TransactionalTemplateCatalogAdministration(ManageTemplateCatalog commands, ViewTemplateCatalog queries) {
+    public TransactionalTemplateCatalogAdministration(ManageTemplateCatalog commands, ViewTemplateCatalog queries,
+                                                     SqliteRetryingTransaction transactions) {
         this.commands = commands;
         this.queries = queries;
+        this.transactions = transactions;
     }
 
     @Override
-    @Transactional
     public OptionTemplate createTemplate(String name) {
-        return commands.createTemplate(name);
+        return transactions.execute(() -> commands.createTemplate(name));
     }
 
     @Override
-    @Transactional
     public OptionTemplate renameTemplate(long templateId, String name) {
-        return commands.renameTemplate(templateId, name);
+        return transactions.execute(() -> commands.renameTemplate(templateId, name));
     }
 
     @Override
-    @Transactional
     public void deleteTemplate(long templateId) {
-        commands.deleteTemplate(templateId);
+        transactions.execute(() -> {
+            commands.deleteTemplate(templateId);
+            return null;
+        });
     }
 
     @Override
-    @Transactional
     public OptionTemplateGroup createGroup(String name, String description) {
-        return commands.createGroup(name, description);
+        return transactions.execute(() -> commands.createGroup(name, description));
     }
 
     @Override
-    @Transactional
     public OptionTemplateGroup renameGroup(long groupId, String name) {
-        return commands.renameGroup(groupId, name);
+        return transactions.execute(() -> commands.renameGroup(groupId, name));
     }
 
     @Override
-    @Transactional
     public void deleteGroup(long groupId) {
-        commands.deleteGroup(groupId);
+        transactions.execute(() -> {
+            commands.deleteGroup(groupId);
+            return null;
+        });
     }
 
     @Override
-    @Transactional
     public OptionTemplateGroup assignTemplateToGroup(long templateId, long groupId) {
-        return commands.assignTemplateToGroup(templateId, groupId);
+        return transactions.execute(() -> commands.assignTemplateToGroup(templateId, groupId));
     }
 
     @Override
-    @Transactional
     public OptionTemplateGroup removeTemplateFromGroup(long templateId, long groupId) {
-        return commands.removeTemplateFromGroup(templateId, groupId);
+        return transactions.execute(() -> commands.removeTemplateFromGroup(templateId, groupId));
     }
 
     @Override
-    @Transactional(readOnly = true)
     public List<OptionTemplate> templates() {
-        return queries.templates();
+        return transactions.executeReadOnly(queries::templates);
     }
 
     @Override
-    @Transactional(readOnly = true)
     public List<OptionTemplateGroup> groups() {
-        return queries.groups();
+        return transactions.executeReadOnly(queries::groups);
     }
 
     @Override
-    @Transactional(readOnly = true)
     public List<OptionTemplate> templatesInGroup(long groupId) {
-        return queries.templatesInGroup(groupId);
+        return transactions.executeReadOnly(() -> queries.templatesInGroup(groupId));
     }
 }

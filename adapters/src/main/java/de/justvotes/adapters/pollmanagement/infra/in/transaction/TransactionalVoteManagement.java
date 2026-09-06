@@ -3,7 +3,7 @@ package de.justvotes.adapters.pollmanagement.infra.in.transaction;
 import de.justvotes.pollmanagement.core.model.*;
 import de.justvotes.pollmanagement.core.ports.in.ManageVotes;
 import de.justvotes.pollmanagement.core.ports.in.ViewVotes;
-import org.springframework.transaction.annotation.Transactional;
+import de.justvotes.adapters.sqlite.SqliteRetryingTransaction;
 
 import java.util.List;
 import java.util.Optional;
@@ -11,45 +11,47 @@ import java.util.Optional;
 public class TransactionalVoteManagement implements ManageVotes, ViewVotes {
     private final ManageVotes commands;
     private final ViewVotes queries;
+    private final SqliteRetryingTransaction transactions;
 
-    public TransactionalVoteManagement(ManageVotes commands, ViewVotes queries) {
+    public TransactionalVoteManagement(ManageVotes commands, ViewVotes queries, SqliteRetryingTransaction transactions) {
         this.commands = commands;
         this.queries = queries;
+        this.transactions = transactions;
     }
 
     @Override
-    @Transactional
     public void changeIdentity(Identity oldIdentity, Identity newIdentity) {
-        commands.changeIdentity(oldIdentity, newIdentity);
+        transactions.execute(() -> {
+            commands.changeIdentity(oldIdentity, newIdentity);
+            return null;
+        });
     }
 
     @Override
-    @Transactional
     public VoteOutcome castOrReplace(Poll.PollId pollId, Identity identity, int optionNumber) {
-        return commands.castOrReplace(pollId, identity, optionNumber);
+        return transactions.execute(() -> commands.castOrReplace(pollId, identity, optionNumber));
     }
 
     @Override
-    @Transactional
     public void withdrawVote(Poll.PollId pollId, Identity identity) {
-        commands.withdrawVote(pollId, identity);
+        transactions.execute(() -> {
+            commands.withdrawVote(pollId, identity);
+            return null;
+        });
     }
 
     @Override
-    @Transactional(readOnly = true)
     public Optional<Vote> currentVote(Poll.PollId pollId, Identity identity) {
-        return queries.currentVote(pollId, identity);
+        return transactions.executeReadOnly(() -> queries.currentVote(pollId, identity));
     }
 
     @Override
-    @Transactional
     public PollResults results(Poll.PollId pollId, Identity identity) {
-        return queries.results(pollId, identity);
+        return transactions.execute(() -> queries.results(pollId, identity));
     }
 
     @Override
-    @Transactional
     public List<AuditEntry> publicAudit(Poll.PollId pollId) {
-        return queries.publicAudit(pollId);
+        return transactions.execute(() -> queries.publicAudit(pollId));
     }
 }

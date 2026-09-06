@@ -14,6 +14,7 @@ import {catalogQueries} from './catalogQueries';
 type FailedEntry = { name: string; error: FrontendError | null };
 type BatchResult = { created: string[]; skipped: string[]; failed: FailedEntry[] };
 type DeleteResult = { deleted: string[]; failed: FailedEntry[] };
+type AssignmentResult = { assigned: string[]; failed: FailedEntry[] };
 type BusyMessage = 'common.saving' | 'common.processing';
 const PAGE_SIZE = 20;
 
@@ -227,6 +228,13 @@ function DeleteResultView({result}: { result: DeleteResult }) {
         <span key={entry.name}>{entry.name}: {t(entry.error?.messageKey ?? 'errors.generic')}</span>)}</div>;
 }
 
+function AssignmentResultView({result}: { result: AssignmentResult }) {
+    const {t} = useI18n();
+    return <div className="catalog-result" role="status">
+        <strong>{t('admin.assignmentSummary')}</strong><span>{t('admin.assigned')}: {result.assigned.length} ({result.assigned.join(', ')})</span><span>{t('admin.failed')}: {result.failed.length}</span>{result.failed.map((entry) =>
+        <span key={entry.name}>{entry.name}: {t(entry.error?.messageKey ?? 'errors.generic')}</span>)}</div>;
+}
+
 function Pagination({page, pageCount, onPageChange}: {
     page: number;
     pageCount: number;
@@ -272,14 +280,20 @@ function GroupManager({groups, templates, activeGroup, groupTemplatesQuery, onSe
     const [newName, setNewName] = useState('');
     const [newDescription, setNewDescription] = useState('');
     const [renameValue, setRenameValue] = useState('');
-    const [assignId, setAssignId] = useState('');
     const [busy, setBusy] = useState(false);
     const [busyMessage, setBusyMessage] = useState<BusyMessage>('common.saving');
     const [error, setError] = useState<FrontendError | null>(null);
+    const [selectedTemplateIds, setSelectedTemplateIds] = useState<Set<string>>(new Set());
+    const [assignmentResult, setAssignmentResult] = useState<AssignmentResult | null>(null);
 
     useEffect(() => {
         setRenameValue(activeGroup?.name ?? '');
     }, [activeGroup?.id, activeGroup?.name]);
+
+    useEffect(() => {
+        setSelectedTemplateIds(new Set());
+        setAssignmentResult(null);
+    }, [activeGroup?.id]);
 
     async function createGroup(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -331,15 +345,21 @@ function GroupManager({groups, templates, activeGroup, groupTemplatesQuery, onSe
         }
     }
 
-    async function assignTemplate(event: FormEvent<HTMLFormElement>) {
+    async function assignTemplates(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        if (!activeGroup || !assignId) return;
+        if (!activeGroup) return;
+        const selectedTemplates = availableTemplates.filter((template) => selectedTemplateIds.has(template.id));
+        if (selectedTemplates.length === 0) return;
         setBusy(true);
         setBusyMessage('common.processing');
         setError(null);
         try {
-            await catalogCommands.assignTemplateToGroup(activeGroup.id, assignId);
-            setAssignId('');
+            const result = await catalogCommands.assignTemplatesToGroup(activeGroup.id, selectedTemplates);
+            setAssignmentResult({
+                assigned: result.assigned.map((template) => template.name),
+                failed: result.failed.map((entry) => ({name: entry.name, error: frontendError(entry.error)})),
+            });
+            setSelectedTemplateIds(new Set(result.failed.map((entry) => entry.id)));
         } catch (cause) {
             setError(frontendError(cause));
         } finally {
@@ -396,18 +416,25 @@ function GroupManager({groups, templates, activeGroup, groupTemplatesQuery, onSe
                 </div>
                 <QueryState query={groupTemplatesQuery}>{(memberships) => <>
                     <h4>{t('admin.memberships')}</h4>
-                    <form className="catalog-form-row" onSubmit={assignTemplate}><label
-                        htmlFor="assign-template">{t('admin.addMembership')}</label><select id="assign-template"
-                                                                                            value={assignId}
-                                                                                            onChange={(event) => setAssignId(event.target.value)}
-                                                                                            required>
-                        <option value="">{t('admin.selectTemplate')}</option>
-                        {availableTemplates.map((template) => <option key={template.id}
-                                                                      value={template.id}>{template.name}</option>)}
-                    </select>
+                    <form className="catalog-form-row" onSubmit={assignTemplates}>
+                        <fieldset disabled={busy || availableTemplates.length === 0}>
+                            <legend>{t('admin.addMembership')}</legend>
+                            {availableTemplates.map((template) => <label key={template.id}>
+                                <input type="checkbox" checked={selectedTemplateIds.has(template.id)}
+                                       aria-label={`${t('admin.selectTemplate')} ${template.name}`}
+                                       onChange={() => setSelectedTemplateIds((current) => {
+                                           const next = new Set(current);
+                                           if (next.has(template.id)) next.delete(template.id);
+                                           else next.add(template.id);
+                                           return next;
+                                       })}/>
+                                {template.name}
+                            </label>)}
+                        </fieldset>
                         <button className="secondary-button" type="submit"
-                                disabled={busy || availableTemplates.length === 0}>{t('admin.add')}</button>
+                                disabled={busy || selectedTemplateIds.size === 0}>{t('admin.add')}</button>
                     </form>
+                    {assignmentResult && <AssignmentResultView result={assignmentResult}/>}
                     {memberships.length === 0 ? <RouteState status="empty"/> :
                         <ul className="data-list catalog-list">{memberships.map((template) => <li key={template.id}>
                             <strong>{template.name}</strong>

@@ -6,6 +6,7 @@ import de.justvotes.adapters.templatecatalog.infra.out.persistence.JpaOptionTemp
 import de.justvotes.adapters.templatecatalog.infra.out.persistence.JpaTemplateCatalogPersistenceAdapter;
 import de.justvotes.adapters.templatecatalog.infra.out.persistence.SpringDataOptionTemplateGroupRepository;
 import de.justvotes.adapters.templatecatalog.infra.out.persistence.SpringDataOptionTemplateRepository;
+import de.justvotes.adapters.sqlite.SqliteRetryingTransaction;
 import de.justvotes.templatecatalog.core.TemplateCatalogAdministration;
 import de.justvotes.templatecatalog.core.ports.in.ManageTemplateCatalog;
 import de.justvotes.templatecatalog.core.ports.in.ViewTemplateCatalog;
@@ -39,13 +40,15 @@ class TemplateCatalogConfiguration {
     }
 
     @Bean
-    ManageTemplateCatalog templateCatalogCommands(TemplateCatalogAdministration administration) {
-        return new TransactionalTemplateCatalogAdministration(administration, administration);
+    ManageTemplateCatalog templateCatalogCommands(TemplateCatalogAdministration administration,
+                                                  SqliteRetryingTransaction transactions) {
+        return new TransactionalTemplateCatalogAdministration(administration, administration, transactions);
     }
 
     @Bean
-    ViewTemplateCatalog templateCatalogQueries(TemplateCatalogAdministration administration) {
-        return new TransactionalTemplateCatalogAdministration(administration, administration);
+    ViewTemplateCatalog templateCatalogQueries(TemplateCatalogAdministration administration,
+                                               SqliteRetryingTransaction transactions) {
+        return new TransactionalTemplateCatalogAdministration(administration, administration, transactions);
     }
 
     @Bean

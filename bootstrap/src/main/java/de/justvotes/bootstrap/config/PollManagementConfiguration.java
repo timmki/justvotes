@@ -10,6 +10,7 @@ import de.justvotes.adapters.pollmanagement.infra.in.transaction.TransactionalPo
 import de.justvotes.adapters.pollmanagement.infra.in.transaction.TransactionalVoteManagement;
 import de.justvotes.adapters.pollmanagement.infra.out.persistence.*;
 import de.justvotes.adapters.pollmanagement.infra.out.templatecatalog.TemplateCatalogSnapshotAdapter;
+import de.justvotes.adapters.sqlite.SqliteRetryingTransaction;
 import de.justvotes.pollmanagement.core.PollManagement;
 import de.justvotes.pollmanagement.core.VoteManagement;
 import de.justvotes.pollmanagement.core.ports.in.*;
@@ -18,11 +19,17 @@ import de.justvotes.templatecatalog.core.ports.in.ViewTemplateCatalog;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.transaction.PlatformTransactionManager;
 
 import java.time.Instant;
 
 @Configuration
 class PollManagementConfiguration {
+    @Bean
+    SqliteRetryingTransaction sqliteRetryingTransaction(PlatformTransactionManager transactionManager) {
+        return new SqliteRetryingTransaction(transactionManager);
+    }
+
     @Bean
     PollRepository pollRepository(SpringDataPollRepository polls, SpringDataPollDomainEventRepository events,
                                   SpringDataVoteRepository votes) {
@@ -51,13 +58,13 @@ class PollManagementConfiguration {
     }
 
     @Bean
-    ManagePolls pollCommands(PollManagement management) {
-        return new TransactionalPollManagement(management, management);
+    ManagePolls pollCommands(PollManagement management, SqliteRetryingTransaction transactions) {
+        return new TransactionalPollManagement(management, management, transactions);
     }
 
     @Bean
-    ViewPolls pollQueries(PollManagement management) {
-        return new TransactionalPollManagement(management, management);
+    ViewPolls pollQueries(PollManagement management, SqliteRetryingTransaction transactions) {
+        return new TransactionalPollManagement(management, management, transactions);
     }
 
     @Bean
@@ -72,23 +79,23 @@ class PollManagementConfiguration {
     }
 
     @Bean
-    ManageVotes voteCommands(VoteManagement management) {
-        return new TransactionalVoteManagement(management, management);
+    ManageVotes voteCommands(VoteManagement management, SqliteRetryingTransaction transactions) {
+        return new TransactionalVoteManagement(management, management, transactions);
     }
 
     @Bean
-    ViewVotes voteQueries(VoteManagement management) {
-        return new TransactionalVoteManagement(management, management);
+    ViewVotes voteQueries(VoteManagement management, SqliteRetryingTransaction transactions) {
+        return new TransactionalVoteManagement(management, management, transactions);
     }
 
     @Bean
-    ManageAdminVotes adminVoteCommands(VoteManagement management) {
-        return new TransactionalAdminVoteManagement(management, management);
+    ManageAdminVotes adminVoteCommands(VoteManagement management, SqliteRetryingTransaction transactions) {
+        return new TransactionalAdminVoteManagement(management, management, transactions);
     }
 
     @Bean
-    ViewAdminVotes adminVoteQueries(VoteManagement management) {
-        return new TransactionalAdminVoteManagement(management, management);
+    ViewAdminVotes adminVoteQueries(VoteManagement management, SqliteRetryingTransaction transactions) {
+        return new TransactionalAdminVoteManagement(management, management, transactions);
     }
 
     @Bean

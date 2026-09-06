@@ -190,41 +190,38 @@ describe('AdminPage session gate', () => {
         vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
         vi.spyOn(apiClient, 'getTemplates').mockResolvedValue([{id: 't_v1_existing', name: 'alpha'}]);
         const createTemplate = vi.spyOn(apiClient, 'createTemplate').mockImplementation(async (name) => {
-            if (name === 'beta') throw problemError({status: 409, code: 'conflict'}, 409);
+            if (name.toLowerCase() === 'beta') throw problemError({status: 409, code: 'conflict'}, 409);
             return {id: 't_v1_gamma', name};
         });
 
         renderAdmin('/admin/templates');
 
         await screen.findByRole('heading', {name: 'Optionsvorlagen', level: 3});
-        fireEvent.change(screen.getByLabelText('Mehrere Vorlagen (kommagetrennt)'), {target: {value: ' Alpha, , Beta, beta, Gamma '}});
+        fireEvent.change(screen.getByLabelText('Mehrere Vorlagen (kommagetrennt)'), {target: {value: ' Alpha, , Beta, beta, Gamma, Delta, Epsilon, Zeta '}});
         fireEvent.click(screen.getByRole('button', {name: 'Importieren'}));
 
         expect(await screen.findByText('Import-Ergebnis')).toBeVisible();
-        expect(createTemplate.mock.calls.map(([name]) => name).sort()).toEqual(['Alpha', 'Beta', 'Gamma', 'beta']);
-        expect(screen.getByRole('status')).toHaveTextContent('Erstellt: 3');
-        expect(screen.getByRole('status')).toHaveTextContent('Alpha');
-        expect(screen.getByRole('status')).toHaveTextContent('Beta');
+        expect(createTemplate.mock.calls.map(([name]) => name)).toEqual(['Beta', 'Gamma', 'Delta', 'Epsilon', 'Zeta']);
+        expect(screen.getByRole('status')).toHaveTextContent('Erstellt: 4');
         expect(screen.getByRole('status')).toHaveTextContent('Gamma');
-        expect(screen.getByRole('status')).toHaveTextContent('Übersprungen: 1');
+        expect(screen.getByRole('status')).toHaveTextContent('Delta');
+        expect(screen.getByRole('status')).toHaveTextContent('Epsilon');
+        expect(screen.getByRole('status')).toHaveTextContent('Zeta');
+        expect(screen.getByRole('status')).toHaveTextContent('Übersprungen: 3');
         expect(screen.getByRole('status')).toHaveTextContent('Leerer Wert');
         expect(screen.getByRole('status')).toHaveTextContent('Fehlgeschlagen: 1');
-        expect(screen.getByLabelText('Mehrere Vorlagen (kommagetrennt)')).toHaveValue('beta');
+        expect(screen.getByLabelText('Mehrere Vorlagen (kommagetrennt)')).toHaveValue('Beta');
     });
 
-    it('limits concurrent batch requests', async () => {
+    it('serializes batch requests', async () => {
         vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
         vi.spyOn(apiClient, 'getTemplates').mockResolvedValue([]);
         let maxActive = 0;
         let active = 0;
-        let release!: () => void;
-        const gate = new Promise<void>((resolve) => {
-            release = resolve;
-        });
         const createTemplate = vi.spyOn(apiClient, 'createTemplate').mockImplementation(async (name) => {
             active += 1;
             maxActive = Math.max(maxActive, active);
-            await gate;
+            await Promise.resolve();
             active -= 1;
             return {id: `t_v1_${name}`, name};
         });
@@ -234,10 +231,9 @@ describe('AdminPage session gate', () => {
         await screen.findByRole('heading', {name: 'Optionsvorlagen', level: 3});
         fireEvent.change(screen.getByLabelText('Mehrere Vorlagen (kommagetrennt)'), {target: {value: 'one, two, three, four, five'}});
         fireEvent.click(screen.getByRole('button', {name: 'Importieren'}));
-        await waitFor(() => expect(createTemplate).toHaveBeenCalledTimes(3));
-        expect(maxActive).toBe(3);
-        release();
         expect(await screen.findByText('Import-Ergebnis')).toBeVisible();
+        expect(createTemplate).toHaveBeenCalledTimes(5);
+        expect(maxActive).toBe(1);
     });
 
     it('shows a pending status while creating a template', async () => {
@@ -368,12 +364,42 @@ describe('AdminPage session gate', () => {
 
         expect(await screen.findByRole('heading', {name: 'Vorlagengruppen', level: 3})).toBeVisible();
         expect(await screen.findByText('One')).toBeVisible();
-        fireEvent.change(screen.getByLabelText('Vorlage hinzufügen'), {target: {value: 't_v1_two'}});
+        fireEvent.click(screen.getByRole('checkbox', {name: 'Vorlage auswählen Two'}));
         fireEvent.click(screen.getByRole('button', {name: 'Hinzufügen'}));
         await waitFor(() => expect(assign).toHaveBeenCalledWith('g_v1_group', 't_v1_two'));
         fireEvent.click(screen.getByRole('button', {name: 'Mitgliedschaft entfernen'}));
         await waitFor(() => expect(remove).toHaveBeenCalledWith('g_v1_group', 't_v1_one'));
         expect(deleteTemplate).not.toHaveBeenCalled();
+    });
+
+    it('adds selected memberships serially and shows partial failures', async () => {
+        vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+        vi.spyOn(apiClient, 'getGroups').mockResolvedValue([{id: 'g_v1_group', name: 'Board', description: ''}]);
+        vi.spyOn(apiClient, 'getTemplates').mockResolvedValue([{id: 't_v1_one', name: 'One'}, {
+            id: 't_v1_two',
+            name: 'Two'
+        }, {id: 't_v1_three', name: 'Three'}]);
+        const getTemplatesInGroup = vi.spyOn(apiClient, 'getTemplatesInGroup').mockResolvedValue([]);
+        const assign = vi.spyOn(apiClient, 'assignTemplateToGroup').mockImplementation(async (_groupId, templateId) => {
+            if (templateId === 't_v1_two') throw problemError({status: 409, code: 'conflict'}, 409);
+        });
+
+        renderAdmin('/admin/groups');
+
+        expect(await screen.findByRole('heading', {name: 'Vorlagengruppen', level: 3})).toBeVisible();
+        fireEvent.click(screen.getByRole('checkbox', {name: 'Vorlage auswählen One'}));
+        fireEvent.click(screen.getByRole('checkbox', {name: 'Vorlage auswählen Two'}));
+        fireEvent.click(screen.getByRole('button', {name: 'Hinzufügen'}));
+
+        expect(await screen.findByText('Zuweisungs-Ergebnis')).toBeVisible();
+        expect(assign.mock.calls).toEqual([
+            ['g_v1_group', 't_v1_one'],
+            ['g_v1_group', 't_v1_two'],
+        ]);
+        expect(screen.getByRole('status')).toHaveTextContent('Zugeordnet: 1');
+        expect(screen.getByRole('status')).toHaveTextContent('Fehlgeschlagen: 1');
+        expect(screen.getByRole('status')).toHaveTextContent('Two');
+        await waitFor(() => expect(getTemplatesInGroup).toHaveBeenCalledTimes(2));
     });
 
     it('creates, renames, and deletes a template group explicitly', async () => {

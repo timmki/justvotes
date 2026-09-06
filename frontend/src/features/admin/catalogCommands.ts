@@ -23,6 +23,7 @@ export type CatalogGateway = {
 export type CatalogCache = Pick<QueryClient, 'invalidateQueries' | 'removeQueries'>;
 export type CatalogBatchSkipped = { kind: 'empty' } | { kind: 'duplicate'; name: string };
 export type CatalogBatchFailure = { name: string; error: unknown };
+export type CatalogAssignmentFailure = { id: string; name: string; error: unknown };
 export type CatalogBatchResult = {
     created: CatalogTemplate[];
     skipped: CatalogBatchSkipped[];
@@ -31,6 +32,10 @@ export type CatalogBatchResult = {
 export type CatalogDeleteResult = {
     deleted: CatalogTemplate[];
     failed: Array<CatalogBatchFailure & { id: string }>;
+};
+export type CatalogAssignmentResult = {
+    assigned: CatalogTemplate[];
+    failed: CatalogAssignmentFailure[];
 };
 
 export function createCatalogCommands({gateway, cache}: { gateway: CatalogGateway; cache: CatalogCache }) {
@@ -42,22 +47,23 @@ export function createCatalogCommands({gateway, cache}: { gateway: CatalogGatewa
         },
 
         async importTemplates(input: string, existingTemplates: CatalogTemplate[]): Promise<CatalogBatchResult> {
-            const existingNames = new Set(existingTemplates.map((template) => normalizeName(template.name)));
+            const existingNames = new Set(existingTemplates.map((template) => nameKey(template.name)));
             const seenNames = new Set<string>();
             const skipped: CatalogBatchSkipped[] = [];
             const candidates: string[] = [];
 
             for (const rawValue of input.split(',')) {
                 const name = normalizeName(rawValue);
+                const key = nameKey(name);
                 if (!name) skipped.push({kind: 'empty'});
-                else if (seenNames.has(name) || existingNames.has(name)) skipped.push({kind: 'duplicate', name});
+                else if (seenNames.has(key) || existingNames.has(key)) skipped.push({kind: 'duplicate', name});
                 else {
-                    seenNames.add(name);
+                    seenNames.add(key);
                     candidates.push(name);
                 }
             }
 
-            const outcomes = await runWithConcurrency(candidates, 3, async (name) => {
+            const outcomes = await runSerial(candidates, async (name) => {
                 try {
                     return {kind: 'created' as const, template: await gateway.createTemplate(name)};
                 } catch (error) {
@@ -119,6 +125,21 @@ export function createCatalogCommands({gateway, cache}: { gateway: CatalogGatewa
             await cache.invalidateQueries({queryKey: queryKeys.groupTemplates(groupId)});
         },
 
+        async assignTemplatesToGroup(groupId: string, templates: CatalogTemplate[]): Promise<CatalogAssignmentResult> {
+            const assigned: CatalogTemplate[] = [];
+            const failed: CatalogAssignmentFailure[] = [];
+            for (const template of templates) {
+                try {
+                    await gateway.assignTemplateToGroup(groupId, template.id);
+                    assigned.push(template);
+                } catch (error) {
+                    failed.push({id: template.id, name: template.name, error});
+                }
+            }
+            if (templates.length > 0) await cache.invalidateQueries({queryKey: queryKeys.groupTemplates(groupId)});
+            return {assigned, failed};
+        },
+
         async removeTemplateFromGroup(groupId: string, templateId: string) {
             await gateway.removeTemplateFromGroup(groupId, templateId);
             await cache.invalidateQueries({queryKey: queryKeys.groupTemplates(groupId)});
@@ -149,6 +170,10 @@ export function normalizeName(value: string) {
     return value.trim();
 }
 
+function nameKey(value: string) {
+    return normalizeName(value).toLowerCase();
+}
+
 async function invalidateTemplateQueries(cache: CatalogCache) {
     await cache.invalidateQueries({queryKey: queryKeys.templates});
 }
@@ -172,5 +197,11 @@ async function runWithConcurrency<T, R>(items: T[], limit: number, worker: (item
     }
 
     await Promise.all(Array.from({length: Math.min(limit, items.length)}, consume));
+    return results;
+}
+
+async function runSerial<T, R>(items: T[], worker: (item: T) => Promise<R>) {
+    const results: R[] = [];
+    for (const item of items) results.push(await worker(item));
     return results;
 }

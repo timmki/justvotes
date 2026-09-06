@@ -20,6 +20,29 @@ test('loads the app shell on a deep client route', async ({ page }) => {
   await expect(page).toHaveURL(/\/polls$/);
 });
 
+test('uses the runtime app name for the initial page title', async ({ page }) => {
+  await page.route('**/config.js', async (route) => route.fulfill({
+    contentType: 'application/javascript',
+    body: 'window.__JUSTVOTES_CONFIG__ = { appName: "Runtime Votes" };',
+  }));
+
+  await page.goto('/');
+
+  await expect(page).toHaveTitle('Runtime Votes');
+  await expect(page.locator('.brand h2')).toHaveText('Runtime Votes');
+});
+
+test('uses the default app name for the initial page title', async ({ page }) => {
+  await page.route('**/config.js', async (route) => route.fulfill({
+    contentType: 'application/javascript',
+    body: 'window.__JUSTVOTES_CONFIG__ = {};',
+  }));
+
+  await page.goto('/');
+
+  await expect(page).toHaveTitle('JustVotes');
+});
+
 test('persists language and theme choices', async ({ page }) => {
   await page.goto('/');
 

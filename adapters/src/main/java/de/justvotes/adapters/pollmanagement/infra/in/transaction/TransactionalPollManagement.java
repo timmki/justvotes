@@ -4,7 +4,7 @@ import de.justvotes.pollmanagement.core.model.Poll;
 import de.justvotes.pollmanagement.core.model.PollSummary;
 import de.justvotes.pollmanagement.core.ports.in.ManagePolls;
 import de.justvotes.pollmanagement.core.ports.in.ViewPolls;
-import org.springframework.transaction.annotation.Transactional;
+import de.justvotes.adapters.sqlite.SqliteRetryingTransaction;
 
 import java.time.Instant;
 import java.util.List;
@@ -12,105 +12,94 @@ import java.util.List;
 public class TransactionalPollManagement implements ManagePolls, ViewPolls {
     private final ManagePolls commands;
     private final ViewPolls queries;
+    private final SqliteRetryingTransaction transactions;
 
-    public TransactionalPollManagement(ManagePolls commands, ViewPolls queries) {
+    public TransactionalPollManagement(ManagePolls commands, ViewPolls queries, SqliteRetryingTransaction transactions) {
         this.commands = commands;
         this.queries = queries;
+        this.transactions = transactions;
     }
 
     @Override
-    @Transactional
     public Poll createDraft(String title, Poll.TemplateGroupId templateGroupId, String systemAdmin) {
-        return commands.createDraft(title, templateGroupId, systemAdmin);
+        return transactions.execute(() -> commands.createDraft(title, templateGroupId, systemAdmin));
     }
 
     @Override
-    @Transactional
     public Poll replaceDraftOptions(Poll.PollId pollId, List<String> optionTexts) {
-        return commands.replaceDraftOptions(pollId, optionTexts);
+        return transactions.execute(() -> commands.replaceDraftOptions(pollId, optionTexts));
     }
 
     @Override
-    @Transactional
     public Poll makePrivate(Poll.PollId pollId) {
-        return commands.makePrivate(pollId);
+        return transactions.execute(() -> commands.makePrivate(pollId));
     }
 
     @Override
-    @Transactional
     public Poll publish(Poll.PollId pollId, String admin, Instant endsAt) {
-        return commands.publish(pollId, admin, endsAt);
+        return transactions.execute(() -> commands.publish(pollId, admin, endsAt));
     }
 
     @Override
-    @Transactional
     public int expireDuePolls(Instant now) {
-        return commands.expireDuePolls(now);
+        return transactions.execute(() -> commands.expireDuePolls(now));
     }
 
     @Override
-    @Transactional
     public Poll archive(Poll.PollId id, String admin) {
-        return commands.archive(id, admin);
+        return transactions.execute(() -> commands.archive(id, admin));
     }
 
     @Override
-    @Transactional
     public Poll restoreFromArchive(Poll.PollId id, String admin) {
-        return commands.restoreFromArchive(id, admin);
+        return transactions.execute(() -> commands.restoreFromArchive(id, admin));
     }
 
     @Override
-    @Transactional
     public Poll changeExpiry(Poll.PollId id, Instant endsAt, String admin) {
-        return commands.changeExpiry(id, endsAt, admin);
+        return transactions.execute(() -> commands.changeExpiry(id, endsAt, admin));
     }
 
     @Override
-    @Transactional
     public Poll reopen(Poll.PollId id, Instant now, String admin) {
-        return commands.reopen(id, now, admin);
+        return transactions.execute(() -> commands.reopen(id, now, admin));
     }
 
     @Override
-    @Transactional
     public Poll softDelete(Poll.PollId id, String admin) {
-        return commands.softDelete(id, admin);
+        return transactions.execute(() -> commands.softDelete(id, admin));
     }
 
     @Override
-    @Transactional
     public Poll restore(Poll.PollId id, String admin) {
-        return commands.restore(id, admin);
+        return transactions.execute(() -> commands.restore(id, admin));
     }
 
     @Override
-    @Transactional
     public void permanentlyDelete(Poll.PollId id, boolean confirmed, boolean repeated) {
-        commands.permanentlyDelete(id, confirmed, repeated);
+        transactions.execute(() -> {
+            commands.permanentlyDelete(id, confirmed, repeated);
+            return null;
+        });
     }
 
     @Override
-    @Transactional(readOnly = true)
     public List<Poll> draftsCreatedBy(String systemAdmin) {
-        return queries.draftsCreatedBy(systemAdmin);
+        return transactions.executeReadOnly(() -> queries.draftsCreatedBy(systemAdmin));
     }
 
     @Override
-    @Transactional
     public List<PollSummary> publicPolls() {
-        return queries.publicPolls();
+        return transactions.execute(() -> queries.publicPolls());
     }
 
     @Override
-    @Transactional
     public Poll publicPoll(Poll.PollId pollId) {
-        return queries.publicPoll(pollId);
+        return transactions.execute(() -> queries.publicPoll(pollId));
     }
 
     @Override
-    @Transactional(readOnly = true)
     public List<Poll> pollsCreatedBy(String admin) {
-        return queries.pollsCreatedBy(admin);
+        return transactions.executeReadOnly(() -> queries.pollsCreatedBy(admin));
     }
 }

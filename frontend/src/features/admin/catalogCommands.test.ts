@@ -77,24 +77,62 @@ describe('catalog commands', () => {
         expect(cache.removeQueries).toHaveBeenCalledWith({queryKey: ['admin', 'groups', 'group-1', 'templates']});
     });
 
-    it('keeps batch results in input order and retries only failed values', async () => {
-        let betaAttempts = 0;
+    it('trims, deduplicates case-insensitively, and serially attempts every valid value', async () => {
+        let active = 0;
+        let maxActive = 0;
         const createTemplate = vi.fn().mockImplementation(async (name: string) => {
-            if (name === 'beta' && betaAttempts++ === 0) throw new Error('temporary failure');
-            return template(`id-${name}`, name);
+            active += 1;
+            maxActive = Math.max(maxActive, active);
+            if (name === 'Gamma') {
+                active -= 1;
+                throw new Error('temporary failure');
+            }
+            const created = template(`id-${name}`, name);
+            active -= 1;
+            return created;
         });
         const {gateway, commands} = testDependencies({createTemplate});
 
-        const result = await commands.importTemplates(' alpha, beta, gamma, delta ', [template('existing', 'alpha')]);
+        const result = await commands.importTemplates(
+            ' Alpha, beta, BETA, , Gamma, delta, Epsilon, zeta ',
+            [template('existing', 'alpha')],
+        );
 
-        expect(result.created.map((entry) => entry.name)).toEqual(['gamma', 'delta']);
-        expect(result.skipped).toEqual([{kind: 'duplicate', name: 'alpha'}]);
-        expect(result.failed.map((entry) => entry.name)).toEqual(['beta']);
+        expect(createTemplate.mock.calls.map(([name]) => name)).toEqual(['beta', 'Gamma', 'delta', 'Epsilon', 'zeta']);
+        expect(result.created.map((entry) => entry.name)).toEqual(['beta', 'delta', 'Epsilon', 'zeta']);
+        expect(result.skipped).toEqual([
+            {kind: 'duplicate', name: 'Alpha'},
+            {kind: 'duplicate', name: 'BETA'},
+            {kind: 'empty'},
+        ]);
+        expect(result.failed.map((entry) => entry.name)).toEqual(['Gamma']);
+        expect(maxActive).toBe(1);
+    });
 
-        const retry = await commands.importTemplates(result.failed.map((entry) => entry.name).join(','), []);
+    it('assigns selected templates through the single-item API and refreshes once', async () => {
+        let active = 0;
+        let maxActive = 0;
+        const assignTemplateToGroup = vi.fn().mockImplementation(async (_groupId: string, templateId: string) => {
+            active += 1;
+            maxActive = Math.max(maxActive, active);
+            active -= 1;
+            if (templateId === 'template-2') throw new Error('assignment failed');
+        });
+        const {gateway, cache, commands} = testDependencies({assignTemplateToGroup});
+        const selected = [template('template-1', 'One'), template('template-2', 'Two'), template('template-3', 'Three')];
 
-        expect(retry.created.map((entry) => entry.name)).toEqual(['beta']);
-        expect(retry.failed).toEqual([]);
-        expect(createTemplate).toHaveBeenCalledTimes(4);
+        const result = await commands.assignTemplatesToGroup('group-1', selected);
+
+        expect(assignTemplateToGroup.mock.calls).toEqual([
+            ['group-1', 'template-1'],
+            ['group-1', 'template-2'],
+            ['group-1', 'template-3'],
+        ]);
+        expect(result.assigned.map((entry) => entry.name)).toEqual(['One', 'Three']);
+        expect(result.failed).toEqual([{id: 'template-2', name: 'Two', error: expect.any(Error)}]);
+        expect(maxActive).toBe(1);
+        expect(cache.invalidateQueries).toHaveBeenCalledTimes(1);
+        expect(cache.invalidateQueries).toHaveBeenCalledWith({queryKey: ['admin', 'groups', 'group-1', 'templates']});
+        expect(gateway.assignTemplateToGroup).toHaveBeenCalledTimes(3);
     });
 });
