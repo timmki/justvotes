@@ -517,6 +517,7 @@ main {
 .login-form {
     display: grid;
     gap: .55rem;
+    min-width: 0;
     padding: 1.4rem;
     border: 1px solid var(--separator);
     border-radius: 1.25rem;
@@ -530,6 +531,8 @@ main {
 }
 
 .login-form input {
+    width: 100%;
+    min-width: 0;
     min-height: 2.9rem;
     padding: .65rem .8rem;
     border: 1px solid var(--separator);
@@ -563,6 +566,8 @@ main {
 }
 
 .login-form select {
+    width: 100%;
+    min-width: 0;
     min-height: 2.9rem;
     padding: .65rem .8rem;
     border: 1px solid var(--separator);
@@ -579,6 +584,7 @@ main {
 .admin-panel {
     display: grid;
     gap: .8rem;
+    min-width: 0;
     padding: 1.25rem;
     border: 1px solid var(--separator);
     border-radius: 1rem;
