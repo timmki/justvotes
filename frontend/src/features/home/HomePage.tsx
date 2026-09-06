@@ -13,7 +13,7 @@ export function HomePage() {
     const {t} = useI18n();
     const identityQuery = useApiQuery(queryKeys.identity, () => apiClient.getIdentity());
     const pollsQuery = useApiQuery(queryKeys.publicPolls, () => apiClient.getPublicPolls());
-    return <PageFrame eyebrow={t('common.appName')} title={t('common.home')} description={t('common.homeDescription')}>
+    return <PageFrame title={t('common.home')} description={t('common.homeDescription')}>
         <QueryState query={identityQuery}>{(identity) => <IdentityEditor identity={identity.userID}/>}</QueryState>
         <QueryState query={pollsQuery}>{(polls) => <HomeDiscovery polls={polls}/>}</QueryState>
         <footer className="home-footer"><Link className="text-link" to="/admin">{t('common.admin')}</Link></footer>
@@ -63,7 +63,7 @@ function newestFirst(left: PublicPoll, right: PublicPoll) {
 
 export function NotFoundPage() {
     const {t} = useI18n();
-    return <PageFrame eyebrow="404" title={t('errors.notFound')} description={t('errors.notFoundText')}>
+    return <PageFrame title={t('errors.notFound')} description={t('errors.notFoundText')}>
         <Link className="primary-button" to="/">{t('common.home')}</Link>
     </PageFrame>;
 }

@@ -36,7 +36,7 @@ function AdminAccess({mode, error, onRetry}: {
     onRetry?: () => void
 }) {
     const {t} = useI18n();
-    return <PageFrame eyebrow={t('common.privateArea')} title={t('admin.title')}
+    return <PageFrame title={t('admin.title')}
                       description={t('common.adminDescription')}>
         {mode === 'loading' && <RouteState status="loading"/>}
         {mode === 'error' && <RouteState status="error" error={error instanceof ApiError ? error.frontend : undefined}
@@ -102,7 +102,7 @@ function AdminShell({section}: { section: AdminSectionName }) {
         }
     }
 
-    return <PageFrame eyebrow={t('common.privateArea')} title={t('admin.title')}
+    return <PageFrame title={t('admin.title')}
                       description={t('common.adminDescription')}>
         <div className="admin-toolbar">
             <button className="text-button" type="button" onClick={logout}

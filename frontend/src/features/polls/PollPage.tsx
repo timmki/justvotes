@@ -19,7 +19,7 @@ export function PollPage() {
     const {t} = useI18n();
     const {pollId = ''} = useParams();
     const query = usePollQuery(pollId);
-    return <DataPage eyebrow={t('common.pollLabel')} title={t('polls.detail')}
+    return <DataPage title={t('polls.detail')}
                      description={t('common.pollDescription')}>
         <QueryState query={query}>{(poll) => poll.visibility === 'public' ? <PollDetail poll={poll}/> :
             <RouteState status="error" error={notFoundError}/>}</QueryState>
@@ -133,6 +133,5 @@ function ResultsState({poll, query, forbiddenBeforeVote}: {
     if (query.isError) return <RouteState status="error"
                                           error={query.error instanceof ApiError ? query.error.frontend : undefined}
                                           onRetry={() => void query.refetch()}/>;
-    if (poll.state === 'active' && query.isFetching) return <p className="stale-state" role="status">{t('common.refreshing')}</p>;
     return null;
 }

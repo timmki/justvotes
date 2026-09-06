@@ -30,7 +30,7 @@ describe('QueryState', () => {
         expect(attempts).toBe(2);
     });
 
-    it('marks cached data while a refresh is in flight', async () => {
+    it('keeps cached data quiet while a refresh is in flight', async () => {
         const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}});
 
         function Harness() {
@@ -44,7 +44,8 @@ describe('QueryState', () => {
 
         render(<QueryClientProvider client={queryClient}><I18nProvider><Harness/></I18nProvider></QueryClientProvider>);
 
-        expect(await screen.findByText('Wird aktualisiert. Die angezeigten Daten können veraltet sein.')).toBeTruthy();
-        expect(screen.getByText('cached')).toBeTruthy();
+        expect(await screen.findByText('cached')).toBeTruthy();
+        expect(screen.queryByText('Wird aktualisiert. Die angezeigten Daten können veraltet sein.')).toBeNull();
     });
+
 });

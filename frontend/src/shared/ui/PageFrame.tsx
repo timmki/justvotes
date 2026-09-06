@@ -1,9 +1,8 @@
 import type {ReactNode} from 'react';
 import {useI18n} from '../i18n/I18nProvider';
 
-export function PageFrame({className, eyebrow, title, description, children}: {
+export function PageFrame({className, title, description, children}: {
     className?: string;
-    eyebrow: string;
     title: string;
     description: string;
     children: ReactNode
@@ -12,7 +11,6 @@ export function PageFrame({className, eyebrow, title, description, children}: {
     return (
         <div className={`page-frame${className ? ` ${className}` : ''}`}>
             <section className="page-intro" aria-labelledby="page-heading">
-                <p className="eyebrow">{eyebrow}</p>
                 <h1 id="page-heading">{title}</h1>
                 <p>{description}</p>
             </section>

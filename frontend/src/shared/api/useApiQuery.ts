@@ -5,5 +5,5 @@ export function useApiQuery<T>(queryKey: QueryKey, queryFn: () => Promise<T>, op
     refetchOnWindowFocus?: boolean;
     refetchOnReconnect?: boolean;
 } = {}): UseQueryResult<T, unknown> {
-    return useQuery({queryKey, queryFn, retry: false, ...options});
+    return useQuery({queryKey, queryFn, retry: false, refetchOnWindowFocus: false, refetchOnReconnect: false, ...options});
 }

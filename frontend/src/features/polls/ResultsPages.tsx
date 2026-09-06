@@ -17,7 +17,7 @@ export function ResultsPage() {
     const {pollId = ''} = useParams();
     const identityQuery = useApiQuery(queryKeys.identity, () => apiClient.getIdentity());
     const query = usePollingResultsQuery(pollId);
-    return <DataPage eyebrow={t('common.pollLabel')} title={t('polls.results')}
+    return <DataPage title={t('polls.results')}
                      description={t('common.resultsDescription')}>
         <QueryState query={query}>{(results) => <ResultsDetail results={results}
                                                                    identity={identityQuery.data?.userID ?? null}
@@ -29,7 +29,7 @@ export function OptionPage() {
     const {t, locale} = useI18n();
     const {pollId = '', optionNumber = ''} = useParams();
     const query = usePollingResultsQuery(pollId);
-    return <DataPage eyebrow={`${t('common.optionLabel')} ${optionNumber}`} title={t('polls.option')}
+    return <DataPage title={t('polls.option')}
                      description={t('common.optionDescription')}>
         <QueryState query={query}>{(results) => {
             const projected = projectPollResults(results, null, locale);

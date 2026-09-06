@@ -63,7 +63,6 @@ export const messages = {
             loadingText: 'Bitte warten.',
             emptyText: 'Sobald Inhalte vorhanden sind, erscheinen sie hier.',
             errorText: 'Prüfe deine Verbindung und versuche es erneut.',
-            refreshing: 'Wird aktualisiert. Die angezeigten Daten können veraltet sein.',
             sessionRequired: 'Anmeldung erforderlich',
             sessionRequiredText: 'Deine Sitzung ist abgelaufen. Geschützte Daten wurden entfernt.',
             pollDescription: 'Abstimmungs-Details und Optionen.',
@@ -74,6 +73,7 @@ export const messages = {
         },
         polls: {
             list: 'Öffentliche Abstimmungen',
+            listDescription: 'Hier siehst du alle öffentlichen Abstimmungen.',
             listCountSingular: 'öffentliche Abstimmung',
             listCount: 'öffentliche Abstimmungen',
             metadata: 'Abstimmungs-Metadaten',
@@ -344,7 +344,6 @@ export const messages = {
             loadingText: 'Please wait.',
             emptyText: 'Content will appear here when available.',
             errorText: 'Check your connection and try again.',
-            refreshing: 'Updating. The displayed data may be stale.',
             sessionRequired: 'Sign-in required',
             sessionRequiredText: 'Your session expired. Protected data was removed.',
             pollDescription: 'Poll details and options.',
@@ -355,6 +354,7 @@ export const messages = {
         },
         polls: {
             list: 'Public polls',
+            listDescription: 'Here you can see all public polls.',
             listCountSingular: 'public poll',
             listCount: 'public polls',
             metadata: 'Poll metadata',

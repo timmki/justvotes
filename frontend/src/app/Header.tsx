@@ -25,7 +25,7 @@ export function AppShell({children}: {children: ReactNode}) {
             </Link> : <div className="brand" aria-label={t('common.appName')}>
                 <span className="brand-mark" aria-hidden="true">{appInitials}</span><h2>{appName}</h2>
             </div>}
-            <ShellNavigation className="sidebar-navigation" navigation={navigation} showLabel/>
+            <ShellNavigation className="sidebar-navigation" navigation={navigation} showLabel={navigation === 'admin'}/>
             <div className="sidebar-bottom">
                 <IdentityEditor identity={identity} identityState={identityState} variant="compact"/>
             </div>
@@ -144,7 +144,9 @@ export function Header() {
     return <header className="app-header">
         <div className="header-inner">
             <div className="header-context">
-                {context && <Link className="back-link" to={context.to}><ChevronLeftIcon/><span>{context.label}</span></Link>}
+                {context && <Link className="back-link" to={context.to}
+                                     onClick={() => { if (routeKind(location.pathname).kind === 'admin') sessionCoordinator.consumeReturnRoute(); }}>
+                    <ChevronLeftIcon/><span>{context.label}</span></Link>}
                 <p className="header-title">{pageTitle(location.pathname, t)}</p>
             </div>
             <div className="header-actions">

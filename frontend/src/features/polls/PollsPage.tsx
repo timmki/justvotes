@@ -35,7 +35,7 @@ export function PollsPage() {
         setSearchParams({});
     }
 
-    return <DataPage className="polls-page" eyebrow={t('common.publicArea')} title={t('polls.list')} description={t('common.publicArea')}>
+    return <DataPage className="polls-page" title={t('polls.list')} description={t('polls.listDescription')}>
         <div className="polls-content">
             <section className="poll-filters" aria-label={t('polls.filters')}>
                 <div className="poll-filter-fields">

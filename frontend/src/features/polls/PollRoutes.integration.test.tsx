@@ -167,6 +167,14 @@ function renderAuditPage(initialEntry = '/poll/audit/poll-1') {
 }
 
 describe('PollsPage', () => {
+    it('shows the public polls description below the title', async () => {
+        vi.spyOn(apiClient, 'getPublicPolls').mockResolvedValue([]);
+
+        renderPolls();
+
+        expect(await screen.findByText('Hier siehst du alle öffentlichen Abstimmungen.')).toBeVisible();
+    });
+
     it('renders every card from one localized list response, including zero votes', async () => {
         const getPublicPolls = vi.spyOn(apiClient, 'getPublicPolls').mockResolvedValue(polls);
         const getPoll = vi.spyOn(apiClient, 'getPoll');

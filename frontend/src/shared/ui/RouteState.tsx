@@ -4,11 +4,10 @@ import {EmptyIcon, ErrorIcon, SpinnerIcon} from './Icons';
 
 export type StateStatus = 'loading' | 'empty' | 'error';
 
-export function RouteState({status, onRetry = () => window.location.reload(), error, stale = false, title, text}: {
+export function RouteState({status, onRetry = () => window.location.reload(), error, title, text}: {
     status: StateStatus;
     onRetry?: () => void;
     error?: FrontendError;
-    stale?: boolean;
     title?: string;
     text?: string
 }) {
@@ -28,8 +27,7 @@ export function RouteState({status, onRetry = () => window.location.reload(), er
             {status === 'loading' ?
                 <div role="status">{content.icon}<span className="sr-only">{content.title}</span></div> :
                 <div aria-hidden="true">{content.icon}</div>}
-            <div><h3>{content.title}</h3><p>{content.text}</p>{stale &&
-                <p className="stale-state" role="status">{t('common.refreshing')}</p>}{status === 'error' &&
+            <div><h3>{content.title}</h3><p>{content.text}</p>{status === 'error' &&
                 <button className="text-button" type="button" onClick={onRetry}>{t('common.retry')}</button>}</div>
         </section>
     );

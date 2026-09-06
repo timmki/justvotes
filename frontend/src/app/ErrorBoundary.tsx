@@ -21,6 +21,6 @@ function ErrorFallback() {
     const locale: Locale = document.documentElement.lang === 'en' ? 'en' : 'de';
     const common = messages[locale].common;
     const errors = messages[locale].errors;
-    return <div className="page-frame error-page"><p className="eyebrow">{errors.label}</p><h1>{errors.boundary}</h1>
+    return <div className="page-frame error-page"><h1>{errors.boundary}</h1>
         <p>{errors.boundaryText}</p><a className="primary-button" href="/">{common.home}</a></div>;
 }

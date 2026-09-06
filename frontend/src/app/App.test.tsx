@@ -50,7 +50,7 @@ describe('app shell', () => {
 
         expect(screen.getByRole('link', {name: 'Foo App'})).toBeVisible();
         expect(screen.getByRole('link', {name: 'Foo App'}).querySelector('.brand-mark')).toHaveTextContent('FA');
-        expect(screen.getByText('Foo App', {selector: '.eyebrow'})).toBeVisible();
+        expect(screen.getAllByText('Foo App')).toHaveLength(1);
     });
 
     it('provides compact and desktop navigation with one page heading', () => {
@@ -320,6 +320,17 @@ describe('app shell', () => {
         expect(screen.queryAllByRole('navigation', {name: 'Hauptnavigation'})).toHaveLength(0);
         expect(screen.getByRole('link', {name: 'Startseite'})).toHaveAttribute('href', '/');
         expect(screen.queryByRole('link', {name: 'JustVotes'})).toBeNull();
+    });
+
+    it('returns from the admin login screen to the home page', async () => {
+        sessionCoordinator.requireLogin('/admin');
+        renderApp('/admin');
+
+        await screen.findByLabelText('Benutzername');
+        fireEvent.click(screen.getByRole('link', {name: 'Startseite'}));
+
+        expect(await screen.findByRole('heading', {name: 'Startseite', level: 1})).toBeVisible();
+        expect(sessionCoordinator.isLoginRequired()).toBe(false);
     });
 
     it('marks votes as current for the admin root route', async () => {
