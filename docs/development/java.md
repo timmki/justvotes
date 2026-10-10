@@ -16,6 +16,14 @@ style used to support them.
 - Domain aggregates and entities MUST encapsulate mutable state and enforce their own
   invariants and allowed state transitions.
 - Constructor injection is the preferred dependency-injection style.
+- Use simple class names with explicit imports, including nested types where possible.
+  Fully qualified names are allowed only when a name collision prevents an unambiguous
+  import; do not change string-based class names or persistence query entity names.
+- Local variables MUST declare their explicit type; do not use `var`. Use the simple
+  type name with its required generic arguments (or the appropriate primitive type).
+- Ternary expressions (`condition ? value : other`) MUST NOT be used. Prefer readable
+  `if`/`else` branches or early returns, preserving lazy evaluation and null handling.
+  These style rules apply to production code and tests, not generated sources.
 - `final` classes where appropriate are preferred project style.
 - Explicit validation is preferred over implicit validation through controller or
   persistence behavior. Validate domain constraints at the domain boundary.

@@ -34,7 +34,8 @@ export function OptionPage() {
         <QueryState query={query}>{(results) => {
             const projected = projectPollResults(results, null, locale);
             const option = projected.results.options.find((candidate) => String(candidate.number) === optionNumber);
-            return option ? <OptionDetail results={projected.results} option={option} locale={locale}/> : <RouteState status="empty"/>;
+            if (option) return <OptionDetail results={projected.results} option={option} locale={locale}/>;
+            return <RouteState status="empty"/>;
         }}</QueryState>
     </DataPage>;
 }
@@ -49,7 +50,9 @@ function ResultsDetail({results, identity, locale}: { results: PollResults; iden
         onSuccess: () => navigate(`/poll/${encodeURIComponent(results.id)}`),
         onError: (cause) => setWithdrawalError(frontendError(cause)),
     });
-    const winnerLabel = projection.winnerOptions.length > 1 ? t('polls.tie') : t('polls.winner');
+    let winnerLabel: string;
+    if (projection.winnerOptions.length > 1) winnerLabel = t('polls.tie');
+    else winnerLabel = t('polls.winner');
 
     return <div className="result-layout">
         <section className="data-card results-card" aria-label={t('polls.resultSheet')}>
@@ -62,7 +65,10 @@ function ResultsDetail({results, identity, locale}: { results: PollResults; iden
             <ol className="result-list">{projection.orderedOptions.map((option) => {
                 const optionPercentage = percentage(option.voteCount, results.totalVotes);
                 const current = projection.currentOptionNumber === option.number;
-                return <li className={`result-option${isWinner(option, results.options, results.totalVotes) ? ' winner' : ''}${current ? ' current' : ''}`} key={option.number}>
+                let className = 'result-option';
+                if (isWinner(option, results.options, results.totalVotes)) className += ' winner';
+                if (current) className += ' current';
+                return <li className={className} key={option.number}>
                     <div className="result-option-heading"><Link to={`/poll/results/${encodeURIComponent(results.id)}/option/${option.number}`}>{option.text}</Link>
                         {isWinner(option, results.options, results.totalVotes) && <strong>{winnerLabel}</strong>}</div>
                     <div className="result-option-progress" aria-hidden="true"><span style={{width: `${optionPercentage}%`}}/></div>
@@ -75,19 +81,20 @@ function ResultsDetail({results, identity, locale}: { results: PollResults; iden
                                                                                 disabled={withdrawal.isPending}
                                                                                 onClick={() => {
                                                                                     if (window.confirm(t('polls.confirmWithdrawal'))) withdrawal.mutate();
-                                                                                }}>{withdrawal.isPending ? t('polls.withdrawing') : t('polls.withdraw')}</button>}
+                                                                                }}>{withdrawal.isPending && t('polls.withdrawing')}{!withdrawal.isPending && t('polls.withdraw')}</button>}
             <p className="poll-detail-links"><Link to={`/poll/${encodeURIComponent(results.id)}`}>{t('common.polls')}</Link> | <Link
                 to={`/poll/audit/${encodeURIComponent(results.id)}`}>{t('audit.title')}</Link></p>
         </section>
         <aside className="result-leader-panel" aria-label={t('polls.currentLeader')}>
             <p className="eyebrow">{t('polls.currentLeader')}</p>
-            {projection.winnerOptions.length === 0 ? <h3>{t('polls.noWinner')}</h3> : <>
+            {projection.winnerOptions.length === 0 && <h3>{t('polls.noWinner')}</h3>}
+            {projection.winnerOptions.length !== 0 && <>
                 <p className="result-leader-label">{winnerLabel}</p>
                 <h3>{projection.winnerOptions.map((option) => option.text).join(', ')}</h3>
             </>}
             <dl>
                 <div><dt>{t('polls.highestShare')}</dt><dd>{projection.highestPercentage} %</dd></div>
-                <div><dt>{t('polls.endsAt')}</dt><dd>{results.endsAt ? <time dateTime={results.endsAt}>{formatTimestamp(results.endsAt, locale)}</time> : t('polls.noEndDate')}</dd></div>
+                <div><dt>{t('polls.endsAt')}</dt><dd>{results.endsAt && <time dateTime={results.endsAt}>{formatTimestamp(results.endsAt, locale)}</time>}{!results.endsAt && t('polls.noEndDate')}</dd></div>
             </dl>
         </aside>
     </div>;
@@ -104,7 +111,8 @@ function OptionDetail({results, option, locale}: { results: PollResults; option:
                 <div><dt>{t('polls.votes')}</dt><dd>{option.voteCount}</dd></div>
             </dl>
             <div className="option-voters"><p className="eyebrow">{t('polls.voters')}</p>
-                {option.votes.length === 0 ? <div className="option-empty-state"><p>{t('polls.noOptionVotes')}</p><RouteState status="empty"/></div> : <ol className="voter-list" aria-label={t('polls.voters')}>
+                {option.votes.length === 0 && <div className="option-empty-state"><p>{t('polls.noOptionVotes')}</p><RouteState status="empty"/></div>}
+                {option.votes.length !== 0 && <ol className="voter-list" aria-label={t('polls.voters')}>
                     {option.votes.map((vote, index) => <li key={`${vote.userID}-${vote.votedAt}`}><span className="voter-number">{index + 1}</span>
                         <span className="voter-identity">{vote.userID}</span><time dateTime={vote.votedAt}>{formatTimestamp(vote.votedAt, locale)}</time></li>)}
                 </ol>}
@@ -120,7 +128,7 @@ function OptionDetail({results, option, locale}: { results: PollResults; option:
                 <div><dt>{t('polls.optionNumber')}</dt><dd>{option.number}</dd></div>
                 <div><dt>{t('polls.state')}</dt><dd>{t(pollStateTranslationKey(results.state))}</dd></div>
                 <div><dt>{t('polls.createdAt')}</dt><dd><time dateTime={results.createdAt}>{formatTimestamp(results.createdAt, locale)}</time></dd></div>
-                <div><dt>{t('polls.duration')}</dt><dd>{results.endsAt ? <time dateTime={results.endsAt}>{formatTimestamp(results.endsAt, locale)}</time> : t('polls.noEndDate')}</dd></div>
+                <div><dt>{t('polls.duration')}</dt><dd>{results.endsAt && <time dateTime={results.endsAt}>{formatTimestamp(results.endsAt, locale)}</time>}{!results.endsAt && t('polls.noEndDate')}</dd></div>
             </dl>
         </aside>
     </div>;

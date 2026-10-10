@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication.Type;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -29,7 +30,7 @@ import java.io.IOException;
 import java.net.URI;
 
 @Configuration
-@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
+@ConditionalOnWebApplication(type = Type.SERVLET)
 class SecurityConfiguration {
     private static void validateAdminConfiguration(String username, String passwordHash) {
         if (username.isBlank()) {
@@ -46,7 +47,10 @@ class SecurityConfiguration {
                                    HttpStatus status, String detail) throws IOException {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);
         problem.setInstance(URI.create(request.getRequestURI()));
-        String code = status == HttpStatus.UNAUTHORIZED ? "authentication-required" : "access-denied";
+        String code = "access-denied";
+        if (status == HttpStatus.UNAUTHORIZED) {
+            code = "authentication-required";
+        }
         problem.setType(URI.create("https://justvotes.de/problems/" + code));
         problem.setProperty("code", code);
         response.setStatus(status.value());

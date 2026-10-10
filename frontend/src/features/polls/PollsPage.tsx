@@ -18,7 +18,11 @@ export function PollsPage() {
     useEffect(() => {
         const canonical = serializePollListState(state).toString();
         const explicitDefaultSort = searchParams.get('sort') === 'newest';
-        const canonicalSearch = explicitDefaultSort ? `sort=newest${canonical ? `&${canonical}` : ''}` : canonical;
+        let canonicalSearch = canonical;
+        if (explicitDefaultSort) {
+            canonicalSearch = 'sort=newest';
+            if (canonical) canonicalSearch += `&${canonical}`;
+        }
         if (canonicalSearch !== searchParams.toString()) setSearchParams(canonicalSearch, {replace: true});
     }, [searchParams, setSearchParams, state]);
 
@@ -39,7 +43,11 @@ export function PollsPage() {
         <div className="polls-content">
             <section className="poll-filters" aria-label={t('polls.filters')}>
                 <div className="poll-filter-fields">
-                    <label>{t('polls.sort')}<select aria-label={t('polls.sort')} value={state.sort} onChange={(event) => updateState({sort: event.target.value === 'oldest' ? 'oldest' : 'newest'})}>
+                    <label>{t('polls.sort')}<select aria-label={t('polls.sort')} value={state.sort} onChange={(event) => {
+                        let sort: PollSort = 'newest';
+                        if (event.target.value === 'oldest') sort = 'oldest';
+                        updateState({sort});
+                    }}>
                         <option value="newest">{t('polls.newest')}</option>
                         <option value="oldest">{t('polls.oldest')}</option>
                     </select></label>
@@ -59,9 +67,12 @@ export function PollsPage() {
             </section>
             <QueryState query={query}>{(polls) => {
                 const visiblePolls = projectPollListState(polls, state);
+                let countKey: 'polls.listCountSingular' | 'polls.listCount' = 'polls.listCount';
+                if (visiblePolls.length === 1) countKey = 'polls.listCountSingular';
                 return <>
-                    <p className="poll-list-status" role="status" aria-live="polite">{visiblePolls.length} {t(visiblePolls.length === 1 ? 'polls.listCountSingular' : 'polls.listCount')}</p>
-                    {visiblePolls.length === 0 ? <RouteState status="empty"/> : <ul className="poll-list">
+                    <p className="poll-list-status" role="status" aria-live="polite">{visiblePolls.length} {t(countKey)}</p>
+                    {visiblePolls.length === 0 && <RouteState status="empty"/>}
+                    {visiblePolls.length !== 0 && <ul className="poll-list">
                         {visiblePolls.map((poll) => <li key={poll.id}><PublicPollCard poll={projectPollList(poll)}/></li>)}
                     </ul>}
                 </>;

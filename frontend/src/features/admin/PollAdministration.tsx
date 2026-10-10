@@ -44,7 +44,8 @@ export function AdminPolls() {
     return <>
         <CreatePoll/>
         <QueryState query={query}>{(polls) => <section className="admin-panel">
-            <h3>{t('admin.polls')}</h3>{polls.length === 0 ? <RouteState status="empty"/> :
+            <h3>{t('admin.polls')}</h3>{polls.length === 0 && <RouteState status="empty"/>}
+            {polls.length !== 0 &&
             <ul className="poll-admin-list">{polls.map((poll) => <PollAdministrationCard key={poll.id} poll={poll}/>)}</ul>}
         </section>}</QueryState>
     </>;
@@ -97,13 +98,17 @@ function PollAdministrationCard({poll}: { poll: Poll }) {
         mutation.mutate({action});
     }
 
+    let visibilityKey: 'admin.public' | 'admin.private' = 'admin.private';
+    if (poll.visibility === 'public') visibilityKey = 'admin.public';
+    let reopenTitle: string | undefined;
+    if (actions.includes('reopen') && !canReopen) reopenTitle = t('admin.reopenNeedsFutureExpiry');
     return <li className="poll-admin-card">
         <div className="poll-admin-heading">
             <div><h4>{poll.title}</h4><p
-                className="poll-admin-meta">{t(poll.visibility === 'public' ? 'admin.public' : 'admin.private')} · {t(stateTranslationKey(poll.state))} · {poll.endsAt ? formatDate(poll.endsAt, locale) : t('admin.noExpiry')}</p>
+                className="poll-admin-meta">{t(visibilityKey)} · {t(stateTranslationKey(poll.state))} · {poll.endsAt && formatDate(poll.endsAt, locale)}{!poll.endsAt && t('admin.noExpiry')}</p>
              </div></div>
         <section className="poll-admin-options" aria-labelledby={`options-${poll.id}`}><h5
-                id={`options-${poll.id}`}>{t('admin.currentOptions')}</h5>{editingOptions ?
+                id={`options-${poll.id}`}>{t('admin.currentOptions')}</h5>{editingOptions &&
                 <form className="catalog-form" onSubmit={submitOptions}><label
                     htmlFor={`options-edit-${poll.id}`}>{t('admin.optionsInput')}</label><textarea
                     id={`options-edit-${poll.id}`} rows={5} value={optionDraft} onChange={(event) => {
@@ -116,7 +121,7 @@ function PollAdministrationCard({poll}: { poll: Poll }) {
                         <button className="text-button" type="button" onClick={() => setEditingOptions(false)}
                                 disabled={mutation.isPending}>{t('forms.cancel')}</button>
                     </div>
-                </form> : <>
+                </form>}{!editingOptions && <>
                     <ol className="poll-options">{poll.options.map((option) => <li key={option.number}
                                                                                    value={option.number}>{option.text}</li>)}</ol>
                     {poll.state === 'draft' && <button className="secondary-button" type="button" onClick={() => {
@@ -140,7 +145,7 @@ function PollAdministrationCard({poll}: { poll: Poll }) {
                     disabled={mutation.isPending}>{t('admin.restoreFromArchive')}</button>}{actions.includes('reopen') &&
             <button className="secondary-button" type="button" onClick={() => requestAction('reopen')}
                     disabled={mutation.isPending || !canReopen}
-                    title={!canReopen ? t('admin.reopenNeedsFutureExpiry') : undefined}>{t('admin.reopen')}</button>}{actions.includes('softDelete') &&
+                    title={reopenTitle}>{t('admin.reopen')}</button>}{actions.includes('softDelete') &&
             <button className="secondary-button destructive-button" type="button"
                     onClick={() => requestAction('softDelete')}
                     disabled={mutation.isPending}>{t('admin.softDelete')}</button>}{actions.includes('restore') &&
@@ -220,10 +225,14 @@ export function CreatePoll() {
         mutation.mutate();
     }
 
-    return <QueryState query={groupsQuery}>{() => membershipError ? <RouteState status="error"
-                                                                                error={membershipError instanceof ApiError ? membershipError.frontend : undefined}/> : membershipPending ?
-        <RouteState status="loading"/> :
-        <section className="admin-panel"><h3>{t('admin.createPoll')}</h3>{availableGroups.length === 0 &&
+    return <QueryState query={groupsQuery}>{() => {
+        if (membershipError) {
+            let error: FrontendError | undefined;
+            if (membershipError instanceof ApiError) error = membershipError.frontend;
+            return <RouteState status="error" error={error}/>;
+        }
+        if (membershipPending) return <RouteState status="loading"/>;
+        return <section className="admin-panel"><h3>{t('admin.createPoll')}</h3>{availableGroups.length === 0 &&
             <p className="stale-state">{t('admin.noNonEmptyGroups')}</p>}
             <form className="login-form" onSubmit={submit}><label
                 htmlFor="poll-title">{t('admin.pollTitle')}</label><input id="poll-title" required value={title}
@@ -233,9 +242,10 @@ export function CreatePoll() {
                 <option value="">{t('admin.selectGroup')}</option>
                 {availableGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select>
                 <button className="primary-button" type="submit"
-                        disabled={mutation.isPending || availableGroups.length === 0 || !groupId}>{mutation.isPending ? t('common.saving') : t('forms.submit')}</button>
+                        disabled={mutation.isPending || availableGroups.length === 0 || !groupId}>{mutation.isPending && t('common.saving')}{!mutation.isPending && t('forms.submit')}</button>
                 {error && <p className="form-error" role="alert">{t(error.messageKey)}</p>}</form>
-        </section>}</QueryState>;
+        </section>;
+    }}</QueryState>;
 }
 
 async function executePollMutation(pollId: string, request: PollMutation) {
@@ -266,7 +276,10 @@ async function executePollMutation(pollId: string, request: PollMutation) {
 }
 
 function updatePollCache(updated: Poll) {
-    queryClient.setQueryData<Poll[]>(queryKeys.adminPolls, (current) => current?.map((poll) => poll.id === updated.id ? updated : poll));
+    queryClient.setQueryData<Poll[]>(queryKeys.adminPolls, (current) => current?.map((poll) => {
+        if (poll.id === updated.id) return updated;
+        return poll;
+    }));
 }
 
 function assertNever(value: never): never {
@@ -275,7 +288,8 @@ function assertNever(value: never): never {
 
 function parseFutureDate(value: string) {
     const date = new Date(value);
-    return Number.isNaN(date.getTime()) || date.getTime() <= Date.now() ? null : date.toISOString();
+    if (Number.isNaN(date.getTime()) || date.getTime() <= Date.now()) return null;
+    return date.toISOString();
 }
 
 function isFutureDate(value: string) {
@@ -294,7 +308,8 @@ function formatDate(value: string, locale: string) {
 }
 
 function frontendError(cause: unknown): FrontendError {
-    return cause instanceof ApiError ? cause.frontend : {
+    if (cause instanceof ApiError) return cause.frontend;
+    return {
         kind: 'problem',
         status: null,
         code: 'unexpected_error',

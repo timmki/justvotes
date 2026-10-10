@@ -1,11 +1,11 @@
 package de.justvotes.pollmanagement.core.event;
 
-import de.justvotes.pollmanagement.core.model.Poll;
+import de.justvotes.pollmanagement.core.model.Poll.PollId;
 import de.justvotes.pollmanagement.core.model.Vote;
 
 import java.time.Instant;
 
-public record VoteWithdrawn(Poll.PollId pollId, Vote vote, String selection,
+public record VoteWithdrawn(PollId pollId, Vote vote, String selection,
                             Instant occurredAt) implements PollDomainEvent {
     public VoteWithdrawn {
         if (pollId == null) throw new IllegalArgumentException("A vote withdrawal event must identify its poll.");

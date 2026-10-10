@@ -11,6 +11,7 @@ import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.*;
+import org.springframework.http.ResponseEntity.BodyBuilder;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.method.MethodValidationException;
 import org.springframework.web.ErrorResponseException;
@@ -28,10 +29,13 @@ import java.net.URI;
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public final class ApiExceptionHandler {
     private static ResponseEntity<ProblemDetail> problem(HttpStatus status, String code, String detail) {
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail == null ? status.getReasonPhrase() : detail);
+        if (detail == null) {
+            detail = status.getReasonPhrase();
+        }
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);
         problem.setType(URI.create("https://justvotes.de/problems/" + code));
         problem.setProperty("code", code);
-        ResponseEntity.BodyBuilder response = ResponseEntity.status(status).contentType(MediaType.APPLICATION_PROBLEM_JSON);
+        BodyBuilder response = ResponseEntity.status(status).contentType(MediaType.APPLICATION_PROBLEM_JSON);
         response.cacheControl(CacheControl.noStore());
         return response.body(problem);
     }
@@ -64,8 +68,11 @@ public final class ApiExceptionHandler {
     @ExceptionHandler(ErrorResponseException.class)
     ResponseEntity<ProblemDetail> frameworkError(ErrorResponseException exception) {
         HttpStatus status = HttpStatus.valueOf(exception.getStatusCode().value());
-        return problem(status, status == HttpStatus.UNSUPPORTED_MEDIA_TYPE ? "unsupported-media-type" : "invalid-request",
-                "The request is invalid.");
+        String code = "invalid-request";
+        if (status == HttpStatus.UNSUPPORTED_MEDIA_TYPE) {
+            code = "unsupported-media-type";
+        }
+        return problem(status, code, "The request is invalid.");
     }
 
     @ExceptionHandler({PollNotFoundException.class, CatalogItemNotFoundException.class, VoteNotFoundException.class})

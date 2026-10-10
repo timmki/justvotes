@@ -50,7 +50,11 @@ public class PollEntity {
     }
 
     static Instant parseInstant(String value) {
-        return Instant.parse(value.replace(' ', 'T') + (value.endsWith("Z") ? "" : "Z"));
+        String timestamp = value.replace(' ', 'T');
+        if (!value.endsWith("Z")) {
+            timestamp += "Z";
+        }
+        return Instant.parse(timestamp);
     }
 
     String id() {
@@ -78,7 +82,10 @@ public class PollEntity {
     }
 
     Instant endsAt() {
-        return endsAt == null ? null : parseInstant(endsAt);
+        if (endsAt == null) {
+            return null;
+        }
+        return parseInstant(endsAt);
     }
 
     long templateGroupId() {
@@ -112,7 +119,11 @@ public class PollEntity {
     void updateLifecycle(String visibility, String state, Instant endsAt) {
         this.visibility = visibility;
         this.state = state;
-        this.endsAt = endsAt == null ? null : endsAt.toString();
+        if (endsAt == null) {
+            this.endsAt = null;
+        } else {
+            this.endsAt = endsAt.toString();
+        }
     }
 
     void addOptions(List<String> texts) {
@@ -127,12 +138,12 @@ public class PollEntity {
 
     void synchronizeVotes(List<Vote> desiredVotes) {
         Map<String, VoteEntity> existingVotes = new HashMap<>();
-        for (var vote : votes) {
+        for (VoteEntity vote : votes) {
             existingVotes.put(vote.userId(), vote);
         }
 
         Set<String> desiredIdentities = new HashSet<>();
-        for (var desiredVote : desiredVotes) {
+        for (Vote desiredVote : desiredVotes) {
             String identity = desiredVote.identity().value();
             desiredIdentities.add(identity);
             PollOptionEntity option = option(desiredVote.optionNumber());

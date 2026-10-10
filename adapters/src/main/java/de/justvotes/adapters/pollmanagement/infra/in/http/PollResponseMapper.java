@@ -24,10 +24,14 @@ final class PollResponseMapper {
     }
 
     static de.justvotes.api.v1.model.Poll map(PollSummary poll) {
-        var group = new TemplateGroup(OpaqueIdCodec.encode("g", poll.templateGroup().id().value()), poll.templateGroup().name(), poll.templateGroup().description());
+        TemplateGroup group = new TemplateGroup(OpaqueIdCodec.encode("g", poll.templateGroup().id().value()), poll.templateGroup().name(), poll.templateGroup().description());
+        OffsetDateTime endsAt = null;
+        if (poll.endsAt() != null) {
+            endsAt = utcTimestamp(poll.endsAt());
+        }
         return new de.justvotes.api.v1.model.Poll(OpaqueIdCodec.encode("p", poll.id().value()), poll.title(), PollVisibility.valueOf(poll.visibility().name()), PollState.valueOf(poll.state().name()),
                 utcTimestamp(poll.createdAt()),
-                poll.endsAt() == null ? null : utcTimestamp(poll.endsAt()), poll.totalVotes(), group,
+                endsAt, poll.totalVotes(), group,
                 poll.templateSnapshotOptions().stream().map(PollResponseMapper::option).toList(), poll.options().stream().map(PollResponseMapper::option).toList());
     }
 

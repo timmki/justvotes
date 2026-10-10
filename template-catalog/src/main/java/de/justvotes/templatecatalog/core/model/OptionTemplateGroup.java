@@ -1,12 +1,14 @@
 package de.justvotes.templatecatalog.core.model;
 
+import de.justvotes.templatecatalog.core.model.OptionTemplate.OptionTemplateId;
+
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
 public final class OptionTemplateGroup {
     private final OptionTemplateGroupId id;
-    private final Set<OptionTemplate.OptionTemplateId> templateReferences;
+    private final Set<OptionTemplateId> templateReferences;
     private String name;
     private String description;
 
@@ -14,10 +16,14 @@ public final class OptionTemplateGroup {
         this(OptionTemplateGroupId.newId(), name, description, Set.of());
     }
 
-    public OptionTemplateGroup(OptionTemplateGroupId id, String name, String description, Set<OptionTemplate.OptionTemplateId> templateReferences) {
+    public OptionTemplateGroup(OptionTemplateGroupId id, String name, String description, Set<OptionTemplateId> templateReferences) {
         this.id = id;
         this.name = validateName(name);
-        this.description = description == null ? "" : description.trim();
+        if (description == null) {
+            this.description = "";
+        } else {
+            this.description = description.trim();
+        }
         this.templateReferences = new LinkedHashSet<>(templateReferences);
     }
 
@@ -33,16 +39,16 @@ public final class OptionTemplateGroup {
         return description;
     }
 
-    public Set<OptionTemplate.OptionTemplateId> templateReferences() {
+    public Set<OptionTemplateId> templateReferences() {
         return Collections.unmodifiableSet(templateReferences);
     }
 
-    public OptionTemplateGroup addTemplate(OptionTemplate.OptionTemplateId templateId) {
+    public OptionTemplateGroup addTemplate(OptionTemplateId templateId) {
         templateReferences.add(templateId);
         return this;
     }
 
-    public OptionTemplateGroup removeTemplate(OptionTemplate.OptionTemplateId templateId) {
+    public OptionTemplateGroup removeTemplate(OptionTemplateId templateId) {
         templateReferences.remove(templateId);
         return this;
     }
@@ -53,7 +59,11 @@ public final class OptionTemplateGroup {
     }
 
     public OptionTemplateGroup description(String description) {
-        this.description = description == null ? "" : description.trim();
+        if (description == null) {
+            this.description = "";
+        } else {
+            this.description = description.trim();
+        }
         return this;
     }
 

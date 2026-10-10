@@ -21,8 +21,10 @@ export function PollPage() {
     const query = usePollQuery(pollId);
     return <DataPage title={t('polls.detail')}
                      description={t('common.pollDescription')}>
-        <QueryState query={query}>{(poll) => poll.visibility === 'public' ? <PollDetail poll={poll}/> :
-            <RouteState status="error" error={notFoundError}/>}</QueryState>
+        <QueryState query={query}>{(poll) => {
+            if (poll.visibility === 'public') return <PollDetail poll={poll}/>;
+            return <RouteState status="error" error={notFoundError}/>;
+        }}</QueryState>
     </DataPage>;
 }
 
@@ -31,7 +33,9 @@ function PollDetail({poll}: { poll: Poll }) {
     const identityQuery = useApiQuery(queryKeys.identity, () => apiClient.getIdentity());
     const resultsQuery = usePollResultsQuery(poll.id);
     const identity = identityQuery.data?.userID ?? null;
-    const currentOptionNumber = currentOptionNumberFromResults(resultsQuery.isError ? undefined : resultsQuery.data, identity);
+    let results: PollResults | undefined;
+    if (!resultsQuery.isError) results = resultsQuery.data;
+    const currentOptionNumber = currentOptionNumberFromResults(results, identity);
     const [confirmedOptionNumber, setConfirmedOptionNumber] = useState<number | null>(currentOptionNumber);
     const [selectedOptionNumber, setSelectedOptionNumber] = useState<number | null>(currentOptionNumber);
     const [feedback, setFeedback] = useState<string | null>(null);
@@ -77,7 +81,10 @@ function PollDetail({poll}: { poll: Poll }) {
                 <legend>{t('polls.vote')}</legend>
                 <div className="poll-option-list">{sortedOptions.map((option) => {
                     const isCurrent = currentOptionNumber === option.number;
-                    return <label className={`poll-option${selectedOptionNumber === option.number ? ' selected' : ''}${isCurrent ? ' current' : ''}`}
+                    let className = 'poll-option';
+                    if (selectedOptionNumber === option.number) className += ' selected';
+                    if (isCurrent) className += ' current';
+                    return <label className={className}
                                   key={option.number}>
                         <input type="radio" name={`poll-${poll.id}`} value={option.number}
                                aria-label={option.text} checked={selectedOptionNumber === option.number}
@@ -104,7 +111,7 @@ function PollDetail({poll}: { poll: Poll }) {
             <h3>{t('polls.detail')}</h3>
             <dl>
                 <div><dt>{t('polls.createdAt')}</dt><dd><time dateTime={poll.createdAt}>{formatTimestamp(poll.createdAt, locale)}</time></dd></div>
-                <div><dt>{t('polls.duration')}</dt><dd>{poll.endsAt ? <time dateTime={poll.endsAt}>{formatTimestamp(poll.endsAt, locale)}</time> : t('polls.noEndDate')}</dd></div>
+                <div><dt>{t('polls.duration')}</dt><dd>{poll.endsAt && <time dateTime={poll.endsAt}>{formatTimestamp(poll.endsAt, locale)}</time>}{!poll.endsAt && t('polls.noEndDate')}</dd></div>
                 <div><dt>{t('polls.participation')}</dt><dd>{poll.totalVotes} {t('polls.votes')}</dd></div>
                 <div><dt>{t('polls.resultsRelease')}</dt><dd>{resultReleaseState(resultsQuery, resultForbiddenBeforeVote, t)}</dd></div>
             </dl>
@@ -130,8 +137,10 @@ function ResultsState({poll, query, forbiddenBeforeVote}: {
     const {t} = useI18n();
     if (query.isPending) return <p className="poll-notice" role="status">{t('polls.resultsLoading')}</p>;
     if (forbiddenBeforeVote) return <p className="poll-notice">{t('polls.resultsUnavailable')}</p>;
-    if (query.isError) return <RouteState status="error"
-                                          error={query.error instanceof ApiError ? query.error.frontend : undefined}
-                                          onRetry={() => void query.refetch()}/>;
+    if (query.isError) {
+        let error: FrontendError | undefined;
+        if (query.error instanceof ApiError) error = query.error.frontend;
+        return <RouteState status="error" error={error} onRetry={() => void query.refetch()}/>;
+    }
     return null;
 }

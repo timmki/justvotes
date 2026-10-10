@@ -50,7 +50,9 @@ export function ThemeProvider({children}: { children: ReactNode }) {
     useEffect(() => {
         function handleStorage(event: StorageEvent) {
             if (event.key !== themeStorageKey && event.key !== null) return;
-            setTheme(themeFromValue(event.key === null ? null : event.newValue));
+            let value = event.newValue;
+            if (event.key === null) value = null;
+            setTheme(themeFromValue(value));
         }
 
         window.addEventListener('storage', handleStorage);

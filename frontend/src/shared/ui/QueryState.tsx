@@ -10,11 +10,13 @@ export function QueryState<T>({query, children}: {
 }) {
     const presentation = presentQuery(query);
     if (presentation.status === 'loading') return <RouteState status="loading"/>;
-    if (presentation.status === 'error') return <RouteState status="error"
-                                                            error={presentation.error instanceof ApiError ? presentation.error.frontend : undefined}
-                                                            onRetry={() => {
-                                                                void query.refetch();
-                                                            }}/>;
-    return <>{presentation.data === undefined ?
-        <RouteState status="empty"/> : children(presentation.data)}</>;
+    if (presentation.status === 'error') {
+        let error;
+        if (presentation.error instanceof ApiError) error = presentation.error.frontend;
+        return <RouteState status="error" error={error} onRetry={() => {
+            void query.refetch();
+        }}/>;
+    }
+    if (presentation.data === undefined) return <RouteState status="empty"/>;
+    return <>{children(presentation.data)}</>;
 }

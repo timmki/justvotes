@@ -2,8 +2,10 @@ package de.justvotes.adapters.pollmanagement.infra.out.persistence;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.List;
+
 public interface SpringDataPollDomainEventRepository extends JpaRepository<PollDomainEventEntity, Integer> {
-    java.util.List<PollDomainEventEntity> findAllByPollIdOrderByCreatedAtAscIdAsc(String pollId);
+    List<PollDomainEventEntity> findAllByPollIdOrderByCreatedAtAscIdAsc(String pollId);
 
     void deleteAllByPollId(String pollId);
 }

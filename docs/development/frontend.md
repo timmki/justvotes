@@ -7,6 +7,10 @@ authoritative.
 ## TypeScript and structure
 
 - TypeScript MUST remain in strict mode.
+- Ternary expressions (`condition ? value : other`) MUST NOT be used in handwritten
+  JavaScript/TypeScript, including JSX, tests, and configuration. Prefer readable
+  `if`/`else` branches, early returns, or conditional JSX rendering while preserving
+  lazy evaluation and React hook order. Use `const`/`let`, never `var`.
 - Domain-facing UI MUST be organized by feature under
   [`frontend/src/features/`](../../frontend/src/features/).
 - Reusable UI and shared infrastructure MUST be under

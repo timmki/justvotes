@@ -1,9 +1,10 @@
 package de.justvotes.adapters.pollmanagement.infra.out.templatecatalog;
 
-import de.justvotes.pollmanagement.core.model.Poll;
+import de.justvotes.pollmanagement.core.model.Poll.TemplateGroupId;
 import de.justvotes.pollmanagement.core.model.TemplateGroupSnapshot;
 import de.justvotes.pollmanagement.core.ports.out.TemplateGroupSnapshotProvider;
 import de.justvotes.templatecatalog.core.model.OptionTemplate;
+import de.justvotes.templatecatalog.core.model.OptionTemplateGroup;
 import de.justvotes.templatecatalog.core.ports.in.ViewTemplateCatalog;
 
 public final class TemplateCatalogSnapshotAdapter implements TemplateGroupSnapshotProvider {
@@ -14,8 +15,8 @@ public final class TemplateCatalogSnapshotAdapter implements TemplateGroupSnapsh
     }
 
     @Override
-    public TemplateGroupSnapshot snapshotOf(Poll.TemplateGroupId templateGroupId) {
-        var group = catalog.groups()
+    public TemplateGroupSnapshot snapshotOf(TemplateGroupId templateGroupId) {
+        OptionTemplateGroup group = catalog.groups()
                 .stream()
                 .filter(candidate -> candidate.id()
                         .value() == templateGroupId.value())

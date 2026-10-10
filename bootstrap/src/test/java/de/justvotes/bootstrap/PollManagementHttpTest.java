@@ -1,8 +1,10 @@
 package de.justvotes.bootstrap;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -15,14 +17,16 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 class PollManagementHttpTest {
     private static final Path DATABASE_PATH = Path.of("target", "poll-management-" + UUID.randomUUID() + ".db");
     private static final Pattern CSRF_TOKEN = Pattern.compile("\\\"token\\\":\\\"([^\\\"]+)\\\"");
@@ -44,13 +48,13 @@ class PollManagementHttpTest {
     }
 
     private static String id(ResponseEntity<String> response) {
-        var matcher = ID.matcher(response.getBody());
+        Matcher matcher = ID.matcher(response.getBody());
         assertTrue(matcher.find());
         return matcher.group(1);
     }
 
     private static String stringField(ResponseEntity<String> response, String name) {
-        var matcher = Pattern.compile("\\\"" + name + "\\\":\\\"([^\\\"]+)\\\"").matcher(response.getBody());
+        Matcher matcher = Pattern.compile("\\\"" + name + "\\\":\\\"([^\\\"]+)\\\"").matcher(response.getBody());
         assertTrue(matcher.find());
         return matcher.group(1);
     }
@@ -485,16 +489,16 @@ class PollManagementHttpTest {
     @Test
     void personalProfileUsesOnlyCookieIdentityAndHasNoCookieSideEffects() throws Exception {
         String base = "http://localhost:" + port + "/api/v1";
-        var client = new TestRestTemplate();
+        TestRestTemplate client = new TestRestTemplate();
         for (String cookie : List.of("", "userID=v2.%%%")) {
-            var response = client.exchange(RequestEntity.get(base + "/identity/votes?userID=other")
+            ResponseEntity<String> response = client.exchange(RequestEntity.get(base + "/identity/votes?userID=other")
                     .header(HttpHeaders.COOKIE, cookie).build(), String.class);
             assertEquals(200, response.getStatusCode().value());
             assertEquals("{\"userID\":null,\"votes\":[]}", response.getBody());
             assertNoStore(response);
             assertNull(response.getHeaders().get(HttpHeaders.SET_COOKIE));
         }
-        var admin = login();
+        AuthenticatedAdmin admin = login();
         String catalog = base + "/admin/template-catalog";
         String suffix = UUID.randomUUID().toString();
         String yes = createdId(admin.post(catalog + "/templates", "{\"name\":\"Yes-" + suffix + "\"}"));
@@ -504,22 +508,22 @@ class PollManagementHttpTest {
         admin.put(catalog + "/groups/" + group + "/templates/" + no);
         String poll = createdId(admin.post(base + "/admin/polls", "{\"title\":\"Personal poll\",\"templateGroupId\":\"" + group + "\"}"));
         admin.put(base + "/admin/polls/" + poll + "/publication", "{\"endsAt\":\"2099-01-01T00:00:00Z\"}");
-        var alice = publicVisitor();
-        var identity = alice.post(base + "/identity", "{\"userID\":\"Älice #1\"}");
+        PublicVisitor alice = publicVisitor();
+        ResponseEntity<String> identity = alice.post(base + "/identity", "{\"userID\":\"Älice #1\"}");
         alice = new PublicVisitor(alice.client(), alice.cookies() + "; " + cookieHeader(identity.getHeaders()), alice.csrfToken());
-        var bob = publicVisitor();
-        var bobIdentity = bob.post(base + "/identity", "{\"userID\":\"Bob\"}");
+        PublicVisitor bob = publicVisitor();
+        ResponseEntity<String> bobIdentity = bob.post(base + "/identity", "{\"userID\":\"Bob\"}");
         bob = new PublicVisitor(bob.client(), bob.cookies() + "; " + cookieHeader(bobIdentity.getHeaders()), bob.csrfToken());
         alice.post(base + "/polls/" + poll + "/votes", "{\"optionNumber\":1}");
         bob.post(base + "/polls/" + poll + "/votes", "{\"optionNumber\":2}");
-        var response = alice.get(base + "/identity/votes?userID=Bob");
+        ResponseEntity<String> response = alice.get(base + "/identity/votes?userID=Bob");
         assertEquals(200, response.getStatusCode().value());
         assertNoStore(response);
         assertNull(response.getHeaders().get(HttpHeaders.SET_COOKIE));
-        var json = new ObjectMapper().readTree(response.getBody());
+        JsonNode json = new ObjectMapper().readTree(response.getBody());
         assertEquals("Älice #1", json.get("userID").asText());
         assertEquals(1, json.get("votes").size());
-        var vote = json.get("votes").get(0);
+        JsonNode vote = json.get("votes").get(0);
         assertEquals(3, vote.size());
         assertEquals(poll, vote.get("poll").get("id").asText());
         assertTrue(poll.startsWith("p_v1_"));
@@ -529,26 +533,26 @@ class PollManagementHttpTest {
         assertFalse(response.getBody().contains("Bob"));
         assertEquals(2, new ObjectMapper().readTree(bob.get(base + "/identity/votes").getBody()).get("votes").get(0).get("option").get("number").asInt());
         alice.post(base + "/polls/" + poll + "/votes", "{\"optionNumber\":2}");
-        var replacement = new ObjectMapper().readTree(alice.get(base + "/identity/votes").getBody()).get("votes").get(0);
+        JsonNode replacement = new ObjectMapper().readTree(alice.get(base + "/identity/votes").getBody()).get("votes").get(0);
         assertEquals(2, replacement.get("option").get("number").asInt());
-        assertTrue(java.time.Instant.parse(replacement.get("votedAt").asText()).compareTo(java.time.Instant.parse(vote.get("votedAt").asText())) >= 0);
+        assertTrue(Instant.parse(replacement.get("votedAt").asText()).compareTo(Instant.parse(vote.get("votedAt").asText())) >= 0);
         alice.delete(base + "/polls/" + poll + "/votes");
         assertEquals(0, new ObjectMapper().readTree(alice.get(base + "/identity/votes").getBody()).get("votes").size());
-        var changed = alice.post(base + "/identity", "{\"userID\":\"Bob\"}");
-        var switched = new PublicVisitor(alice.client(), alice.cookies().replaceAll("userID=[^;]+", "") + "; " + cookieHeader(changed.getHeaders()), alice.csrfToken());
-        var switchedProfile = new ObjectMapper().readTree(switched.get(base + "/identity/votes").getBody());
+        ResponseEntity<String> changed = alice.post(base + "/identity", "{\"userID\":\"Bob\"}");
+        PublicVisitor switched = new PublicVisitor(alice.client(), alice.cookies().replaceAll("userID=[^;]+", "") + "; " + cookieHeader(changed.getHeaders()), alice.csrfToken());
+        JsonNode switchedProfile = new ObjectMapper().readTree(switched.get(base + "/identity/votes").getBody());
         assertEquals("Bob", switchedProfile.get("userID").asText());
         assertEquals(1, switchedProfile.get("votes").size());
         String archived = createdId(admin.post(base + "/admin/polls", "{\"title\":\"Archived personal poll\",\"templateGroupId\":\"" + group + "\"}"));
         admin.put(base + "/admin/polls/" + archived + "/publication", "{\"endsAt\":\"2099-01-01T00:00:00Z\"}");
         bob.post(base + "/polls/" + archived + "/votes", "{\"optionNumber\":1}");
         admin.put(base + "/admin/polls/" + archived + "/archive");
-        var two = new ObjectMapper().readTree(bob.get(base + "/identity/votes").getBody()).get("votes");
+        JsonNode two = new ObjectMapper().readTree(bob.get(base + "/identity/votes").getBody()).get("votes");
         assertEquals(2, two.size());
         assertEquals("archived", two.get(0).get("poll").get("state").asText());
         assertEquals(archived, two.get(0).get("poll").get("id").asText());
         admin.put(base + "/admin/polls/" + archived + "/restore-from-archive");
-        var expired = new ObjectMapper().readTree(bob.get(base + "/identity/votes").getBody()).get("votes");
+        JsonNode expired = new ObjectMapper().readTree(bob.get(base + "/identity/votes").getBody()).get("votes");
         assertEquals("expired", expired.get(0).get("poll").get("state").asText());
         admin.delete(base + "/admin/polls/" + archived);
         admin.delete(base + "/admin/polls/" + poll + "/publication");
@@ -559,7 +563,7 @@ class PollManagementHttpTest {
         TestRestTemplate client = new TestRestTemplate();
         String origin = "http://localhost:" + port;
         ResponseEntity<String> csrf = client.getForEntity(origin + "/api/v1/csrf", String.class);
-        var matcher = CSRF_TOKEN.matcher(csrf.getBody());
+        Matcher matcher = CSRF_TOKEN.matcher(csrf.getBody());
         assertTrue(matcher.find());
         String token = matcher.group(1);
         String cookies = cookieHeader(csrf.getHeaders());
@@ -574,7 +578,7 @@ class PollManagementHttpTest {
         TestRestTemplate client = new TestRestTemplate();
         String origin = "http://localhost:" + port;
         ResponseEntity<String> csrf = client.getForEntity(origin + "/api/v1/csrf", String.class);
-        var matcher = CSRF_TOKEN.matcher(csrf.getBody());
+        Matcher matcher = CSRF_TOKEN.matcher(csrf.getBody());
         assertTrue(matcher.find());
         return new PublicVisitor(client, cookieHeader(csrf.getHeaders()), matcher.group(1));
     }

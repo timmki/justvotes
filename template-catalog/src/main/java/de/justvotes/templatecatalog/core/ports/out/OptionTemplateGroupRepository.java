@@ -1,17 +1,18 @@
 package de.justvotes.templatecatalog.core.ports.out;
 
-import de.justvotes.templatecatalog.core.model.OptionTemplate;
+import de.justvotes.templatecatalog.core.model.OptionTemplate.OptionTemplateId;
 import de.justvotes.templatecatalog.core.model.OptionTemplateGroup;
+import de.justvotes.templatecatalog.core.model.OptionTemplateGroup.OptionTemplateGroupId;
 
 import java.util.List;
 import java.util.Optional;
 
 public interface OptionTemplateGroupRepository {
-    Optional<OptionTemplateGroup> findById(OptionTemplateGroup.OptionTemplateGroupId id);
+    Optional<OptionTemplateGroup> findById(OptionTemplateGroupId id);
 
     Optional<OptionTemplateGroup> findByNormalizedName(String normalizedName);
 
-    List<OptionTemplateGroup> findAllReferencing(OptionTemplate.OptionTemplateId template);
+    List<OptionTemplateGroup> findAllReferencing(OptionTemplateId template);
 
     List<OptionTemplateGroup> findAll();
 

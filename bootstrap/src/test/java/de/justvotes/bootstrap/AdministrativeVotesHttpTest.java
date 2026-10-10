@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import de.justvotes.adapters.shared.infra.in.http.OpaqueIdCodec;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -14,11 +15,12 @@ import org.springframework.test.context.DynamicPropertySource;
 
 import java.nio.file.Path;
 import java.util.UUID;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 class AdministrativeVotesHttpTest {
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final Path DATABASE_PATH = Path.of("target", "administrative-votes-" + UUID.randomUUID() + ".db");
@@ -37,13 +39,13 @@ class AdministrativeVotesHttpTest {
 
     private static String createdId(ResponseEntity<String> response) {
         assertEquals(201, response.getStatusCode().value(), response.getBody());
-        var matcher = ID.matcher(response.getBody());
+        Matcher matcher = ID.matcher(response.getBody());
         assertTrue(matcher.find());
         return matcher.group(1);
     }
 
     private static String token(ResponseEntity<String> response) {
-        var matcher = CSRF_TOKEN.matcher(response.getBody());
+        Matcher matcher = CSRF_TOKEN.matcher(response.getBody());
         assertTrue(matcher.find());
         return matcher.group(1);
     }

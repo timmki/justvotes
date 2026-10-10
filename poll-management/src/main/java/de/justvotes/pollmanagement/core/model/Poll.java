@@ -2,6 +2,7 @@ package de.justvotes.pollmanagement.core.model;
 
 import de.justvotes.pollmanagement.core.event.PollPublished;
 import de.justvotes.pollmanagement.core.exception.PollNotActiveException;
+import de.justvotes.pollmanagement.core.model.VoteOutcome.Status;
 
 import java.time.Instant;
 import java.util.*;
@@ -149,14 +150,17 @@ public final class Poll {
         }
         Optional<Vote> current = votes.stream().filter(vote -> vote.identity().equals(identity)).findFirst();
         if (current.isPresent() && current.get().optionNumber() == optionNumber) {
-            return new VoteOutcome(VoteOutcome.Status.UNCHANGED, current.get());
+            return new VoteOutcome(Status.UNCHANGED, current.get());
         }
 
         Vote vote = new Vote(identity, optionNumber, votedAt);
         votes.removeIf(candidate -> candidate.identity().equals(identity));
         votes.add(vote);
 
-        return new VoteOutcome(current.isPresent() ? VoteOutcome.Status.REPLACED : VoteOutcome.Status.CREATED, vote);
+        if (current.isPresent()) {
+            return new VoteOutcome(Status.REPLACED, vote);
+        }
+        return new VoteOutcome(Status.CREATED, vote);
     }
 
     public Optional<Vote> removeVoteForIdentity(Identity identity) {
@@ -314,7 +318,11 @@ public final class Poll {
                 throw new IllegalArgumentException("A poll must have a template group.");
             }
             name = requiredText(name, "A template group name must not be blank.");
-            description = description == null ? "" : description.trim();
+            if (description == null) {
+                description = "";
+            } else {
+                description = description.trim();
+            }
         }
 
         public static TemplateGroup of(TemplateGroupId id, String name, String description) {

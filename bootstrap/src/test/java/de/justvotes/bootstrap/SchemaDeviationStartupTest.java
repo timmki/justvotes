@@ -5,8 +5,10 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.context.ConfigurableApplicationContext;
 
 import java.nio.file.Path;
+import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -29,8 +31,8 @@ class SchemaDeviationStartupTest {
         try (ConfigurableApplicationContext ignored = start(databaseUrl)) {
             // The first start creates and validates the expected schema.
         }
-        try (var connection = DriverManager.getConnection(databaseUrl);
-             var statement = connection.createStatement()) {
+        try (Connection connection = DriverManager.getConnection(databaseUrl);
+             Statement statement = connection.createStatement()) {
             statement.execute("DROP INDEX \"Vote_optionID_idx\"");
         }
 

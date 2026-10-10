@@ -265,7 +265,11 @@ export class ApiClient {
     private async send<T>(path: string, options: RequestInit, notifyUnauthorized: boolean): Promise<T> {
         let response: Response;
         try {
-            const url = path.startsWith(apiPrefix) ? path : `${apiPrefix}${path.startsWith('/') ? path : `/${path}`}`;
+            let url = path;
+            if (!path.startsWith(apiPrefix)) {
+                if (!path.startsWith('/')) url = `/${path}`;
+                url = `${apiPrefix}${url}`;
+            }
             response = await this.fetcher(url, {...options, credentials: 'same-origin'});
         } catch (error) {
             throw networkError(error);
@@ -279,7 +283,8 @@ export class ApiClient {
         }
         if (response.status === 204) return undefined as T;
         const text = await response.text();
-        return (text ? JSON.parse(text) : undefined) as T;
+        if (text) return JSON.parse(text) as T;
+        return undefined as T;
     }
 }
 

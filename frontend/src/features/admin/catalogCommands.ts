@@ -71,9 +71,15 @@ export function createCatalogCommands({gateway, cache}: { gateway: CatalogGatewa
                 }
             });
             const result: CatalogBatchResult = {
-                created: outcomes.flatMap((outcome) => outcome.kind === 'created' ? [outcome.template] : []),
+                created: outcomes.flatMap((outcome) => {
+                    if (outcome.kind === 'created') return [outcome.template];
+                    return [];
+                }),
                 skipped,
-                failed: outcomes.flatMap((outcome) => outcome.kind === 'failed' ? [outcome.failure] : []),
+                failed: outcomes.flatMap((outcome) => {
+                    if (outcome.kind === 'failed') return [outcome.failure];
+                    return [];
+                }),
             };
             if (result.created.length > 0) await invalidateTemplateQueries(cache);
             return result;
@@ -95,8 +101,14 @@ export function createCatalogCommands({gateway, cache}: { gateway: CatalogGatewa
                 }
             });
             const result: CatalogDeleteResult = {
-                deleted: outcomes.flatMap((outcome) => outcome.kind === 'deleted' ? [outcome.template] : []),
-                failed: outcomes.flatMap((outcome) => outcome.kind === 'failed' ? [outcome.failure] : []),
+                deleted: outcomes.flatMap((outcome) => {
+                    if (outcome.kind === 'deleted') return [outcome.template];
+                    return [];
+                }),
+                failed: outcomes.flatMap((outcome) => {
+                    if (outcome.kind === 'failed') return [outcome.failure];
+                    return [];
+                }),
             };
             if (result.deleted.length > 0) await invalidateTemplateQueriesAndMemberships(cache);
             return result;

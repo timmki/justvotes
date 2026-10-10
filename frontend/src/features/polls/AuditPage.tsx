@@ -13,8 +13,10 @@ export function AuditPage() {
     const query = usePollAuditQuery(pollId);
     return <DataPage title={t('audit.title')}
                      description={t('common.auditDescription')}>
-        <QueryState query={query}>{(entries) => entries.length === 0 ? <RouteState status="empty"/> :
-            <AuditDetail projection={projectPollDomainEvents(entries, t)}/>}</QueryState>
+        <QueryState query={query}>{(entries) => {
+            if (entries.length === 0) return <RouteState status="empty"/>;
+            return <AuditDetail projection={projectPollDomainEvents(entries, t)}/>;
+        }}</QueryState>
         <p className="poll-detail-links"><Link to={`/poll/${encodeURIComponent(pollId)}`}>{t('common.polls')}</Link> | <Link
             to={`/poll/results/${encodeURIComponent(pollId)}`}>{t('polls.results')}</Link></p>
     </DataPage>;

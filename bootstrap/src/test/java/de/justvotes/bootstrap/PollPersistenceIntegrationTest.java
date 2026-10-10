@@ -1,5 +1,8 @@
 package de.justvotes.bootstrap;
 
+import de.justvotes.pollmanagement.core.model.Identity;
+import de.justvotes.pollmanagement.core.model.Poll.TemplateGroup;
+import de.justvotes.pollmanagement.core.model.Poll.TemplateGroupId;
 import de.justvotes.pollmanagement.core.model.Poll;
 import de.justvotes.pollmanagement.core.model.PollSummary;
 import de.justvotes.pollmanagement.core.ports.out.PollRepository;
@@ -9,6 +12,7 @@ import jakarta.persistence.PersistenceContext;
 import org.hibernate.SessionFactory;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -17,11 +21,12 @@ import org.springframework.transaction.annotation.Transactional;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
+@SpringBootTest(webEnvironment = WebEnvironment.NONE)
 class PollPersistenceIntegrationTest {
     private static final Path DATABASE_PATH = Path.of("target", "poll-persistence-" + UUID.randomUUID() + ".db");
 
@@ -46,7 +51,7 @@ class PollPersistenceIntegrationTest {
     @Transactional
     void preservesTheTemplateGroupDescriptionAcrossAPersistenceRoundTrip() {
         Poll poll = Poll.privateDraftFrom(
-                new Poll.TemplateGroup(Poll.TemplateGroupId.of(1), "Ursprungsgruppe", "Historischer Gruppenhinweis"),
+                new TemplateGroup(TemplateGroupId.of(1), "Ursprungsgruppe", "Historischer Gruppenhinweis"),
                 "Snapshot-Test", "systemadmin", List.of("Option"));
 
         polls.save(poll);
@@ -61,15 +66,15 @@ class PollPersistenceIntegrationTest {
     @Transactional
     void loadsSeveralPublicPollSummariesWithOneAggregateQuery() {
         Poll first = Poll.privateDraftFrom(
-                new Poll.TemplateGroup(Poll.TemplateGroupId.of(1), "Gruppe", ""),
+                new TemplateGroup(TemplateGroupId.of(1), "Gruppe", ""),
                 "Erste Wahl", "systemadmin", List.of("Option"));
         first.publish("systemadmin", Instant.parse("2099-01-01T00:00:00Z"));
-        first.castOrReplace(de.justvotes.pollmanagement.core.model.Identity.of("alice"), 1,
+        first.castOrReplace(Identity.of("alice"), 1,
                 Instant.parse("2026-08-30T10:00:00Z"));
         polls.save(first);
 
         Poll second = Poll.privateDraftFrom(
-                new Poll.TemplateGroup(Poll.TemplateGroupId.of(1), "Gruppe", ""),
+                new TemplateGroup(TemplateGroupId.of(1), "Gruppe", ""),
                 "Zweite Wahl", "systemadmin", List.of("Option"));
         second.publish("systemadmin", Instant.parse("2099-01-01T00:00:00Z"));
         polls.save(second);
@@ -90,10 +95,10 @@ class PollPersistenceIntegrationTest {
     @Transactional
     void permanentlyDeletesPollsThatContainVotes() {
         Poll poll = Poll.privateDraftFrom(
-                new Poll.TemplateGroup(Poll.TemplateGroupId.of(1), "Gruppe", ""),
+                new TemplateGroup(TemplateGroupId.of(1), "Gruppe", ""),
                 "Delete-Test", "systemadmin", List.of("Option"));
         poll.publish("systemadmin", Instant.parse("2099-01-01T00:00:00Z"));
-        poll.castOrReplace(de.justvotes.pollmanagement.core.model.Identity.of("alice"), 1,
+        poll.castOrReplace(Identity.of("alice"), 1,
                 Instant.parse("2026-08-30T10:00:00Z"));
         poll.softDelete();
 
@@ -104,6 +109,6 @@ class PollPersistenceIntegrationTest {
         entityManager.flush();
         entityManager.clear();
 
-        assertEquals(java.util.Optional.empty(), polls.findById(poll.id()));
+        assertEquals(Optional.empty(), polls.findById(poll.id()));
     }
 }

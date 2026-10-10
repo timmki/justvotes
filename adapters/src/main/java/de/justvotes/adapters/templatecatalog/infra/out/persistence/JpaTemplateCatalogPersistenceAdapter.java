@@ -1,7 +1,8 @@
 package de.justvotes.adapters.templatecatalog.infra.out.persistence;
 
+import de.justvotes.templatecatalog.core.model.OptionTemplate.OptionTemplateId;
 import de.justvotes.templatecatalog.core.model.OptionTemplate;
-import de.justvotes.templatecatalog.core.model.OptionTemplateGroup;
+import de.justvotes.templatecatalog.core.model.OptionTemplateGroup.OptionTemplateGroupId;
 import de.justvotes.templatecatalog.core.ports.out.OptionTemplateRepository;
 
 import java.util.List;
@@ -17,7 +18,7 @@ public final class JpaTemplateCatalogPersistenceAdapter implements OptionTemplat
     }
 
     @Override
-    public Optional<OptionTemplate> findById(OptionTemplate.OptionTemplateId id) {
+    public Optional<OptionTemplate> findById(OptionTemplateId id) {
         return templates.findById(id.value()).map(this::template);
     }
 
@@ -33,9 +34,12 @@ public final class JpaTemplateCatalogPersistenceAdapter implements OptionTemplat
 
     @Override
     public OptionTemplate save(OptionTemplate template) {
-        OptionTemplateEntity entity = template.id().isNew()
-                ? new OptionTemplateEntity(template.name())
-                : templates.findById(template.id().value()).orElseThrow();
+        OptionTemplateEntity entity;
+        if (template.id().isNew()) {
+            entity = new OptionTemplateEntity(template.name());
+        } else {
+            entity = templates.findById(template.id().value()).orElseThrow();
+        }
         entity.rename(template.name());
         return template(templates.save(entity));
     }
@@ -46,10 +50,10 @@ public final class JpaTemplateCatalogPersistenceAdapter implements OptionTemplat
     }
 
     private OptionTemplate template(OptionTemplateEntity entity) {
-        Set<OptionTemplateGroup.OptionTemplateGroupId> groupReferences = entity.groups().stream()
-                .map(group -> OptionTemplateGroup.OptionTemplateGroupId.of(group.id()))
+        Set<OptionTemplateGroupId> groupReferences = entity.groups().stream()
+                .map(group -> OptionTemplateGroupId.of(group.id()))
                 .collect(Collectors.toUnmodifiableSet());
-        return new OptionTemplate(OptionTemplate.OptionTemplateId.of(entity.id()), entity.name(), groupReferences);
+        return new OptionTemplate(OptionTemplateId.of(entity.id()), entity.name(), groupReferences);
     }
 
 }

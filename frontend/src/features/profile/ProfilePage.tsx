@@ -12,10 +12,12 @@ export function ProfilePage() {
     return <PageFrame className="profile-page" title={t('profile.title')} description={t('profile.description')}>
         <QueryState query={query}>{profile => <>
             {profile.userID !== null && <p className="profile-identity">{t('common.identity')}: <strong>{profile.userID}</strong></p>}
-            {profile.userID === null ? <>
+            {profile.userID === null && <>
                 <RouteState status="empty" title={t('profile.noIdentity')} text={t('profile.noIdentityText')}/>
                 <IdentityEditor identity={null}/>
-            </> : profile.votes.length === 0 ? <RouteState status="empty" title={t('profile.noVotes')} text={t('profile.noVotesText')}/> :
+            </>}
+            {profile.userID !== null && profile.votes.length === 0 && <RouteState status="empty" title={t('profile.noVotes')} text={t('profile.noVotesText')}/>}
+            {profile.userID !== null && profile.votes.length !== 0 &&
                 <ul className="profile-votes">{projectPersonalVotes(profile.votes, locale, t).map(vote => <li key={vote.pollId}>
                     <article className="profile-vote"><h2>{vote.title}</h2><dl>
                         <div><dt>{t('profile.state')}</dt><dd>{vote.state}</dd></div>

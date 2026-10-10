@@ -26,7 +26,8 @@ export function AdminVotes() {
     const [removedVoteIds, setRemovedVoteIds] = useState<Set<string>>(() => new Set());
     const [error, setError] = useState<FrontendError | null>(null);
     const firstPageQuery = useApiQuery(queryKeys.adminVotes(0, PAGE_SIZE), () => apiClient.getAdminVotes(0, PAGE_SIZE));
-    const pageCount = firstPageQuery.data ? Math.max(1, Math.ceil(firstPageQuery.data.totalElements / PAGE_SIZE)) : 0;
+    let pageCount = 0;
+    if (firstPageQuery.data) pageCount = Math.max(1, Math.ceil(firstPageQuery.data.totalElements / PAGE_SIZE));
     // The API exposes totals but not aggregate metrics, so load every page before calculating them.
     const remainingPageQueries = useQueries({
         queries: Array.from({length: Math.max(0, pageCount - 1)}, (_, index) => {
@@ -97,7 +98,10 @@ export function AdminVotes() {
     const visibleVotes = filteredVotes.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
 
     function openRemoval(vote: AdminVote, trigger?: HTMLButtonElement) {
-        removalTriggerRef.current = trigger ?? (document.activeElement instanceof HTMLButtonElement ? document.activeElement : null);
+        removalTriggerRef.current = trigger ?? null;
+        if (trigger == null && document.activeElement instanceof HTMLButtonElement) {
+            removalTriggerRef.current = document.activeElement;
+        }
         setError(null);
         removeMutation.reset();
         setSelectedVote(vote);
@@ -109,6 +113,12 @@ export function AdminVotes() {
         setError(null);
     }
 
+    let emptyTitle: string | undefined;
+    let emptyText: string | undefined;
+    if (visibleVotes.length === 0 && allVotes.length !== 0) {
+        emptyTitle = t('voteAdmin.noMatches');
+        emptyText = t('voteAdmin.noMatchesText');
+    }
     return <section ref={panelRef} className="admin-panel">
         <h3>{t('admin.votes')}</h3>
         <dl className="vote-stat-grid">
@@ -132,9 +142,8 @@ export function AdminVotes() {
             <label htmlFor="admin-vote-poll-filter">{t('voteAdmin.pollFilter')}</label>
             <select id="admin-vote-poll-filter" value={pollFilter} onChange={(event) => { setPollFilter(event.target.value); setPage(0); }}><option value="">{t('voteAdmin.allPolls')}</option>{pollOptions.map(([pollId, title]) => <option key={pollId} value={pollId}>{title}</option>)}</select>
         </div>
-        {visibleVotes.length === 0 ? <RouteState status="empty"
-                                                 title={allVotes.length === 0 ? undefined : t('voteAdmin.noMatches')}
-                                                 text={allVotes.length === 0 ? undefined : t('voteAdmin.noMatchesText')}/> :
+        {visibleVotes.length === 0 && <RouteState status="empty" title={emptyTitle} text={emptyText}/>}
+        {visibleVotes.length !== 0 &&
             <ul className="admin-vote-list">{visibleVotes.map((vote) => <li className="admin-vote-item"
                                                                             key={vote.voteId}>
                 <div className="admin-vote-details">
@@ -213,7 +222,8 @@ function formatDate(value: string, locale: string) {
 }
 
 function frontendError(cause: unknown): FrontendError {
-    return cause instanceof ApiError ? cause.frontend : {
+    if (cause instanceof ApiError) return cause.frontend;
+    return {
         kind: 'problem',
         status: null,
         code: 'unexpected_error',

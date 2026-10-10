@@ -1,10 +1,12 @@
 package de.justvotes.bootstrap;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.*;
+import org.springframework.http.RequestEntity.BodyBuilder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -15,11 +17,12 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 class CsrfSessionOpenApiContractTest {
     private static final Path DATABASE_PATH = Path.of("target", "csrf-contract-" + UUID.randomUUID() + ".db");
     private static final Pattern TOKEN = Pattern.compile("\\\"token\\\":\\\"([^\\\"]+)\\\"");
@@ -35,7 +38,7 @@ class CsrfSessionOpenApiContractTest {
     }
 
     private static RequestEntity<String> request(String method, String url, String cookies, String csrfToken, String body) {
-        RequestEntity.BodyBuilder request = RequestEntity.method(HttpMethod.valueOf(method.toUpperCase()), url).contentType(MediaType.APPLICATION_JSON);
+        BodyBuilder request = RequestEntity.method(HttpMethod.valueOf(method.toUpperCase()), url).contentType(MediaType.APPLICATION_JSON);
         if (cookies != null) request.header(HttpHeaders.COOKIE, cookies);
         if (csrfToken != null) request.header("X-XSRF-TOKEN", csrfToken);
         return request.body(body);
@@ -46,7 +49,7 @@ class CsrfSessionOpenApiContractTest {
     }
 
     private static String token(ResponseEntity<String> response) {
-        var matcher = TOKEN.matcher(response.getBody());
+        Matcher matcher = TOKEN.matcher(response.getBody());
         assertThat(matcher.find()).isTrue();
         return matcher.group(1);
     }

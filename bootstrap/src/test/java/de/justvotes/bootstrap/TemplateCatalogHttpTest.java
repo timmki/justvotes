@@ -1,6 +1,7 @@
 package de.justvotes.bootstrap;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -14,12 +15,13 @@ import org.springframework.test.context.DynamicPropertySource;
 
 import java.nio.file.Path;
 import java.util.UUID;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 class TemplateCatalogHttpTest {
     private static final Path DATABASE_PATH = Path.of("target", "template-catalog-" + UUID.randomUUID() + ".db");
     private static final Pattern CSRF_TOKEN = Pattern.compile("\\\"token\\\":\\\"([^\\\"]+)\\\"");
@@ -41,7 +43,7 @@ class TemplateCatalogHttpTest {
     }
 
     private static String id(ResponseEntity<String> response) {
-        var matcher = ID.matcher(response.getBody());
+        Matcher matcher = ID.matcher(response.getBody());
         assertTrue(matcher.find());
         return matcher.group(1);
     }
@@ -131,7 +133,7 @@ class TemplateCatalogHttpTest {
         TestRestTemplate client = new TestRestTemplate();
         String origin = "http://localhost:" + port;
         ResponseEntity<String> csrf = client.getForEntity(origin + "/api/v1/csrf", String.class);
-        var matcher = CSRF_TOKEN.matcher(csrf.getBody());
+        Matcher matcher = CSRF_TOKEN.matcher(csrf.getBody());
         assertTrue(matcher.find());
         String token = matcher.group(1);
         String cookies = cookieHeader(csrf.getHeaders());

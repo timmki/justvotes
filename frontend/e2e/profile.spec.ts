@@ -46,19 +46,28 @@ test('cast, replacement, withdrawal and identity change refresh the personal rou
             return route.fulfill({status: 204});
         }
         if (url.endsWith('/identity')) return route.fulfill({json: {userID: identity}});
-        if (url.endsWith('/identity/votes')) return route.fulfill({json: {userID: identity, votes: selected === null ? [] :
-            [{poll: {id: poll.id, title: poll.title, state: 'active'}, option: options.find(o => o.number === selected), votedAt}]}});
+        if (url.endsWith('/identity/votes')) {
+            const votes = [];
+            if (selected !== null) votes.push({poll: {id: poll.id, title: poll.title, state: 'active'}, option: options.find(o => o.number === selected), votedAt});
+            return route.fulfill({json: {userID: identity, votes}});
+        }
         if (url.endsWith('/polls/p_v1_one/votes')) {
             if (request.method() === 'DELETE') { selected = null; return route.fulfill({status: 204}); }
-            const status = selected === null ? 'created' : 'replaced';
+            let status = 'replaced';
+            if (selected === null) status = 'created';
             selected = request.postDataJSON().optionNumber;
-            votedAt = selected === 1 ? '2026-09-15T12:00:00.000Z' : '2026-09-16T12:00:00.000Z';
+            votedAt = '2026-09-16T12:00:00.000Z';
+            if (selected === 1) votedAt = '2026-09-15T12:00:00.000Z';
             return route.fulfill({json: {status, optionNumber: selected}});
         }
-        if (url.endsWith('/polls/p_v1_one/results')) return selected === null
-            ? route.fulfill({status: 403, json: {code: 'results-not-available'}})
-            : route.fulfill({json: {...poll, options: options.map(o => ({...o, voteCount: o.number === selected ? 1 : 0,
-                votes: o.number === selected ? [{userID: identity, votedAt}] : []}))}});
+        if (url.endsWith('/polls/p_v1_one/results')) {
+            if (selected === null) return route.fulfill({status: 403, json: {code: 'results-not-available'}});
+            return route.fulfill({json: {...poll, options: options.map(o => {
+                const votes = [];
+                if (o.number === selected) votes.push({userID: identity, votedAt});
+                return {...o, voteCount: votes.length, votes};
+            })}});
+        }
         if (url.endsWith('/polls/p_v1_one')) return route.fulfill({json: poll});
         return route.fulfill({json: []});
     });

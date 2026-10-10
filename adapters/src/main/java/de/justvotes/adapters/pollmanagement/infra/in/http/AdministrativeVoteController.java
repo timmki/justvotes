@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import java.security.Principal;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 
@@ -25,7 +26,7 @@ public class AdministrativeVoteController implements AdministrationApi {
     }
 
     private static String admin() {
-        var principal = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest().getUserPrincipal();
+        Principal principal = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest().getUserPrincipal();
         if (principal == null) {
             throw new IllegalStateException("An administrator session is required.");
         }

@@ -384,7 +384,9 @@ describe('AdminPage session gate', () => {
         getTemplatesInGroup.mockImplementation(async () => memberships);
         const assign = vi.spyOn(apiClient, 'assignTemplateToGroup').mockImplementation(async (_groupId, templateId) => {
             if (templateId === 't_v1_two') throw problemError({status: 409, code: 'conflict'}, 409);
-            memberships.push({id: templateId, name: templateId === 't_v1_one' ? 'One' : 'Two'});
+            let name = 'Two';
+            if (templateId === 't_v1_one') name = 'One';
+            memberships.push({id: templateId, name});
         });
 
         renderAdmin('/admin/groups');
@@ -506,12 +508,12 @@ describe('Admin vote administration', () => {
         ];
         votes.push(...Array.from({length: 48}, (_, index) => testAdminVote(`v_v1_extra_${index}`, 'p_v1_alpha', 'Alpha', 'alice')));
         votes.push(testAdminVote('v_v1_three', 'p_v1_beta', 'Beta', 'alice'));
-        const getAdminVotes = vi.spyOn(apiClient, 'getAdminVotes').mockImplementation(async (page = 0, size = 50) => ({
-            votes: page === 0 ? votes.slice(0, 50) : votes.slice(50),
-            page,
-            size,
-            totalElements: votes.length,
-        }));
+        const getAdminVotes = vi.spyOn(apiClient, 'getAdminVotes').mockImplementation(async (page = 0, size = 50) => {
+            let pageVotes;
+            if (page === 0) pageVotes = votes.slice(0, 50);
+            else pageVotes = votes.slice(50);
+            return {votes: pageVotes, page, size, totalElements: votes.length};
+        });
 
         renderAdmin('/admin/votes');
 
@@ -676,14 +678,23 @@ describe('Admin vote administration', () => {
 
 type TestPoll = components['schemas']['Poll'];
 
-function testPoll(state: TestPoll['state'], visibility: TestPoll['visibility'] = state === 'active' ? 'public' : 'private'): TestPoll {
+function testPoll(state: TestPoll['state'], visibility?: TestPoll['visibility']): TestPoll {
+    if (visibility === undefined) {
+        visibility = 'private';
+        if (state === 'active') visibility = 'public';
+    }
+    let title = `${state} poll`;
+    if (state === 'active') title = `${state} ${visibility} poll`;
+    let endsAt: string | null = '2099-01-01T00:00:00.000Z';
+    if (state === 'draft') endsAt = null;
+    else if (state === 'expired') endsAt = '2000-01-01T00:00:00.000Z';
     return {
         id: `p_v1_${state}_${visibility}`,
-        title: state === 'active' ? `${state} ${visibility} poll` : `${state} poll`,
+        title,
         visibility,
         state,
         createdAt: '2026-08-31T12:00:00.000Z',
-        endsAt: state === 'draft' ? null : state === 'expired' ? '2000-01-01T00:00:00.000Z' : '2099-01-01T00:00:00.000Z',
+        endsAt,
         totalVotes: 0,
         templateGroup: {id: 'g_v1_group', name: 'Board', description: 'Snapshot description'},
         templateSnapshotOptions: [{number: 1, text: 'Snapshot yes'}, {number: 2, text: 'Snapshot no'}],
@@ -831,10 +842,10 @@ describe('Admin poll lifecycle', () => {
             {id: 'g_v1_empty', name: 'Empty', description: ''},
             {id: 'g_v1_full', name: 'Full', description: ''},
         ]);
-        vi.spyOn(apiClient, 'getTemplatesInGroup').mockImplementation(async (groupId) => groupId === 'g_v1_full' ? [{
-            id: 't_v1_one',
-            name: 'One'
-        }] : []);
+        vi.spyOn(apiClient, 'getTemplatesInGroup').mockImplementation(async (groupId) => {
+            if (groupId === 'g_v1_full') return [{id: 't_v1_one', name: 'One'}];
+            return [];
+        });
 
         renderAdmin('/admin/polls');
 

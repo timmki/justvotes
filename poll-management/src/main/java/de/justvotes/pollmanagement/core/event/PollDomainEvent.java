@@ -1,12 +1,12 @@
 package de.justvotes.pollmanagement.core.event;
 
-import de.justvotes.pollmanagement.core.model.Poll;
+import de.justvotes.pollmanagement.core.model.Poll.PollId;
 import de.justvotes.pollmanagement.core.model.Vote;
 
 import java.time.Instant;
 
 public interface PollDomainEvent {
-    Poll.PollId pollId();
+    PollId pollId();
 
     String actorId();
 

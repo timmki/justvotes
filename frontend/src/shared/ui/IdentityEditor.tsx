@@ -1,5 +1,5 @@
 import {useMutation} from '@tanstack/react-query';
-import {useEffect, useId, useRef, useState} from 'react';
+import {type ReactNode, useEffect, useId, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
 import {apiClient} from '../api/client';
 import {ApiError, type FrontendError} from '../api/errors';
@@ -45,7 +45,8 @@ export function IdentityEditor({identity, variant = 'card', identityState = 'rea
         onError: (cause) => {
             setConfirmOpen(false);
             saveButtonRef.current?.focus();
-            setServerError(cause instanceof ApiError ? cause.frontend : null);
+            if (cause instanceof ApiError) setServerError(cause.frontend);
+            else setServerError(null);
         },
     });
 
@@ -86,17 +87,27 @@ export function IdentityEditor({identity, variant = 'card', identityState = 'rea
     }
 
     const compact = variant === 'compact';
-    const identityLabel = identity ? <span aria-label={identity} title={identity}>{displayIdentity(identity)}</span> :
-        identityState === 'ready' ? t('common.identityNotSet') : t('common.identityNotLoaded');
-    return <section className={`${compact ? 'identity-mini identity-shell-editor' : 'identity-card'}${editing ? ' is-editing' : ''}`}
+    let identityLabel: ReactNode;
+    if (identity) identityLabel = <span aria-label={identity} title={identity}>{displayIdentity(identity)}</span>;
+    else if (identityState === 'ready') identityLabel = t('common.identityNotSet');
+    else identityLabel = t('common.identityNotLoaded');
+    let className = 'identity-card';
+    let editButtonClassName = 'text-button';
+    if (compact) {
+        className = 'identity-mini identity-shell-editor';
+        editButtonClassName = 'identity-edit-button';
+    }
+    if (editing) className += ' is-editing';
+    return <section className={className}
                     data-identity-editor aria-labelledby={headingId}>
         <p className="eyebrow">{t('common.identity')}</p>
-        {!editing ? <>
+        {!editing && <>
             <h2 id={headingId}>{identityLabel}</h2>
             {!compact && <p>{t('common.identityNote')}</p>}
-            <button ref={editButtonRef} className={compact ? 'identity-edit-button' : 'text-button'} type="button"
+            <button ref={editButtonRef} className={editButtonClassName} type="button"
                     onClick={startEditing} disabled={identityState === 'error'}>{t('common.identityEdit')}</button>
-        </> : <>
+        </>}
+        {editing && <>
             <h2 id={headingId}>{t('common.identityEdit')}</h2>
             {identity && <p className="confirmed-identity">{t('common.identity')}: <span title={identity}>{displayIdentity(identity)}</span></p>}
             <label htmlFor={inputId}>{t('common.identityInput')}</label>
@@ -155,5 +166,6 @@ function isValidIdentity(value: string) {
 
 function displayIdentity(identity: string) {
     const characters = [...identity];
-    return characters.length > 8 ? `${characters.slice(0, 8).join('')}…` : identity;
+    if (characters.length > 8) return `${characters.slice(0, 8).join('')}…`;
+    return identity;
 }

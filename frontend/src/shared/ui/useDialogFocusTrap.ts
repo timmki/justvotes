@@ -28,7 +28,8 @@ export function useDialogFocusTrap(dialogRef: RefObject<HTMLDivElement | null>, 
             const last = controls[controls.length - 1];
             if (!dialog?.contains(document.activeElement)) {
                 event.preventDefault();
-                (event.shiftKey ? last : first).focus();
+                if (event.shiftKey) last.focus();
+                else first.focus();
             } else if (event.shiftKey && document.activeElement === first) {
                 event.preventDefault();
                 last.focus();

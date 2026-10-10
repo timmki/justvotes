@@ -8,8 +8,10 @@ export function PageFrame({className, title, description, children}: {
     children: ReactNode
 }) {
     const {t} = useI18n();
+    let frameClassName = 'page-frame';
+    if (className) frameClassName += ` ${className}`;
     return (
-        <div className={`page-frame${className ? ` ${className}` : ''}`}>
+        <div className={frameClassName}>
             <section className="page-intro" aria-labelledby="page-heading">
                 <h1 id="page-heading">{title}</h1>
                 <p>{description}</p>

@@ -16,17 +16,17 @@ export function RouteState({status, onRetry = () => window.location.reload(), er
         loading: {title: t('common.loading'), text: t('common.loadingText'), icon: <SpinnerIcon/>},
         empty: {title: title ?? t('common.empty'), text: text ?? t('common.emptyText'), icon: <EmptyIcon/>},
         error: {
-            title: error ? t(error.messageKey) : t('common.error'),
-            text: error ? t(error.messageKey) : t('common.errorText'),
+            title: t(error?.messageKey ?? 'common.error'),
+            text: t(error?.messageKey ?? 'common.errorText'),
             icon: <ErrorIcon/>
         },
     }[status];
 
     return (
         <section className={`route-state ${status}`} aria-label={t('common.pageState')}>
-            {status === 'loading' ?
-                <div role="status">{content.icon}<span className="sr-only">{content.title}</span></div> :
-                <div aria-hidden="true">{content.icon}</div>}
+            {status === 'loading' &&
+                <div role="status">{content.icon}<span className="sr-only">{content.title}</span></div>}
+            {status !== 'loading' && <div aria-hidden="true">{content.icon}</div>}
             <div><h3>{content.title}</h3><p>{content.text}</p>{status === 'error' &&
                 <button className="text-button" type="button" onClick={onRetry}>{t('common.retry')}</button>}</div>
         </section>

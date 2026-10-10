@@ -3,6 +3,7 @@ package de.justvotes.bootstrap;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -16,11 +17,12 @@ import org.springframework.test.context.DynamicPropertySource;
 
 import java.nio.file.Path;
 import java.util.UUID;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 class AdminAuthenticationTest {
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final Path DATABASE_PATH = Path.of("target", "admin-authentication-" + UUID.randomUUID() + ".db");
@@ -67,7 +69,7 @@ class AdminAuthenticationTest {
         TestRestTemplate client = new TestRestTemplate();
         String baseUrl = "http://localhost:" + port;
         ResponseEntity<String> csrf = client.getForEntity(baseUrl + "/api/v1/csrf", String.class);
-        var csrfTokenMatcher = CSRF_TOKEN.matcher(csrf.getBody());
+        Matcher csrfTokenMatcher = CSRF_TOKEN.matcher(csrf.getBody());
         assertThat(csrfTokenMatcher.find()).isTrue();
         String csrfToken = csrfTokenMatcher.group(1);
         String cookies = cookieHeader(csrf.getHeaders());
