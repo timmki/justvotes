@@ -482,6 +482,79 @@ class PollManagementHttpTest {
         assertEquals(privateResults.getBody().replace("/" + privatePoll, "/p_v1_missing"), unknownResults.getBody());
     }
 
+    @Test
+    void personalProfileUsesOnlyCookieIdentityAndHasNoCookieSideEffects() throws Exception {
+        String base = "http://localhost:" + port + "/api/v1";
+        var client = new TestRestTemplate();
+        for (String cookie : List.of("", "userID=v2.%%%")) {
+            var response = client.exchange(RequestEntity.get(base + "/identity/votes?userID=other")
+                    .header(HttpHeaders.COOKIE, cookie).build(), String.class);
+            assertEquals(200, response.getStatusCode().value());
+            assertEquals("{\"userID\":null,\"votes\":[]}", response.getBody());
+            assertNoStore(response);
+            assertNull(response.getHeaders().get(HttpHeaders.SET_COOKIE));
+        }
+        var admin = login();
+        String catalog = base + "/admin/template-catalog";
+        String suffix = UUID.randomUUID().toString();
+        String yes = createdId(admin.post(catalog + "/templates", "{\"name\":\"Yes-" + suffix + "\"}"));
+        String no = createdId(admin.post(catalog + "/templates", "{\"name\":\"No-" + suffix + "\"}"));
+        String group = createdId(admin.post(catalog + "/groups", "{\"name\":\"Profile-" + suffix + "\",\"description\":\"\"}"));
+        admin.put(catalog + "/groups/" + group + "/templates/" + yes);
+        admin.put(catalog + "/groups/" + group + "/templates/" + no);
+        String poll = createdId(admin.post(base + "/admin/polls", "{\"title\":\"Personal poll\",\"templateGroupId\":\"" + group + "\"}"));
+        admin.put(base + "/admin/polls/" + poll + "/publication", "{\"endsAt\":\"2099-01-01T00:00:00Z\"}");
+        var alice = publicVisitor();
+        var identity = alice.post(base + "/identity", "{\"userID\":\"Älice #1\"}");
+        alice = new PublicVisitor(alice.client(), alice.cookies() + "; " + cookieHeader(identity.getHeaders()), alice.csrfToken());
+        var bob = publicVisitor();
+        var bobIdentity = bob.post(base + "/identity", "{\"userID\":\"Bob\"}");
+        bob = new PublicVisitor(bob.client(), bob.cookies() + "; " + cookieHeader(bobIdentity.getHeaders()), bob.csrfToken());
+        alice.post(base + "/polls/" + poll + "/votes", "{\"optionNumber\":1}");
+        bob.post(base + "/polls/" + poll + "/votes", "{\"optionNumber\":2}");
+        var response = alice.get(base + "/identity/votes?userID=Bob");
+        assertEquals(200, response.getStatusCode().value());
+        assertNoStore(response);
+        assertNull(response.getHeaders().get(HttpHeaders.SET_COOKIE));
+        var json = new ObjectMapper().readTree(response.getBody());
+        assertEquals("Älice #1", json.get("userID").asText());
+        assertEquals(1, json.get("votes").size());
+        var vote = json.get("votes").get(0);
+        assertEquals(3, vote.size());
+        assertEquals(poll, vote.get("poll").get("id").asText());
+        assertTrue(poll.startsWith("p_v1_"));
+        assertEquals("active", vote.get("poll").get("state").asText());
+        assertEquals(1, vote.get("option").get("number").asInt());
+        assertTrue(vote.get("votedAt").asText().endsWith("Z"));
+        assertFalse(response.getBody().contains("Bob"));
+        assertEquals(2, new ObjectMapper().readTree(bob.get(base + "/identity/votes").getBody()).get("votes").get(0).get("option").get("number").asInt());
+        alice.post(base + "/polls/" + poll + "/votes", "{\"optionNumber\":2}");
+        var replacement = new ObjectMapper().readTree(alice.get(base + "/identity/votes").getBody()).get("votes").get(0);
+        assertEquals(2, replacement.get("option").get("number").asInt());
+        assertTrue(java.time.Instant.parse(replacement.get("votedAt").asText()).compareTo(java.time.Instant.parse(vote.get("votedAt").asText())) >= 0);
+        alice.delete(base + "/polls/" + poll + "/votes");
+        assertEquals(0, new ObjectMapper().readTree(alice.get(base + "/identity/votes").getBody()).get("votes").size());
+        var changed = alice.post(base + "/identity", "{\"userID\":\"Bob\"}");
+        var switched = new PublicVisitor(alice.client(), alice.cookies().replaceAll("userID=[^;]+", "") + "; " + cookieHeader(changed.getHeaders()), alice.csrfToken());
+        var switchedProfile = new ObjectMapper().readTree(switched.get(base + "/identity/votes").getBody());
+        assertEquals("Bob", switchedProfile.get("userID").asText());
+        assertEquals(1, switchedProfile.get("votes").size());
+        String archived = createdId(admin.post(base + "/admin/polls", "{\"title\":\"Archived personal poll\",\"templateGroupId\":\"" + group + "\"}"));
+        admin.put(base + "/admin/polls/" + archived + "/publication", "{\"endsAt\":\"2099-01-01T00:00:00Z\"}");
+        bob.post(base + "/polls/" + archived + "/votes", "{\"optionNumber\":1}");
+        admin.put(base + "/admin/polls/" + archived + "/archive");
+        var two = new ObjectMapper().readTree(bob.get(base + "/identity/votes").getBody()).get("votes");
+        assertEquals(2, two.size());
+        assertEquals("archived", two.get(0).get("poll").get("state").asText());
+        assertEquals(archived, two.get(0).get("poll").get("id").asText());
+        admin.put(base + "/admin/polls/" + archived + "/restore-from-archive");
+        var expired = new ObjectMapper().readTree(bob.get(base + "/identity/votes").getBody()).get("votes");
+        assertEquals("expired", expired.get(0).get("poll").get("state").asText());
+        admin.delete(base + "/admin/polls/" + archived);
+        admin.delete(base + "/admin/polls/" + poll + "/publication");
+        assertEquals(0, new ObjectMapper().readTree(bob.get(base + "/identity/votes").getBody()).get("votes").size());
+    }
+
     private AuthenticatedAdmin login() {
         TestRestTemplate client = new TestRestTemplate();
         String origin = "http://localhost:" + port;

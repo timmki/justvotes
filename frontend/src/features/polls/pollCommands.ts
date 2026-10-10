@@ -45,6 +45,7 @@ export function useWithdrawVoteMutation(pollId: string, callbacks: WithdrawVoteC
 
 export async function invalidatePollQueries(pollId: string) {
     await Promise.all([
+        queryClient.invalidateQueries({queryKey: queryKeys.identityVotes}),
         queryClient.invalidateQueries({queryKey: queryKeys.publicPolls}),
         queryClient.invalidateQueries({queryKey: queryKeys.poll(pollId)}),
         queryClient.invalidateQueries({queryKey: queryKeys.pollResults(pollId)}),

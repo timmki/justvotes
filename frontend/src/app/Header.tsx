@@ -73,6 +73,7 @@ function NavigationLinks() {
     return <ul className="nav-list">
         <li><NavLink className="nav-item" to="/" end>{t('common.home')}</NavLink></li>
         <li><NavLink className="nav-item" to="/polls">{t('common.polls')}</NavLink></li>
+        <li><NavLink className="nav-item" to="/profile">{t('profile.title')}</NavLink></li>
     </ul>;
 }
 
@@ -190,6 +191,7 @@ function routeContext(pathname: string, t: ReturnType<typeof useI18n>['t']) {
 function pageTitle(pathname: string, t: ReturnType<typeof useI18n>['t']) {
     switch (routeKind(pathname).kind) {
         case 'home': return t('common.home');
+        case 'profile': return t('profile.title');
         case 'polls': return t('polls.list');
         case 'poll': return t('polls.detail');
         case 'results': return t('polls.results');
@@ -200,8 +202,9 @@ function pageTitle(pathname: string, t: ReturnType<typeof useI18n>['t']) {
     }
 }
 
-function routeKind(pathname: string): {kind: 'home' | 'polls' | 'poll' | 'results' | 'option' | 'audit' | 'admin' | 'notFound'; pollId?: string} {
+function routeKind(pathname: string): {kind: 'home' | 'profile' | 'polls' | 'poll' | 'results' | 'option' | 'audit' | 'admin' | 'notFound'; pollId?: string} {
     if (pathname === '/') return {kind: 'home'};
+    if (pathname === '/profile') return {kind: 'profile'};
     if (pathname === '/polls') return {kind: 'polls'};
     const result = pathname.match(/^\/poll\/results\/([^/]+)(?:\/option\/[^/]+)?$/);
     if (result) return {kind: pathname.includes('/option/') ? 'option' : 'results', pollId: result[1]};

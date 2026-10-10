@@ -1,5 +1,6 @@
 export const queryKeys = {
     identity: ['identity'] as const,
+    identityVotes: ['identityVotes'] as const,
     publicPolls: ['polls', 'public'] as const,
     poll: (pollId: string) => ['poll', pollId] as const,
     pollResults: (pollId: string) => ['poll', pollId, 'results'] as const,

@@ -92,6 +92,10 @@ export class ApiClient {
         return this.request<CurrentIdentity>('/identity');
     }
 
+    getCurrentIdentityVotes() {
+        return this.request<components['schemas']['CurrentIdentityVotes']>('/identity/votes', {cache: 'no-store'});
+    }
+
     changeIdentity(identity: Identity) {
         return this.request<void>('/identity', {method: 'POST', body: identity});
     }

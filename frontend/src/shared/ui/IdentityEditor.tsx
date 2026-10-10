@@ -29,7 +29,11 @@ export function IdentityEditor({identity, variant = 'card', identityState = 'rea
     const mutation = useMutation({
         mutationFn: (userID: string) => apiClient.changeIdentity({userID}),
         onSuccess: async () => {
+            // Discard the old identity's projection before fetching the new cookie scope.
+            await queryClient.cancelQueries({queryKey: queryKeys.identityVotes});
+            await queryClient.resetQueries({queryKey: queryKeys.identityVotes});
             await Promise.all([
+                queryClient.invalidateQueries({queryKey: queryKeys.identityVotes}),
                 queryClient.invalidateQueries({queryKey: queryKeys.identity}),
                 queryClient.invalidateQueries({queryKey: queryKeys.publicPolls}),
                 queryClient.invalidateQueries({queryKey: ['poll']}),

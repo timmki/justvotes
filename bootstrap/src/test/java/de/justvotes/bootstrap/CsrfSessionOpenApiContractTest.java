@@ -162,6 +162,22 @@ class CsrfSessionOpenApiContractTest {
     }
 
     @Test
+    void documentsPersonalVotesAsPublicParameterlessMinimalNoStoreRead() {
+        Map<String, Object> document = map(new Yaml().load(resource("docs/justvotes-v1.yaml")));
+        Map<String, Object> operation = map(map(map(document.get("paths")).get("/identity/votes")).get("get"));
+        assertThat(operation.get("operationId")).isEqualTo("currentIdentityVotes");
+        assertThat((List<?>) operation.get("security")).isEmpty();
+        assertThat(operation).doesNotContainKeys("parameters", "requestBody");
+        Map<String, Object> response = map(map(operation.get("responses")).get("200"));
+        assertThat(map(response.get("headers"))).containsEntry("Cache-Control", Map.of("$ref", "#/components/headers/NoStore"));
+        Map<String, Object> schemas = map(map(document.get("components")).get("schemas"));
+        assertThat(map(schemas.get("CurrentIdentityVotes")).get("required")).isEqualTo(List.of("userID", "votes"));
+        assertThat(map(map(map(schemas.get("CurrentIdentityVotes")).get("properties")).get("userID"))).containsEntry("nullable", true);
+        assertThat(map(schemas.get("PersonalVote")).get("required").toString()).contains("poll", "option", "votedAt");
+        assertThat(map(map(map(schemas.get("PersonalVotePoll")).get("properties")).get("state")).get("enum").toString()).isEqualTo("[active, expired, archived]");
+    }
+
+    @Test
     void documentsPollResultsAsAnUnauthenticatedReadWithVisibilityFailures() {
         Map<String, Object> paths = map(map(new Yaml().load(resource("docs/justvotes-v1.yaml"))).get("paths"));
         Map<String, Object> pollResults = map(map(paths.get("/polls/{pollId}/results")).get("get"));

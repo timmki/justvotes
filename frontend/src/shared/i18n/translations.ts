@@ -134,6 +134,21 @@ export const messages = {
             withdrawing: 'Stimme wird zurückgenommen',
             confirmWithdrawal: 'Eigene Stimme wirklich zurücknehmen?',
         },
+        profile: {
+            title: 'Persönliches Profil',
+            description: 'Deine aktuellen Stimmen in öffentlich lesbaren Abstimmungen.',
+            noIdentity: 'Zuerst eine Identität setzen',
+            noIdentityText: 'Setze deine Identität, um deine persönlichen Stimmen zu sehen.',
+            noVotes: 'Keine aktuelle Stimme',
+            noVotesText: 'Für diese Identität gibt es derzeit keine eigene Stimme in einer öffentlich lesbaren Abstimmung.',
+            option: 'Gewählte Option',
+            state: 'Lebenszyklus',
+            votedAt: 'Stimmabgabezeitpunkt (UTC)',
+            active: 'aktiv',
+            expired: 'abgelaufen',
+            archived: 'archiviert',
+            error: 'Die persönliche Übersicht konnte nicht geladen werden.',
+        },
         notifications: {status: 'Benachrichtigungen'},
         forms: {submit: 'Speichern', cancel: 'Abbrechen'},
         errors: {
@@ -415,6 +430,21 @@ export const messages = {
             withdrawing: 'Withdrawing vote',
             confirmWithdrawal: 'Really withdraw your vote?',
         },
+        profile: {
+            title: 'Personal profile',
+            description: 'Your current votes in publicly readable polls.',
+            noIdentity: 'Set an identity first',
+            noIdentityText: 'Set your identity to see your personal votes.',
+            noVotes: 'No current vote',
+            noVotesText: 'This identity currently has no vote in a publicly readable poll.',
+            option: 'Selected option',
+            state: 'Lifecycle',
+            votedAt: 'Vote timestamp (UTC)',
+            active: 'active',
+            expired: 'expired',
+            archived: 'archived',
+            error: 'Your personal overview could not be loaded.',
+        },
         notifications: {status: 'Notifications'},
         forms: {submit: 'Save', cancel: 'Cancel'},
         errors: {
@@ -566,6 +596,7 @@ export const messages = {
 } as const;
 
 export type TranslationKey =
+    | `profile.${keyof typeof messages.de.profile}`
     | `common.${keyof typeof messages.de.common}`
     | `polls.${keyof typeof messages.de.polls}`
     | `notifications.${keyof typeof messages.de.notifications}`

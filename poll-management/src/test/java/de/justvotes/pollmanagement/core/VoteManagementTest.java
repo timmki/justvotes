@@ -232,6 +232,69 @@ class VoteManagementTest {
         assertThrows(IllegalArgumentException.class, () -> management.adminVotes(0, 101));
     }
 
+    @Test
+    void personalVotesIsolateExactIdentityAndOnlyIncludeReadableResolvedVotesInStableOrder() {
+        var eligible = new ArrayList<Poll>();
+        for (Poll.State state : Poll.State.values()) {
+            for (Poll.Visibility visibility : Poll.Visibility.values()) {
+                eligible.add(Poll.reconstitue(Poll.PollId.newId(), state.name(), "admin", visibility, state,
+                        group(), List.of("Ja"), List.of("Ja"), List.of(new Vote(OLD_IDENTITY, 1, VOTE_TIME))));
+            }
+        }
+        Poll other = activePollWithVote(Identity.of("Alice"));
+        Poll unresolved = Poll.reconstitue(Poll.PollId.newId(), "Unresolved", "admin", Poll.Visibility.PUBLIC,
+                Poll.State.EXPIRED, group(), List.of("Ja"), List.of("Ja"), List.of(new Vote(OLD_IDENTITY, 99, VOTE_TIME)));
+        eligible.add(other);
+        eligible.add(unresolved);
+        var service = management(VOTE_TIME, eligible.toArray(Poll[]::new));
+        var actual = service.currentVotes(OLD_IDENTITY);
+        assertEquals(3, actual.size());
+        assertEquals(List.of(Poll.State.ACTIVE, Poll.State.EXPIRED, Poll.State.ARCHIVED).stream().sorted().toList(),
+                actual.stream().map(PersonalVote::pollState).sorted().toList());
+        assertEquals(actual.stream().map(v -> v.pollId().value()).sorted().toList(),
+                actual.stream().map(v -> v.pollId().value()).toList());
+        assertEquals(1, service.currentVotes(Identity.of("Alice")).size());
+        assertEquals(List.of(), service.currentVotes(Identity.of(" alice")));
+        assertEquals(List.of(), service.currentVotes(null));
+        actual.forEach(v -> { assertEquals("Ja", v.optionText()); assertEquals(VOTE_TIME, v.votedAt()); });
+    }
+
+    @Test
+    void personalVotesExpireOnReadAndPersistExactlyOneLifecycleEvent() {
+        var due = Poll.reconstitue(Poll.PollId.newId(), "Due", "admin", Poll.Visibility.PUBLIC, Poll.State.ACTIVE,
+                VOTE_TIME.minusSeconds(60), VOTE_TIME, group(), List.of("Ja"), List.of("Ja"),
+                List.of(new Vote(OLD_IDENTITY, 1, VOTE_TIME.minusSeconds(30))));
+        var repository = new InMemoryPollRepository(due);
+        var events = new ArrayList<PollDomainEvent>();
+        var service = new VoteManagement(repository, id -> List.of(), events::add, () -> VOTE_TIME);
+        assertEquals(Poll.State.EXPIRED, service.currentVotes(OLD_IDENTITY).getFirst().pollState());
+        service.currentVotes(OLD_IDENTITY);
+        assertEquals(List.of(due), repository.saved());
+        assertEquals(1, events.size());
+        assertEquals("PollExpired", ((de.justvotes.pollmanagement.core.event.PollLifecycleChanged) events.getFirst()).type().name());
+    }
+
+    @Test
+    void personalVotesTrackCastReplacementWithdrawalAndIdentityChangesWithNewestFirst() {
+        Poll first = Poll.reconstitue(Poll.PollId.newId(), "First", "admin", Poll.Visibility.PUBLIC, Poll.State.ACTIVE,
+                group(), List.of("Ja", "Nein"), List.of("Ja", "Nein"), List.of());
+        Poll second = activePollWithVote(OLD_IDENTITY);
+        var now = new java.util.concurrent.atomic.AtomicReference<>(VOTE_TIME.plusSeconds(60));
+        var service = new VoteManagement(new InMemoryPollRepository(first, second), id -> List.of(), event -> {}, now::get);
+        service.castOrReplace(first.id(), OLD_IDENTITY, 1);
+        assertEquals(List.of(first.id(), second.id()), service.currentVotes(OLD_IDENTITY).stream().map(PersonalVote::pollId).toList());
+        now.set(VOTE_TIME.plusSeconds(120));
+        service.castOrReplace(first.id(), OLD_IDENTITY, 2);
+        assertEquals(2, service.currentVotes(OLD_IDENTITY).getFirst().optionNumber());
+        assertEquals(now.get(), service.currentVotes(OLD_IDENTITY).getFirst().votedAt());
+        service.withdrawVote(first.id(), OLD_IDENTITY);
+        assertEquals(List.of(second.id()), service.currentVotes(OLD_IDENTITY).stream().map(PersonalVote::pollId).toList());
+        service.castOrReplace(first.id(), NEW_IDENTITY, 1);
+        service.changeIdentity(OLD_IDENTITY, NEW_IDENTITY);
+        assertEquals(List.of(), service.currentVotes(OLD_IDENTITY));
+        assertEquals(List.of(first.id()), service.currentVotes(NEW_IDENTITY).stream().map(PersonalVote::pollId).toList());
+    }
+
     private static final class InMemoryPollRepository implements PollRepository {
         private final List<Poll> polls;
         private final List<Poll> saved = new ArrayList<>();

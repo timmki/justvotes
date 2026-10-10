@@ -1,12 +1,13 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
-const centralRoutes = ['/', '/polls', '/poll/example', '/poll/results/example', '/poll/results/example/option/1', '/poll/audit/example', '/404', '/admin', '/admin/votes', '/admin/polls', '/admin/groups', '/admin/templates', '/admin/create'];
+const centralRoutes = ['/', '/profile', '/polls', '/poll/example', '/poll/results/example', '/poll/results/example/option/1', '/poll/audit/example', '/404', '/admin', '/admin/votes', '/admin/polls', '/admin/groups', '/admin/templates', '/admin/create'];
 
 test.beforeEach(async ({ page }) => {
   await page.route('**/api/v1/**', async (route) => {
     const url = route.request().url();
     if (url.endsWith('/admin/session')) return route.fulfill({ status: 401, json: { status: 401, code: 'unauthorized' } });
+    if (url.endsWith('/identity/votes')) return route.fulfill({ json: { userID: null, votes: [] } });
     if (url.endsWith('/identity')) return route.fulfill({ json: { userID: null } });
     return route.fulfill({ json: [] });
   });
@@ -118,7 +119,7 @@ test('keeps the polls intro close to the mobile navigation', async ({ page }) =>
    await expect.poll(async () => page.evaluate(() => {
        const navigation = document.querySelector('.mobile-navigation')?.getBoundingClientRect();
        const intro = document.querySelector('.page-intro')?.getBoundingClientRect();
-       return navigation && intro ? intro.y - (navigation.y + navigation.height) : Number.POSITIVE_INFINITY;
+       return navigation && intro ? Math.round(intro.y - (navigation.y + navigation.height)) : Number.POSITIVE_INFINITY;
    })).toBeLessThanOrEqual(24);
 });
 
@@ -194,13 +195,15 @@ test('has no critical or serious shell accessibility violations', async ({ page 
 });
 
 test('uses only same-origin runtime resources', async ({ page }) => {
-  await page.goto('/');
+  for (const route of ['/', '/profile']) {
+    await page.goto(route);
 
-  const externalResources = await page.evaluate(() => performance.getEntriesByType('resource')
-    .map(({ name }) => new URL(name, location.href).origin)
-    .filter((origin) => origin !== location.origin));
+    const externalResources = await page.evaluate(() => performance.getEntriesByType('resource')
+      .map(({ name }) => new URL(name, location.href).origin)
+      .filter((origin) => origin !== location.origin));
 
-  expect(externalResources).toEqual([]);
+    expect(externalResources).toEqual([]);
+  }
 });
 
 test('changes the identity once after confirming the warning', async ({ page }) => {

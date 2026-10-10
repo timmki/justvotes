@@ -7,3 +7,7 @@ frontend/dist
 data
 **/*.db
 frontend/test-results
+**/node_modules
+.env*
+**/.env*
+**/*.log

@@ -1,9 +1,14 @@
 package de.justvotes.adapters.pollmanagement.infra.in.http;
 
 import de.justvotes.api.v1.model.CurrentIdentity;
+import de.justvotes.api.v1.model.CurrentIdentityVotes;
+import de.justvotes.api.v1.model.PersonalVotePoll;
+import de.justvotes.api.v1.model.Option;
+import de.justvotes.adapters.shared.infra.in.http.OpaqueIdCodec;
 import de.justvotes.api.v1.server.IdentityApi;
 import de.justvotes.pollmanagement.core.model.Identity;
 import de.justvotes.pollmanagement.core.ports.in.ManageVotes;
+import de.justvotes.pollmanagement.core.ports.in.ViewVotes;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseCookie;
@@ -18,8 +23,25 @@ import java.time.Duration;
 public class IdentityController implements IdentityApi {
     private final ManageVotes votes;
 
-    public IdentityController(ManageVotes votes) {
+    private final ViewVotes queries;
+
+    public IdentityController(ManageVotes votes, ViewVotes queries) {
         this.votes = votes;
+        this.queries = queries;
+    }
+
+    @Override
+    public ResponseEntity<CurrentIdentityVotes> currentIdentityVotes() {
+        HttpServletRequest request = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest();
+        Identity identity = safeCookieIdentity(request);
+        var entries = identity == null ? java.util.List.<de.justvotes.api.v1.model.PersonalVote>of()
+                : queries.currentVotes(identity).stream().map(vote -> new de.justvotes.api.v1.model.PersonalVote(
+                        new PersonalVotePoll(OpaqueIdCodec.encode("p", vote.pollId().value()), vote.pollTitle(),
+                                PersonalVotePoll.StateEnum.fromValue(vote.pollState().name().toLowerCase(java.util.Locale.ROOT))),
+                        new Option(vote.optionNumber(), vote.optionText()),
+                        java.time.OffsetDateTime.ofInstant(vote.votedAt(), java.time.ZoneOffset.UTC))).toList();
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(new CurrentIdentityVotes(identity == null ? null : identity.value(), entries));
     }
 
     @Override

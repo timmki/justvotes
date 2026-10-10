@@ -126,6 +126,26 @@ public final class VoteManagement implements ManageVotes, ViewVotes, ManageAdmin
     }
 
     @Override
+    public List<PersonalVote> currentVotes(Identity identity) {
+        if (identity == null) return List.of();
+        return polls.findAllByVisibility(Poll.Visibility.PUBLIC).stream()
+                .map(poll -> {
+                    if (poll.expireIfDue(clock.now())) {
+                        events.publish(new PollLifecycleChanged(poll.id(), "System", PollLifecycleChanged.Type.PollExpired, null));
+                        polls.save(poll);
+                    }
+                    return poll;
+                })
+                .filter(Poll::isPubliclyReadable)
+                .flatMap(poll -> poll.votes().stream().filter(vote -> vote.identity().equals(identity))
+                        .flatMap(vote -> poll.options().stream().filter(option -> option.number() == vote.optionNumber())
+                                .map(option -> PersonalVote.from(poll, vote, option))))
+                .sorted(java.util.Comparator.comparing(PersonalVote::votedAt).reversed()
+                        .thenComparing(vote -> vote.pollId().value()))
+                .toList();
+    }
+
+    @Override
     public Optional<Vote> currentVote(Poll.PollId pollId, Identity identity) {
         return polls.findById(pollId).flatMap(poll -> poll.votes().stream().filter(vote -> vote.identity().equals(identity)).findFirst());
     }

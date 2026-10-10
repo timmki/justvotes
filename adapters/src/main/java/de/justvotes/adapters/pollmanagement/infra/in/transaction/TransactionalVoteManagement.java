@@ -41,6 +41,11 @@ public class TransactionalVoteManagement implements ManageVotes, ViewVotes {
     }
 
     @Override
+    public List<PersonalVote> currentVotes(Identity identity) {
+        return transactions.execute(() -> queries.currentVotes(identity));
+    }
+
+    @Override
     public Optional<Vote> currentVote(Poll.PollId pollId, Identity identity) {
         return transactions.executeReadOnly(() -> queries.currentVote(pollId, identity));
     }
