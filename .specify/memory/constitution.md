@@ -1,27 +1,21 @@
-<!--
-Sync Impact Report
-- Version change: unratified scaffold -> 1.0.0
-- Modified principles: all five scaffold principles replaced with JustVotes-specific principles
-- Added sections: Additional Constraints; Development Workflow
-- Removed sections: none
-- Deferred TODO: original ratification date is unknown
--->
 # JustVotes Constitution
 
 ## Core Principles
 
 ### I. Hexagonal Domain Core
-Das Spring-Boot-Backend MUST seine fachliche Logik in den
-frameworkunabhängigen Domänenmodulen `poll-management` und `template-catalog`
+Das Backend MUST fachliche Logik in frameworkunabhängigen Domänenmodulen
 halten. Anwendungsfälle werden über In- und Out-Ports definiert; HTTP,
-Persistenz, Transaktionen und Scheduling bleiben Adapter beziehungsweise
+Persistenz, Transaktionen und Scheduling bleiben Adapter- beziehungsweise
 Bootstrap-Verantwortung. Domänenmodelle MUST ihre Invarianten und
-Zustandsübergänge selbst erzwingen. Dadurch bleibt die Fachlogik unabhängig
-von Spring und technischen Integrationen testbar.
+Zustandsübergänge selbst erzwingen. Die konkrete Modulzuordnung und ihre
+Abhängigkeiten sind im [Architekturleitfaden](../../docs/development/architecture.md)
+dokumentiert.
+Dadurch bleibt die Fachlogik unabhängig von technischen Integrationen
+testbar, ohne die heutige Modulaufteilung als abschließende Liste festzuschreiben.
 
 ### II. Contract-First API
-Die versionierte OpenAPI-Datei unter
-`api-contract/src/main/openapi/justvotes-v1.yaml` MUST der maßgebliche
+Die versionierte OpenAPI-Datei
+[`api-contract/src/main/openapi/justvotes-v1.yaml`](../../api-contract/src/main/openapi/justvotes-v1.yaml) MUST der maßgebliche
 HTTP-Vertrag sein. API-Änderungen MUST den Vertrag und die daraus generierten
 Server- und TypeScript-Quellen berücksichtigen; generierte Quellen dürfen weder
 manuell bearbeitet noch committed werden. Bestehende Endpunkte und ihre
@@ -32,37 +26,34 @@ verlässlich gekoppelt.
 ### III. Explicit Domain Models and Boundaries
 Neue Fachregeln MUST als explizite, kleine und typisierte Domänenlogik
 modelliert werden, nicht als implizite Controller- oder Persistenzlogik.
-Records SHOULD für Value Objects und unveränderliche Daten verwendet werden;
-fachliche Aggregate und Entities MUST ihre veränderlichen Zustände kapseln.
-Konstruktor-Injektion, `final`-Klassen wo angemessen und explizite Validierung
-bleiben der bevorzugte Java-Stil. Technische Details dürfen nicht in den
-Domänenkern gelangen, weil dadurch Abhängigkeiten und Testaufwand wachsen.
+Fachliche Aggregate und Entities MUST ihre veränderlichen Zustände kapseln.
+Technische Details dürfen nicht in den Domänenkern gelangen, weil dadurch
+Abhängigkeiten und Testaufwand wachsen. Sprach- und Frameworkkonventionen
+sind im [Java-Entwicklungsleitfaden](../../docs/development/java.md) verbindlich
+festgehalten.
 
 ### IV. Feature-Oriented React Frontend
-Das React/Vite-Frontend MUST strict TypeScript verwenden und fachlich nach
-Features unter `frontend/src/features` strukturiert sein; gemeinsam genutzte
-Infrastruktur und UI gehören unter `frontend/src/shared`. API-Zugriffe MUST
-über den zentralen API-Client erfolgen. React Query MUST den Serverzustand,
-Caching und dessen Invalidierung verwalten; lokaler UI-Zustand, Projektionen
-und Formatierung bleiben davon getrennt. Neue UI wird als funktionale
-React-Komponenten mit Hooks und kleinen, expliziten Funktionen umgesetzt.
+Das Frontend MUST typsicher und fachlich nach Features modularisiert sein.
+Zugriff auf Serverzustand und lokaler UI-Zustand MUST klar getrennt bleiben.
+Die verbindlichen TypeScript-, Verzeichnis-, API-Client- und React-Query-
+Konventionen sind im [Frontend-Entwicklungsleitfaden](../../docs/development/frontend.md)
+dokumentiert.
 
 ### V. Testable Changes and Quality Gates
 Jede Änderung an Verhalten oder Vertrag MUST durch passende Tests abgesichert
 werden: Domänenregeln durch Unit-Tests, Integrationsgrenzen durch
 Integrationstests und betroffene Nutzerabläufe durch Frontend- oder
 End-to-End-Tests. Tests MUST die öffentliche Wirkung prüfen und dürfen keine
-unnötigen Implementierungsdetails festschreiben. Alle bestehenden Backend-, Frontend-,
-Vertrags-, Browser- und Containerprüfungen der CI MUST erfolgreich bleiben,
-bevor eine Änderung als abgeschlossen gilt.
+unnötigen Implementierungsdetails festschreiben. Alle verpflichtenden
+Backend-, Frontend-, Vertrags-, Browser- und Containerprüfungen der CI MUST
+erfolgreich bleiben, bevor eine Änderung als abgeschlossen gilt.
 
 ## Additional Constraints
 
-Das Backend verwendet Java 21 und Spring Boot; das Frontend verwendet React,
-Vite und TypeScript. Schemaänderungen MUST ausschließlich als validierte
-Flyway-Migrationen erfolgen; Hibernate darf das Schema nicht automatisch
-ändern. Die bestehende serverseitige Administratorsitzung mit Cookies und
-CSRF-Schutz MUST beibehalten und darf nicht durch unsichere clientseitige
+Schemaänderungen MUST ausschließlich als validierte Flyway-Migrationen
+erfolgen; Hibernate darf das Schema nicht automatisch ändern. Die bestehende
+serverseitige Administratorsitzung mit Cookies und CSRF-Schutz MUST
+beibehalten und darf nicht durch unsichere clientseitige
 Authentifizierungsmechanismen ersetzt oder abgeschwächt werden.
 
 Das Frontend MUST semantisches HTML, zugängliche Formulare, sichtbare
@@ -70,7 +61,7 @@ Fokuszustände, Tastaturbedienung und geeignete ARIA- beziehungsweise
 Live-Regionen erhalten. Layouts MUST auf kleinen und großen Bildschirmen
 funktionieren. Sichtbare Texte und Fehlermeldungen MUST über die vorhandenen
 Internationalisierungsressourcen gepflegt werden. Fachliche Begriffe MUST der
-Terminologie in `CONTEXT.md` entsprechen; insbesondere sind dort vermiedene
+Terminologie in [`CONTEXT.md`](../../CONTEXT.md) entsprechen; insbesondere sind dort vermiedene
 Synonyme nicht erneut einzuführen.
 
 ## Development Workflow
@@ -82,28 +73,30 @@ OpenAPI-Vertrag, generierte Quellen, Adapter und Frontend-Auswirkungen zu
 prüfen. Bei Frontend-Änderungen sind Serverzustand, Fehler- und Ladezustände,
 Internationalisierung, Barrierefreiheit und responsive Darstellung zu prüfen.
 
-Vor dem Abschluss sind mindestens die relevanten etablierten Prüfungen
-auszuführen. Der Backend-Basissatz ist
-`mvn -s .mvn/settings.xml test`; für das Frontend gelten `pnpm build`,
-`pnpm typecheck`, `pnpm lint`, `pnpm test` und `pnpm test:e2e` aus
-`frontend/`. Änderungen an generierten Artefakten werden durch die jeweiligen
-Generatoren reproduziert und nicht direkt korrigiert.
+Die konkreten Voraussetzungen sowie ausführbaren Build- und Testbefehle sind
+im [README](../../README.md) dokumentiert und werden dort gepflegt. Vor dem Abschluss sind
+die relevanten etablierten Prüfungen auszuführen; alle verpflichtenden CI-
+Prüfungen MUST erfolgreich sein. Änderungen an generierten Artefakten werden
+durch die jeweiligen Generatoren reproduziert und nicht direkt korrigiert.
 
 ## Governance
 
 Diese Constitution definiert die verbindlichen Architektur-, Coding- und
 Qualitätsgrenzen für neue Änderungen und ergänzt, aber ersetzt nicht, den
-fachlichen Vertrag in `CONTEXT.md` oder den versionierten OpenAPI-Vertrag.
+fachlichen Vertrag in [`CONTEXT.md`](../../CONTEXT.md) oder den versionierten
+[OpenAPI-Vertrag](../../api-contract/src/main/openapi/justvotes-v1.yaml).
 Bei widersprüchlichen Vorschlägen MUSS der Konflikt vor der Implementierung
 geklärt und dokumentiert werden.
 
-Änderungen an dieser Constitution benötigen eine nachvollziehbare Begründung,
-eine Aktualisierung des Sync Impact Reports und eine semantische
-Versionsänderung. Ein MAJOR-Bump ist für inkompatible Entfernung oder
-Neudefinition verbindlicher Regeln erforderlich, ein MINOR-Bump für neue oder
-wesentlich erweiterte Regeln und ein PATCH-Bump für rein redaktionelle
-Klarstellungen. Reviews MÜSSEN die betroffenen Prinzipien und die passenden
-Qualitätsprüfungen berücksichtigen. Abweichungen sind nur zulässig, wenn sie
-im Änderungsumfang begründet und im Review ausdrücklich festgehalten werden.
+Der alleinige Entwickler pflegt diese Constitution. Änderungen erhalten eine
+nachvollziehbare Begründung und eine semantische Versionsänderung: MAJOR für
+inkompatible Entfernung oder Neudefinition verbindlicher Regeln, MINOR für
+neue oder wesentlich erweiterte Regeln und PATCH für redaktionelle
+Klarstellungen. Der Entwickler prüft bei Planung und Abschluss die betroffenen
+Prinzipien und Qualitätsprüfungen. Abweichungen sind nur zulässig, wenn sie im
+Änderungsumfang begründet und bei dieser Prüfung ausdrücklich festgehalten
+werden. Die Constitution ergänzt, aber ersetzt nicht [`CONTEXT.md`](../../CONTEXT.md)
+als fachliche Quelle oder den versionierten
+[OpenAPI-Vertrag](../../api-contract/src/main/openapi/justvotes-v1.yaml) als HTTP-Vertrag.
 
-**Version**: 1.0.0 | **Ratified**: TODO(RATIFICATION_DATE): ursprüngliches Ratifikationsdatum unbekannt | **Last Amended**: 2026-09-15
+**Version**: 2.0.0 | **Ratified**: TODO(RATIFICATION_DATE): ursprüngliches Ratifikationsdatum unbekannt | **Last Amended**: 2026-10-10

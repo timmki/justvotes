@@ -27,7 +27,7 @@ User Stories 2 and 3 extend the same profile incrementally.
 **Purpose**: Confirm that the existing project setup is sufficient. No new
 module, dependency, migration, or framework is needed for this feature.
 
-- [ ] T001 [P] Confirm the existing Java 21, Spring Boot, Node.js 22, pnpm 10.6.1, Maven module, and frontend script setup in `pom.xml`, `frontend/package.json`, and `.github/workflows/ci.yml`; do not add dependencies or modules.
+- [X] T001 [P] Confirm the existing Java 21, Spring Boot, Node.js 22, pnpm 10.6.1, Maven module, and frontend script setup in `pom.xml`, `frontend/package.json`, and `.github/workflows/ci.yml`; do not add dependencies or modules.
 
 ---
 
@@ -39,8 +39,8 @@ both backend and frontend work.
 **Checkpoint**: The contract source and generated interfaces/types are
 available; generated files remain unedited and uncommitted.
 
-- [ ] T002 Update `api-contract/src/main/openapi/justvotes-v1.yaml` with parameterless `GET /identity/votes` (`currentIdentityVotes`): nullable `userID`, required `votes` array, poll `id/title/state` where `state` is restricted to wire values `active`, `expired`, or `archived`, option `number/text`, UTC `votedAt`, no identity input, public access, `200` with `userID: null` and `votes: []` for absent or malformed identity, and `Cache-Control: no-store`.
-- [ ] T003 Regenerate server interfaces/DTOs and the TypeScript contract client from `api-contract/src/main/openapi/justvotes-v1.yaml` using the existing Maven and frontend generation commands; verify outputs under `api-contract/target/generated-sources/` and `frontend/src/shared/api/generated/` are not manually edited or committed.
+- [X] T002 Update `api-contract/src/main/openapi/justvotes-v1.yaml` with parameterless `GET /identity/votes` (`currentIdentityVotes`): nullable `userID`, required `votes` array, poll `id/title/state` where `state` is restricted to wire values `active`, `expired`, or `archived`, option `number/text`, UTC `votedAt`, no identity input, public access, `200` with `userID: null` and `votes: []` for absent or malformed identity, and `Cache-Control: no-store`.
+- [X] T003 Regenerate server interfaces/DTOs and the TypeScript contract client from `api-contract/src/main/openapi/justvotes-v1.yaml` using the existing Maven and frontend generation commands; verify outputs under `api-contract/target/generated-sources/` and `frontend/src/shared/api/generated/` are not manually edited or committed.
 
 ---
 
@@ -56,29 +56,29 @@ entries, no other identity's data, and the required fields.
 
 ### Tests for User Story 1
 
-- [ ] T004 [P] [US1] Extend `bootstrap/src/test/java/de/justvotes/bootstrap/CsrfSessionOpenApiContractTest.java` with contract assertions for `GET /identity/votes`, its parameterless request, public/no-CSRF declaration, nullable `userID`, required vote fields, and no-store response documentation.
-- [ ] T005 [P] [US1] Extend `poll-management/src/test/java/de/justvotes/pollmanagement/core/VoteManagementTest.java` with fixed-clock domain cases for exact identity isolation, public `ACTIVE`/`EXPIRED`/`ARCHIVED` inclusion, private/draft/deleted exclusion, invalid option omission, newest-vote-first ordering, and expiry-on-read.
-- [ ] T006 [P] [US1] Extend `bootstrap/src/test/java/de/justvotes/bootstrap/PollManagementHttpTest.java` with cookie-scoped profile cases for absent/malformed identity returning the identity-empty response, two identities with disjoint votes, minimal response fields, opaque poll IDs, no-store, and no cookie side effects.
-- [ ] T007 [P] [US1] Create `frontend/src/features/profile/profileProjections.test.ts` covering deterministic newest-vote-first ordering with poll-ID tie breaking and the projection of poll, option, lifecycle, and timestamp labels.
-- [ ] T008 [P] [US1] Create `frontend/src/features/profile/ProfilePage.test.tsx` covering the populated profile view, required personal vote fields, profile query loading/error/empty handling, and the absence of unrelated identity data.
-- [ ] T009 [P] [US1] Create `frontend/e2e/profile.spec.ts` covering public profile access without admin login, exactly one `GET /api/v1/identity/votes` request with no per-poll requests, the current-identity response, populated personal entries, no full voter-list exposure, and supported narrow-viewport accessibility.
+- [X] T004 [P] [US1] Extend `bootstrap/src/test/java/de/justvotes/bootstrap/CsrfSessionOpenApiContractTest.java` with contract assertions for `GET /identity/votes`, its parameterless request, public/no-CSRF declaration, nullable `userID`, required vote fields, and no-store response documentation.
+- [X] T005 [P] [US1] Extend `poll-management/src/test/java/de/justvotes/pollmanagement/core/VoteManagementTest.java` with fixed-clock domain cases for exact identity isolation, public `ACTIVE`/`EXPIRED`/`ARCHIVED` inclusion, private/draft/deleted exclusion, invalid option omission, newest-vote-first ordering, and expiry-on-read.
+- [X] T006 [P] [US1] Extend `bootstrap/src/test/java/de/justvotes/bootstrap/PollManagementHttpTest.java` with cookie-scoped profile cases for absent/malformed identity returning the identity-empty response, two identities with disjoint votes, minimal response fields, opaque poll IDs, no-store, and no cookie side effects.
+- [X] T007 [P] [US1] Create `frontend/src/features/profile/profileProjections.test.ts` covering deterministic newest-vote-first ordering with poll-ID tie breaking and the projection of poll, option, lifecycle, and timestamp labels.
+- [X] T008 [P] [US1] Create `frontend/src/features/profile/ProfilePage.test.tsx` covering the populated profile view, required personal vote fields, profile query loading/error/empty handling, and the absence of unrelated identity data.
+- [X] T009 [P] [US1] Create `frontend/e2e/profile.spec.ts` covering public profile access without admin login, exactly one `GET /api/v1/identity/votes` request with no per-poll requests, the current-identity response, populated personal entries, no full voter-list exposure, and supported narrow-viewport accessibility.
 
 ### Implementation for User Story 1
 
-- [ ] T010 [P] [US1] Create immutable `PersonalVote` in `poll-management/src/main/java/de/justvotes/pollmanagement/core/model/PersonalVote.java` with required poll ID/title/state, option number/text, and `Instant votedAt`; restrict poll state to `ACTIVE`, `EXPIRED`, or `ARCHIVED` and require an existing option reference.
-- [ ] T011 [US1] Extend `poll-management/src/main/java/de/justvotes/pollmanagement/core/ports/in/ViewVotes.java` with a current-votes query accepting only the existing `Identity` value object and returning `PersonalVote` entries.
-- [ ] T012 [US1] Implement the current-votes query in `poll-management/src/main/java/de/justvotes/pollmanagement/core/VoteManagement.java` using existing poll data, exact `Identity` equality, `Poll.isPubliclyReadable()`, omission of unresolved options, expiry-on-read with the existing lifecycle event, and deterministic newest-vote-first ordering with poll ID tie breaking.
-- [ ] T013 [US1] Delegate the new query in `adapters/src/main/java/de/justvotes/adapters/pollmanagement/infra/in/transaction/TransactionalVoteManagement.java` through the existing transaction executor so expiry-on-read can persist lifecycle changes.
-- [ ] T014 [US1] Extend `adapters/src/main/java/de/justvotes/adapters/pollmanagement/infra/in/http/IdentityController.java` with the generated identity-votes operation, safe current-cookie parsing, domain-to-contract mapping, `userID: null`/empty response behavior, and `Cache-Control: no-store` without setting cookies.
-- [ ] T015 [US1] Wire the qualified `ViewVotes` query into `bootstrap/src/main/java/de/justvotes/bootstrap/config/PollManagementConfiguration.java` while keeping `IdentityController` as the identity HTTP adapter.
-- [ ] T016 [P] [US1] Add the generated-contract-typed `getCurrentIdentityVotes()` method to `frontend/src/shared/api/client.ts` and add `queryKeys.identityVotes` to `frontend/src/shared/api/queryKeys.ts`; keep same-origin credentials and centralized API access.
-- [ ] T017 [US1] Create `frontend/src/features/profile/profileQueries.ts` with the existing `useApiQuery` pattern and the `queryKeys.identityVotes` query calling the central API client.
-- [ ] T018 [US1] Create `frontend/src/features/profile/profileProjections.ts` to derive the display model and deterministic newest-vote-first ordering from generated contract data without adding a second server-state store.
-- [ ] T019 [US1] Create `frontend/src/features/profile/ProfilePage.tsx` using `PageFrame`, `QueryState`, `RouteState`, the profile query, and existing UI conventions to present the current identity and each poll title/state, selected option, and UTC timestamp without exposing technical IDs or unrelated voters.
-- [ ] T020 [P] [US1] Register the `/profile` route in `frontend/src/app/App.tsx` and preserve the existing fallback behavior for unknown routes.
-- [ ] T021 [P] [US1] Add the public profile link plus profile route title and back-link context in `frontend/src/app/Header.tsx` without changing admin navigation behavior.
-- [ ] T022 [P] [US1] Add German and English profile title, field, status, empty, and error translation keys in `frontend/src/shared/i18n/translations.ts`; do not hard-code visible strings in profile components.
-- [ ] T023 [US1] Add only the profile-specific responsive and accessible layout rules to `frontend/src/app/styles.css`, reusing existing surfaces, focus states, semantic structure, and small-screen breakpoints.
+- [X] T010 [P] [US1] Create immutable `PersonalVote` in `poll-management/src/main/java/de/justvotes/pollmanagement/core/model/PersonalVote.java` with required poll ID/title/state, option number/text, and `Instant votedAt`; restrict poll state to `ACTIVE`, `EXPIRED`, or `ARCHIVED` and require an existing option reference.
+- [X] T011 [US1] Extend `poll-management/src/main/java/de/justvotes/pollmanagement/core/ports/in/ViewVotes.java` with a current-votes query accepting only the existing `Identity` value object and returning `PersonalVote` entries.
+- [X] T012 [US1] Implement the current-votes query in `poll-management/src/main/java/de/justvotes/pollmanagement/core/VoteManagement.java` using existing poll data, exact `Identity` equality, `Poll.isPubliclyReadable()`, omission of unresolved options, expiry-on-read with the existing lifecycle event, and deterministic newest-vote-first ordering with poll ID tie breaking.
+- [X] T013 [US1] Delegate the new query in `adapters/src/main/java/de/justvotes/adapters/pollmanagement/infra/in/transaction/TransactionalVoteManagement.java` through the existing transaction executor so expiry-on-read can persist lifecycle changes.
+- [X] T014 [US1] Extend `adapters/src/main/java/de/justvotes/adapters/pollmanagement/infra/in/http/IdentityController.java` with the generated identity-votes operation, safe current-cookie parsing, domain-to-contract mapping, `userID: null`/empty response behavior, and `Cache-Control: no-store` without setting cookies.
+- [X] T015 [US1] Wire the qualified `ViewVotes` query into `bootstrap/src/main/java/de/justvotes/bootstrap/config/PollManagementConfiguration.java` while keeping `IdentityController` as the identity HTTP adapter.
+- [X] T016 [P] [US1] Add the generated-contract-typed `getCurrentIdentityVotes()` method to `frontend/src/shared/api/client.ts` and add `queryKeys.identityVotes` to `frontend/src/shared/api/queryKeys.ts`; keep same-origin credentials and centralized API access.
+- [X] T017 [US1] Create `frontend/src/features/profile/profileQueries.ts` with the existing `useApiQuery` pattern and the `queryKeys.identityVotes` query calling the central API client.
+- [X] T018 [US1] Create `frontend/src/features/profile/profileProjections.ts` to derive the display model and deterministic newest-vote-first ordering from generated contract data without adding a second server-state store.
+- [X] T019 [US1] Create `frontend/src/features/profile/ProfilePage.tsx` using `PageFrame`, `QueryState`, `RouteState`, the profile query, and existing UI conventions to present the current identity and each poll title/state, selected option, and UTC timestamp without exposing technical IDs or unrelated voters.
+- [X] T020 [P] [US1] Register the `/profile` route in `frontend/src/app/App.tsx` and preserve the existing fallback behavior for unknown routes.
+- [X] T021 [P] [US1] Add the public profile link plus profile route title and back-link context in `frontend/src/app/Header.tsx` without changing admin navigation behavior.
+- [X] T022 [P] [US1] Add German and English profile title, field, status, empty, and error translation keys in `frontend/src/shared/i18n/translations.ts`; do not hard-code visible strings in profile components.
+- [X] T023 [US1] Add only the profile-specific responsive and accessible layout rules to `frontend/src/app/styles.css`, reusing existing surfaces, focus states, semantic structure, and small-screen breakpoints.
 
 **Checkpoint**: User Story 1 is independently usable and testable with a
 set identity and at least one current vote.
@@ -97,12 +97,12 @@ identity's data, and offers the existing identity editor where applicable.
 
 ### Tests for User Story 2
 
-- [ ] T024 [US2] Extend `frontend/src/features/profile/ProfilePage.test.tsx` with separate no-identity and no-current-vote requirement cases, including the existing identity-setting action and the absence of another identity's entries.
-- [ ] T025 [US2] Extend `frontend/e2e/profile.spec.ts` with browser scenarios for the identity-empty state, the no-vote state, keyboard access to the identity-setting action, and critical accessibility checks.
+- [X] T024 [US2] Extend `frontend/src/features/profile/ProfilePage.test.tsx` with separate no-identity and no-current-vote requirement cases, including the existing identity-setting action and the absence of another identity's entries.
+- [X] T025 [US2] Extend `frontend/e2e/profile.spec.ts` with browser scenarios for the identity-empty state, the no-vote state, keyboard access to the identity-setting action, and critical accessibility checks.
 
 ### Implementation for User Story 2
 
-- [ ] T026 [US2] Refine `frontend/src/features/profile/ProfilePage.tsx` so `userID: null` and `userID` with an empty vote list have distinct localized explanations, and the missing-identity state reuses `IdentityEditor` without introducing a second identity mechanism.
+- [X] T026 [US2] Refine `frontend/src/features/profile/ProfilePage.tsx` so `userID: null` and `userID` with an empty vote list have distinct localized explanations, and the missing-identity state reuses `IdentityEditor` without introducing a second identity mechanism.
 
 **Checkpoint**: User Stories 1 and 2 both provide complete populated and empty
 profile experiences.
@@ -121,15 +121,15 @@ current state.
 
 ### Tests for User Story 3
 
-- [ ] T027 [US3] Extend `poll-management/src/test/java/de/justvotes/pollmanagement/core/VoteManagementTest.java` and `bootstrap/src/test/java/de/justvotes/bootstrap/PollManagementHttpTest.java` with replacement, withdrawal, identity-change, and current-timestamp profile cases.
-- [ ] T028 [P] [US3] Create `frontend/src/features/polls/pollCommands.test.ts` covering invalidation of `queryKeys.identityVotes` after cast and withdrawal mutations.
-- [ ] T029 [US3] Extend `frontend/src/features/profile/ProfilePage.test.tsx` with query refresh cases proving a replacement updates option/timestamp, withdrawal removes the entry, and identity change replaces the profile identity and entries.
-- [ ] T030 [US3] Extend `frontend/e2e/profile.spec.ts` with end-to-end scenarios for cast/replace/withdraw and identity change followed by profile refresh.
+- [X] T027 [US3] Extend `poll-management/src/test/java/de/justvotes/pollmanagement/core/VoteManagementTest.java` and `bootstrap/src/test/java/de/justvotes/bootstrap/PollManagementHttpTest.java` with replacement, withdrawal, identity-change, and current-timestamp profile cases.
+- [X] T028 [P] [US3] Create `frontend/src/features/polls/pollCommands.test.ts` covering invalidation of `queryKeys.identityVotes` after cast and withdrawal mutations.
+- [X] T029 [US3] Extend `frontend/src/features/profile/ProfilePage.test.tsx` with query refresh cases proving a replacement updates option/timestamp, withdrawal removes the entry, and identity change replaces the profile identity and entries.
+- [X] T030 [US3] Extend `frontend/e2e/profile.spec.ts` with end-to-end scenarios for cast/replace/withdraw and identity change followed by profile refresh.
 
 ### Implementation for User Story 3
 
-- [ ] T031 [P] [US3] Invalidate `queryKeys.identityVotes` after successful identity changes in `frontend/src/shared/ui/IdentityEditor.tsx` alongside the existing identity, public-poll, and poll-query invalidation.
-- [ ] T032 [P] [US3] Invalidate `queryKeys.identityVotes` after successful cast and withdrawal mutations in `frontend/src/features/polls/pollCommands.ts` while preserving the existing four poll-read invalidations.
+- [X] T031 [P] [US3] Invalidate `queryKeys.identityVotes` after successful identity changes in `frontend/src/shared/ui/IdentityEditor.tsx` alongside the existing identity, public-poll, and poll-query invalidation.
+- [X] T032 [P] [US3] Invalidate `queryKeys.identityVotes` after successful cast and withdrawal mutations in `frontend/src/features/polls/pollCommands.ts` while preserving the existing four poll-read invalidations.
 
 **Checkpoint**: All three user stories are independently demonstrable after
 the shared profile foundation is present, with User Story 3 keeping data fresh
@@ -142,12 +142,12 @@ after every specified personal change.
 **Purpose**: Integrate the new public route into the existing browser-wide
 quality checks and run the repository's established gates.
 
-- [ ] T033 [P] Add `/profile` and its `identity/votes` fixture to `frontend/e2e/app-shell.spec.ts` central-route, narrow-viewport, same-origin, and critical accessibility coverage.
-- [ ] T034 [P] Run the generated contract client typecheck in `api-contract/typescript-contract/` with `npm ci` and `npm run typecheck`; confirm generated sources are reproducible and uncommitted.
-- [ ] T035 [P] Run the backend quality gate `mvn -s .mvn/settings.xml test` from the repository root and resolve only feature-related failures.
-- [ ] T036 [P] Run frontend quality gates from `frontend/`: `pnpm build`, `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm test:e2e`, and `pnpm test:e2e:all` for the CI browser-compatibility matrix.
-- [ ] T037 Run the scenarios in `specs/001-personal-profile/quickstart.md`, including no-identity, populated, replacement/withdrawal, identity-change, public-lifecycle, privacy, cache, responsive, and accessibility checks; record any requirement gap before implementation is considered complete.
-- [ ] T038 [P] Reproduce the existing container quality gate from `.github/workflows/ci.yml` using `Dockerfile` for both `linux/amd64` and `linux/arm64` matrix entries: build each image with `docker buildx build --platform ... --load`, run it with a temporary SQLite volume and the CI admin environment, assert the SPA, public poll, missing-API, health, and readiness responses for each platform, and remove every container and volume.
+- [X] T033 [P] Add `/profile` and its `identity/votes` fixture to `frontend/e2e/app-shell.spec.ts` central-route, narrow-viewport, same-origin, and critical accessibility coverage.
+- [X] T034 [P] Run the generated contract client typecheck in `api-contract/typescript-contract/` with `npm ci` and `npm run typecheck`; confirm generated sources are reproducible and uncommitted.
+- [X] T035 [P] Run the backend quality gate `mvn -s .mvn/settings.xml test` from the repository root and resolve only feature-related failures.
+- [X] T036 [P] Run frontend quality gates from `frontend/`: `pnpm build`, `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm test:e2e`, and `pnpm test:e2e:all` for the CI browser-compatibility matrix.
+- [X] T037 Run the scenarios in `specs/001-personal-profile/quickstart.md`, including no-identity, populated, replacement/withdrawal, identity-change, public-lifecycle, privacy, cache, responsive, and accessibility checks; record any requirement gap before implementation is considered complete.
+- [X] T038 [P] Reproduce the existing container quality gate from `.github/workflows/ci.yml` using `Dockerfile` for both `linux/amd64` and `linux/arm64` matrix entries: build each image with `docker buildx build --platform ... --load`, run it with a temporary SQLite volume and the CI admin environment, assert the SPA, public poll, missing-API, health, and readiness responses for each platform, and remove every container and volume.
 
 ---
 
@@ -224,3 +224,16 @@ Task: "T009 browser requirements test in frontend/e2e/profile.spec.ts"
 - No task adds a Maven/npm dependency, persistence entity, Flyway migration, or authentication rule.
 - Generated API sources are outputs only; never edit them directly.
 - The custom requirements-quality checklist at `checklists/profile.md` remains reviewer-owned and is not changed by implementation tasks.
+
+## Phase 7: Convergence
+
+- [X] T039 Extend the same-origin shell browser test to visit `/profile` and round the mobile-navigation gap measurement to CSS-pixel precision in `frontend/e2e/app-shell.spec.ts`; rerun the full browser matrix per T033, SC-004 and Constitution V (partial).
+- [X] T040 Restore the documented contract typecheck dependencies in `api-contract/typescript-contract/` with installation authorization and rerun `npm ci` plus `npm run typecheck` per T034 and Constitution V (partial).
+- [X] T041 Validate the profile quickstart against a live backend and browser, including populated, identity, replacement/withdrawal, lifecycle, privacy and cache scenarios in `specs/001-personal-profile/quickstart.md` per T037 (partial).
+- [X] T042 Run both architecture builds and the container runtime smoke checks from `.github/workflows/ci.yml` after the Docker Linux engine is available per T038 and Constitution V (partial).
+
+## Phase 8: Convergence
+
+- [X] T043 Restore the pre-existing malformed-cookie behavior of `GET /identity` in `adapters/src/main/java/de/justvotes/adapters/pollmanagement/infra/in/http/IdentityController.java`, retaining the safe-empty fallback only for the new profile endpoint; rerun backend tests per Constitution II and T014 (unrequested).
+
+Assessment correction for T043: the existing `GET /identity` already used `safeCookieIdentity` and its regression test requires HTTP 200 for malformed cookies. The proposed restriction to only the new endpoint was a false positive. Preserve both endpoints' safe-empty behavior; no change to the existing endpoint is required. Keep the original finding above for traceability.
