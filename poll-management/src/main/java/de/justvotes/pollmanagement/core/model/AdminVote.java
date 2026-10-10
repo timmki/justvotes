@@ -1,10 +1,12 @@
 package de.justvotes.pollmanagement.core.model;
 
+import de.justvotes.pollmanagement.core.model.Poll.PollId;
+
 import java.time.Instant;
 
 public record AdminVote(
         long id,
-        Poll.PollId pollId,
+        PollId pollId,
         String pollTitle,
         Identity identity,
         int optionNumber,

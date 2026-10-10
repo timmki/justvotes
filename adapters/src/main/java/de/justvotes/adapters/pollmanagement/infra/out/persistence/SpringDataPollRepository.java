@@ -4,6 +4,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface SpringDataPollRepository extends JpaRepository<PollEntity, String> {
     List<PollEntity> findAllByCreatedByOrderByCreatedAtAsc(String createdBy);
@@ -42,5 +43,5 @@ public interface SpringDataPollRepository extends JpaRepository<PollEntity, Stri
 
     List<PollEntity> findAllByState(String state);
 
-    java.util.Optional<PollEntity> findByVotesId(Integer voteId);
+    Optional<PollEntity> findByVotesId(Integer voteId);
 }

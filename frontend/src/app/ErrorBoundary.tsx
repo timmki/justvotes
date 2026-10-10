@@ -13,12 +13,14 @@ export class AppErrorBoundary extends Component<{ children: ReactNode }, { hasEr
     }
 
     render() {
-        return this.state.hasError ? <ErrorFallback/> : this.props.children;
+        if (this.state.hasError) return <ErrorFallback/>;
+        return this.props.children;
     }
 }
 
 function ErrorFallback() {
-    const locale: Locale = document.documentElement.lang === 'en' ? 'en' : 'de';
+    let locale: Locale = 'de';
+    if (document.documentElement.lang === 'en') locale = 'en';
     const common = messages[locale].common;
     const errors = messages[locale].errors;
     return <div className="page-frame error-page"><h1>{errors.boundary}</h1>

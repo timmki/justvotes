@@ -11,3 +11,10 @@ Die fünf Standard-Triage-Labels werden unverändert verwendet. Siehe `docs/agen
 ### Domain docs
 
 Single-Context-Layout mit `CONTEXT.md` im Repository-Root und ADRs unter `docs/adr/`. Siehe `docs/agents/domain.md`.
+
+### Development guides
+
+Bei Architektur-, Java- oder Frontend-Arbeiten die passenden verbindlichen Konventionen lesen:
+[`docs/development/architecture.md`](docs/development/architecture.md),
+[`docs/development/java.md`](docs/development/java.md) und
+[`docs/development/frontend.md`](docs/development/frontend.md). Die Richtlinien des jeweiligen Bereichs sind zu befolgen.

@@ -401,6 +401,16 @@ main {
     margin: 0 auto;
 }
 
+.profile-page { min-width: 0; overflow-wrap: anywhere; }
+.profile-identity { margin: 0; white-space: pre-wrap; }
+.profile-votes { display: grid; gap: 1rem; margin: 0; padding: 0; list-style: none; }
+.profile-vote { min-width: 0; padding: 1.25rem; border: 1px solid var(--separator); border-radius: 1rem; background: var(--surface); }
+.profile-vote h2 { margin: 0 0 1rem; font-size: 1.35rem; }
+.profile-vote dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; margin: 0; }
+.profile-vote dt { color: var(--muted); font-size: .85rem; font-weight: 700; }
+.profile-vote dd { margin: .25rem 0 0; }
+@media (max-width: 40rem) { .profile-vote dl { grid-template-columns: 1fr; } }
+
 .polls-page {
     gap: 2.625rem;
 }

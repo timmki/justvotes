@@ -1,6 +1,7 @@
 import {QueryClientProvider} from '@tanstack/react-query';
 import {Navigate, Route, Routes} from 'react-router-dom';
 import {AdminPage} from '../features/admin/AdminPage';
+import {ProfilePage} from '../features/profile/ProfilePage';
 import {HomePage, NotFoundPage} from '../features/home/HomePage';
 import {AuditPage} from '../features/polls/AuditPage';
 import {PollPage} from '../features/polls/PollPage';
@@ -30,7 +31,7 @@ function AppContent() {
             path="/poll/results/:pollId" element={<ResultsPage/>}/><Route path="/poll/audit/:pollId"
                                                                           element={<AuditPage/>}/><Route
             path="/poll/:pollId" element={<PollPage/>}/><Route path="/admin/*" element={<AdminPage/>}/><Route
-            path="/404" element={<NotFoundPage/>}/><Route path="*" element={<Navigate to="/404" replace/>}/></Routes>
+            path="/profile" element={<ProfilePage/>}/><Route path="/404" element={<NotFoundPage/>}/><Route path="*" element={<Navigate to="/404" replace/>}/></Routes>
         </main></AppShell>
     </div>;
 }

@@ -48,7 +48,8 @@ function TemplateManager({templates}: { templates: CatalogTemplate[] }) {
         const existingIds = new Set(templates.map((template) => template.id));
         setSelected((current) => {
             const next = new Set([...current].filter((id) => existingIds.has(id)));
-            return next.size === current.size ? current : next;
+            if (next.size === current.size) return current;
+            return next;
         });
     }, [templates]);
 
@@ -99,10 +100,14 @@ function TemplateManager({templates}: { templates: CatalogTemplate[] }) {
             const failed = result.failed.map((entry) => ({name: entry.name, error: frontendError(entry.error)}));
             setBatchResult({
                 created: result.created.map((entry) => entry.name),
-                skipped: result.skipped.map((entry) => entry.kind === 'empty' ? t('admin.emptyBatchValue') : entry.name),
+                skipped: result.skipped.map((entry) => {
+                    if (entry.kind === 'empty') return t('admin.emptyBatchValue');
+                    return entry.name;
+                }),
                 failed,
             });
-            setBatchInput(failed.length === 0 ? '' : failed.map((entry) => entry.name).join(', '));
+            if (failed.length === 0) setBatchInput('');
+            else setBatchInput(failed.map((entry) => entry.name).join(', '));
         } catch (cause) {
             setError(frontendError(cause));
         } finally {
@@ -188,13 +193,14 @@ function TemplateManager({templates}: { templates: CatalogTemplate[] }) {
         {busy && <p className="form-status" role="status">{t(busyMessage)}</p>}
         {batchResult && <BatchResultView result={batchResult}/>}
         {deleteResult && <DeleteResultView result={deleteResult}/>}
-        {visible.length === 0 ? <RouteState status="empty"/> :
+        {visible.length === 0 && <RouteState status="empty"/>}
+        {visible.length !== 0 &&
             <ul className="data-list catalog-list">{visible.map((template) => <li key={template.id}>
                 <label><input type="checkbox" checked={selected.has(template.id)}
                               onChange={() => toggleSelection(template.id)}
                               aria-label={`${t('admin.selectTemplate')} ${template.name}`}/>
                     <strong>{template.name}</strong></label>
-                <div className="catalog-item-actions">{renameId === template.id ?
+                <div className="catalog-item-actions">{renameId === template.id &&
                     <form onSubmit={renameTemplate}><input aria-label={`${t('admin.renameTemplate')} ${template.name}`}
                                                            value={renameValue}
                                                            onChange={(event) => setRenameValue(event.target.value)}
@@ -202,7 +208,7 @@ function TemplateManager({templates}: { templates: CatalogTemplate[] }) {
                         <button className="text-button" type="submit" disabled={busy}>{t('forms.submit')}</button>
                         <button className="text-button" type="button"
                                 onClick={() => setRenameId(null)}>{t('forms.cancel')}</button>
-                    </form> : <button className="text-button" type="button"
+                    </form>}{renameId !== template.id && <button className="text-button" type="button"
                                       onClick={() => beginRename(template)}>{t('admin.rename')}</button>}
                     <button className="text-button destructive-button" type="button" disabled={busy} onClick={() => {
                         void deleteTemplates([template]);
@@ -406,10 +412,14 @@ function GroupManager({groups, templates, activeGroup, groupTemplatesQuery, onSe
         </form>
         {error && <p className="form-error" role="alert">{t(error.messageKey)}</p>}
         {busy && <p className="form-status" role="status">{t(busyMessage)}</p>}
-        {groups.length === 0 ? <RouteState status="empty"/> : <>
-            <div className="group-list" role="list">{groups.map((group) => <button
-                className={`group-choice${group.id === activeGroup?.id ? ' active' : ''}`} key={group.id} type="button"
-                onClick={() => onSelectGroup(group.id)}>{group.name}</button>)}</div>
+        {groups.length === 0 && <RouteState status="empty"/>}
+        {groups.length !== 0 && <>
+            <div className="group-list" role="list">{groups.map((group) => {
+                let className = 'group-choice';
+                if (group.id === activeGroup?.id) className += ' active';
+                return <button className={className} key={group.id} type="button"
+                               onClick={() => onSelectGroup(group.id)}>{group.name}</button>;
+            })}</div>
             {activeGroup && <>
                 <div className="catalog-actions">
                     <form onSubmit={renameGroup}><label htmlFor="group-rename">{t('admin.renameGroup')}</label><input
@@ -432,7 +442,8 @@ function GroupManager({groups, templates, activeGroup, groupTemplatesQuery, onSe
                             <button className="text-button" type="button"
                                     disabled={busy || visibleTemplates.length === 0}
                                     onClick={() => void toggleVisibleTemplates()}>
-                                {t(allVisibleTemplatesSelected ? 'admin.removeVisibleTemplates' : 'admin.addVisibleTemplates')}
+                                {allVisibleTemplatesSelected && t('admin.removeVisibleTemplates')}
+                                {!allVisibleTemplatesSelected && t('admin.addVisibleTemplates')}
                             </button>
                         </div>
                         <fieldset disabled={busy || visibleTemplates.length === 0} className="catalog-membership-options">
@@ -445,7 +456,7 @@ function GroupManager({groups, templates, activeGroup, groupTemplatesQuery, onSe
                             </label>)}
                         </fieldset>
                     </div>
-                    {visibleTemplates.length === 0 ? <RouteState status="empty"/> : null}
+                    {visibleTemplates.length === 0 && <RouteState status="empty"/>}
                 </>}</QueryState>
             </>}
         </>}
@@ -453,7 +464,8 @@ function GroupManager({groups, templates, activeGroup, groupTemplatesQuery, onSe
 }
 
 function frontendError(cause: unknown) {
-    return cause instanceof ApiError ? cause.frontend : null;
+    if (cause instanceof ApiError) return cause.frontend;
+    return null;
 }
 
 function withMembership(current: Set<string>, templateId: string, checked: boolean) {

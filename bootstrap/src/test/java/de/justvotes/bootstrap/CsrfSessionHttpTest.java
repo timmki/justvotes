@@ -1,11 +1,13 @@
 package de.justvotes.bootstrap;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.RequestEntity.BodyBuilder;
 import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -14,11 +16,12 @@ import org.springframework.test.context.DynamicPropertySource;
 
 import java.nio.file.Path;
 import java.util.UUID;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 class CsrfSessionHttpTest {
     private static final Path DATABASE_PATH = Path.of("target", "csrf-session-" + UUID.randomUUID() + ".db");
     private static final Pattern TOKEN = Pattern.compile("\\\"token\\\":\\\"([^\\\"]+)\\\"");
@@ -34,7 +37,7 @@ class CsrfSessionHttpTest {
     }
 
     private static RequestEntity<String> post(String url, String cookies, String csrfToken, String body) {
-        RequestEntity.BodyBuilder request = RequestEntity.post(url);
+        BodyBuilder request = RequestEntity.post(url);
         if (cookies != null) request.header(HttpHeaders.COOKIE, cookies);
         if (csrfToken != null) request.header("X-XSRF-TOKEN", csrfToken);
         if (body != null) request.contentType(MediaType.APPLICATION_JSON);
@@ -46,7 +49,7 @@ class CsrfSessionHttpTest {
     }
 
     private static String token(ResponseEntity<String> response) {
-        var matcher = TOKEN.matcher(response.getBody());
+        Matcher matcher = TOKEN.matcher(response.getBody());
         assertThat(matcher.find()).isTrue();
         return matcher.group(1);
     }

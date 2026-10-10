@@ -1,8 +1,8 @@
 package de.justvotes.pollmanagement.core.event;
 
-import de.justvotes.pollmanagement.core.model.Poll;
+import de.justvotes.pollmanagement.core.model.Poll.PollId;
 
-public record PollLifecycleChanged(Poll.PollId pollId, String actorId, Type type,
+public record PollLifecycleChanged(PollId pollId, String actorId, Type type,
                                    String detail) implements PollDomainEvent {
     public PollLifecycleChanged {
         if (pollId == null) throw new IllegalArgumentException("A poll lifecycle event must identify its poll.");

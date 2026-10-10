@@ -1,14 +1,17 @@
 package de.justvotes.pollmanagement.core.ports.in;
 
 import de.justvotes.pollmanagement.core.model.*;
+import de.justvotes.pollmanagement.core.model.Poll.PollId;
 
 import java.util.List;
 import java.util.Optional;
 
 public interface ViewVotes {
-    Optional<Vote> currentVote(Poll.PollId pollId, Identity identity);
+    List<PersonalVote> currentVotes(Identity identity);
 
-    PollResults results(Poll.PollId pollId, Identity identity);
+    Optional<Vote> currentVote(PollId pollId, Identity identity);
 
-    List<AuditEntry> publicAudit(Poll.PollId pollId);
+    PollResults results(PollId pollId, Identity identity);
+
+    List<AuditEntry> publicAudit(PollId pollId);
 }

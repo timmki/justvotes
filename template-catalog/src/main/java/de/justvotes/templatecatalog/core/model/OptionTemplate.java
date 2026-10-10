@@ -1,19 +1,21 @@
 package de.justvotes.templatecatalog.core.model;
 
+import de.justvotes.templatecatalog.core.model.OptionTemplateGroup.OptionTemplateGroupId;
+
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
 public final class OptionTemplate {
     private final OptionTemplateId id;
-    private final Set<OptionTemplateGroup.OptionTemplateGroupId> groupReferences;
+    private final Set<OptionTemplateGroupId> groupReferences;
     private String name;
 
     public OptionTemplate(String name) {
         this(OptionTemplateId.newId(), name, Set.of());
     }
 
-    public OptionTemplate(OptionTemplateId id, String name, Set<OptionTemplateGroup.OptionTemplateGroupId> groupReferences) {
+    public OptionTemplate(OptionTemplateId id, String name, Set<OptionTemplateGroupId> groupReferences) {
         this.id = id;
         this.name = validateName(name);
         this.groupReferences = new LinkedHashSet<>(groupReferences);
@@ -27,7 +29,7 @@ public final class OptionTemplate {
         return name;
     }
 
-    public Set<OptionTemplateGroup.OptionTemplateGroupId> groupReferences() {
+    public Set<OptionTemplateGroupId> groupReferences() {
         return Collections.unmodifiableSet(groupReferences);
     }
 

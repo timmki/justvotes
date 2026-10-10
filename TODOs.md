@@ -1,3 +1,5 @@
-- Identity name should be set freely without enforcing lowercase or no spaces.
-- Z-axis on identity dialog
-- 
+- Remove the additional slug on the shell. We do not need to mention the app name twice
+- Remove the eyebrow headers on all main pages. Not inside the panels
+- Change the text on the polls page below the title to "Hier siehst du alle öffentlichen Abstimmungen."
+- the Back link to the starting page does not work on the admin login page
+- The refresh on all pages causes a flickering. Remove the refresh if you cannot prevent the flickering on reloading the content

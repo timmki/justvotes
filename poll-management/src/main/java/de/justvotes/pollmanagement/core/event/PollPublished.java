@@ -1,8 +1,8 @@
 package de.justvotes.pollmanagement.core.event;
 
-import de.justvotes.pollmanagement.core.model.Poll;
+import de.justvotes.pollmanagement.core.model.Poll.PollId;
 
-public record PollPublished(Poll.PollId pollId, String actorId) implements PollDomainEvent {
+public record PollPublished(PollId pollId, String actorId) implements PollDomainEvent {
     public PollPublished {
         if (pollId == null) {
             throw new IllegalArgumentException("A published poll event must identify its poll.");

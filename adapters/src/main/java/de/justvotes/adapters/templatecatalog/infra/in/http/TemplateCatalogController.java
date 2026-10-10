@@ -54,7 +54,7 @@ public class TemplateCatalogController implements TemplatesApi {
 
     @Override
     public ResponseEntity<Template> createTemplate(Name request) {
-        var created = template(commands.createTemplate(request.getName()));
+        Template created = template(commands.createTemplate(request.getName()));
         return created(created, "/api/v1/admin/template-catalog/templates/" + created.getId());
     }
 
@@ -76,7 +76,7 @@ public class TemplateCatalogController implements TemplatesApi {
 
     @Override
     public ResponseEntity<TemplateGroup> createGroup(GroupInput request) {
-        var created = group(commands.createGroup(request.getName(), request.getDescription()));
+        TemplateGroup created = group(commands.createGroup(request.getName(), request.getDescription()));
         return created(created, "/api/v1/admin/template-catalog/groups/" + created.getId());
     }
 

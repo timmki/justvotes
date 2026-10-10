@@ -14,15 +14,18 @@ const datePattern = /^(\d{4})-(\d{2})-(\d{2})$/;
 
 export function parsePollListState(params: URLSearchParams): PollListState {
     const dateParam = params.get('date');
-    const from = validDateValue(params.get('from'));
-    const to = validDateValue(params.get('to'));
-    const dateFilter = isDateFilter(dateParam) ? dateParam : from !== null || to !== null ? 'date' : 'today';
-    return {
-        sort: params.get('sort') === 'oldest' ? 'oldest' : 'newest',
-        dateFilter,
-        from: dateFilter === 'date' ? from : null,
-        to: dateFilter === 'date' ? to : null,
-    };
+    let from = validDateValue(params.get('from'));
+    let to = validDateValue(params.get('to'));
+    let dateFilter: PollDateFilter = 'today';
+    if (isDateFilter(dateParam)) dateFilter = dateParam;
+    else if (from !== null || to !== null) dateFilter = 'date';
+    let sort: PollSort = 'newest';
+    if (params.get('sort') === 'oldest') sort = 'oldest';
+    if (dateFilter !== 'date') {
+        from = null;
+        to = null;
+    }
+    return {sort, dateFilter, from, to};
 }
 
 export function serializePollListState(state: PollListState) {
@@ -58,14 +61,19 @@ function isDateFilter(value: string | null): value is PollDateFilter {
 
 function dateRange(state: PollListState) {
     if (state.dateFilter === 'date') {
-        const start = state.from ? localDateStart(state.from) : null;
-        const end = state.to ? localDateStart(state.to) : null;
+        let start: Date | null = null;
+        let end: Date | null = null;
+        if (state.from) start = localDateStart(state.from);
+        if (state.to) end = localDateStart(state.to);
         return {start, end};
     }
 
     const start = new Date();
     start.setHours(0, 0, 0, 0);
-    start.setDate(start.getDate() + (state.dateFilter === 'yesterday' ? -1 : state.dateFilter === 'tomorrow' ? 1 : 0));
+    let dayOffset = 0;
+    if (state.dateFilter === 'yesterday') dayOffset = -1;
+    else if (state.dateFilter === 'tomorrow') dayOffset = 1;
+    start.setDate(start.getDate() + dayOffset);
     const end = new Date(start);
     end.setDate(end.getDate() + 1);
     return {start, end};
@@ -74,7 +82,8 @@ function dateRange(state: PollListState) {
 export function validDateValue(value: string | null) {
     if (!value || !datePattern.test(value)) return null;
     const date = localDateStart(value);
-    return date && formatLocalDate(date) === value ? value : null;
+    if (date && formatLocalDate(date) === value) return value;
+    return null;
 }
 
 function localDateStart(value: string) {
@@ -94,7 +103,10 @@ function comparePolls(left: Poll, right: Poll, sort: PollSort) {
     const leftCreatedAt = Date.parse(left.createdAt);
     const rightCreatedAt = Date.parse(right.createdAt);
     if (Number.isFinite(leftCreatedAt) && Number.isFinite(rightCreatedAt) && leftCreatedAt !== rightCreatedAt) {
-        return sort === 'newest' ? rightCreatedAt - leftCreatedAt : leftCreatedAt - rightCreatedAt;
+        if (sort === 'newest') return rightCreatedAt - leftCreatedAt;
+        return leftCreatedAt - rightCreatedAt;
     }
-    return left.id < right.id ? -1 : left.id > right.id ? 1 : 0;
+    if (left.id < right.id) return -1;
+    if (left.id > right.id) return 1;
+    return 0;
 }

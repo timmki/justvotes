@@ -359,11 +359,19 @@
         state.view = view;
         if (persist) localStorage.setItem('justvotes-view', view);
         panels.forEach((panel) => panel.classList.toggle('is-active', panel.dataset.viewPanel === view));
-        navItems.forEach((item) => item.setAttribute('aria-current', item.dataset.view === (view === 'poll' || view === 'results' ? 'polls' : view) ? 'page' : 'false'));
+        let navigationView = view;
+        if (view === 'poll' || view === 'results') navigationView = 'polls';
+        navItems.forEach((item) => {
+          let current = 'false';
+          if (item.dataset.view === navigationView) current = 'page';
+          item.setAttribute('aria-current', current);
+        });
         topbarTitle.textContent = titles[view] || titles.home;
-        const parent = view === 'home' ? 'Abstimmungen' : view === 'polls' ? 'Übersicht' : 'Abstimmungen';
+        let parent = 'Abstimmungen';
+        if (view === 'polls') parent = 'Übersicht';
         backLabel.textContent = parent;
-        backButton.href = view === 'home' ? '#home' : view === 'polls' ? '#home' : '#polls';
+        if (view === 'home' || view === 'polls') backButton.href = '#home';
+        else backButton.href = '#polls';
         if (view === 'home') backButton.style.visibility = 'hidden'; else backButton.style.visibility = 'visible';
         if (view === 'polls') {
           clearTimeout(pollLoadTimer);
@@ -372,8 +380,13 @@
           pollsState.setAttribute('aria-busy', 'true');
           pollLoadTimer = setTimeout(() => {
             const pollCount = document.querySelectorAll('#poll-grid .poll-card').length;
-            pollsState.dataset.state = pollCount ? 'ready' : 'empty';
-            pollsState.textContent = pollCount ? `${String(pollCount).padStart(2, '0')} aktiv · gerade aktualisiert` : 'Keine offenen Abstimmungen';
+            if (pollCount) {
+              pollsState.dataset.state = 'ready';
+              pollsState.textContent = `${String(pollCount).padStart(2, '0')} aktiv · gerade aktualisiert`;
+            } else {
+              pollsState.dataset.state = 'empty';
+              pollsState.textContent = 'Keine offenen Abstimmungen';
+            }
             pollsState.setAttribute('aria-busy', 'false');
           }, 220);
         }
@@ -383,7 +396,11 @@
       function closeIdentity() { modal.classList.remove('is-open'); modal.setAttribute('aria-hidden', 'true'); lastIdentityTrigger?.focus(); }
 
       navItems.forEach((item) => item.addEventListener('click', (event) => { event.preventDefault(); setView(item.dataset.view); }));
-      backButton.addEventListener('click', (event) => { event.preventDefault(); setView(backButton.href.endsWith('#home') ? 'home' : 'polls'); });
+      backButton.addEventListener('click', (event) => {
+        event.preventDefault();
+        if (backButton.href.endsWith('#home')) setView('home');
+        else setView('polls');
+      });
       document.querySelectorAll('[data-view="poll"]').forEach((item) => item.addEventListener('click', (event) => { event.preventDefault(); setView('poll'); }));
       document.querySelector('[data-view="results"]')?.addEventListener('click', (event) => { event.preventDefault(); setView('results'); });
       document.getElementById('save-vote').addEventListener('click', () => { const selection = document.querySelector('input[name="poll-option"]:checked'); if (!selection) return; document.getElementById('vote-feedback').textContent = `Gespeichert: ${selection.value}.`; showToast('Deine Stimme wurde gespeichert.'); window.setTimeout(() => setView('results'), 500); });
@@ -401,12 +418,26 @@
         if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
         if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
       });
-      document.getElementById('theme-toggle').addEventListener('click', () => { state.dark = !state.dark; document.documentElement.dataset.theme = state.dark ? 'dark' : 'light'; localStorage.setItem('justvotes-theme', state.dark ? 'dark' : 'light'); document.getElementById('theme-toggle').setAttribute('aria-label', state.dark ? 'Helles Design aktivieren' : 'Dunkles Design aktivieren'); document.getElementById('theme-icon').innerHTML = state.dark ? '<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>' : '<path d="M20 15.5A8.5 8.5 0 0 1 8.5 4 8.5 8.5 0 1 0 20 15.5Z"/>'; });
+      document.getElementById('theme-toggle').addEventListener('click', () => {
+        state.dark = !state.dark;
+        let theme = 'light';
+        if (state.dark) theme = 'dark';
+        document.documentElement.dataset.theme = theme;
+        localStorage.setItem('justvotes-theme', theme);
+        if (state.dark) {
+          document.getElementById('theme-toggle').setAttribute('aria-label', 'Helles Design aktivieren');
+          document.getElementById('theme-icon').innerHTML = '<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>';
+        } else {
+          document.getElementById('theme-toggle').setAttribute('aria-label', 'Dunkles Design aktivieren');
+          document.getElementById('theme-icon').innerHTML = '<path d="M20 15.5A8.5 8.5 0 0 1 8.5 4 8.5 8.5 0 1 0 20 15.5Z"/>';
+        }
+      });
       document.getElementById('locale-toggle').addEventListener('click', () => showToast('Die deutsche Oberfläche ist aktiv.'));
       document.getElementById('theme-toggle').addEventListener('click', () => document.getElementById('theme-toggle').setAttribute('aria-pressed', String(state.dark)));
       modal.setAttribute('aria-hidden', 'true');
       document.getElementById('theme-toggle').setAttribute('aria-pressed', String(state.dark));
-      document.documentElement.dataset.theme = state.dark ? 'dark' : 'light';
+      if (state.dark) document.documentElement.dataset.theme = 'dark';
+      else document.documentElement.dataset.theme = 'light';
       applyIdentity();
       setView(state.view, false);
     })();

@@ -16,13 +16,16 @@ export function AppShell({children}: {children: ReactNode}) {
     const appInitials = getAppInitials(appName);
     const identityQuery = useApiQuery(queryKeys.identity, () => apiClient.getIdentity());
     const identity = identityQuery.data?.userID ?? null;
-    const identityState = identityQuery.isError ? 'error' : identityQuery.isPending ? 'loading' : 'ready';
+    let identityState: 'error' | 'loading' | 'ready' = 'ready';
+    if (identityQuery.isError) identityState = 'error';
+    else if (identityQuery.isPending) identityState = 'loading';
 
     return <div className="app-shell">
         <aside className="sidebar" aria-label={t('common.identity')}>
-            {navigation === 'public' ? <Link className="brand" to="/" aria-label={t('common.appName')}>
+            {navigation === 'public' && <Link className="brand" to="/" aria-label={t('common.appName')}>
                 <span className="brand-mark" aria-hidden="true">{appInitials}</span><h2>{appName}</h2>
-            </Link> : <div className="brand" aria-label={t('common.appName')}>
+            </Link>}
+            {navigation !== 'public' && <div className="brand" aria-label={t('common.appName')}>
                 <span className="brand-mark" aria-hidden="true">{appInitials}</span><h2>{appName}</h2>
             </div>}
             <ShellNavigation className="sidebar-navigation" navigation={navigation} showLabel={navigation === 'admin'}/>
@@ -45,7 +48,8 @@ function useShellNavigation(): 'public' | 'admin' | null {
     const sessionQuery = useApiQuery(queryKeys.adminSession, verifyShellAdminSession, {enabled: adminRoute && !loginRequired});
 
     if (!adminRoute) return 'public';
-    return sessionQuery.isSuccess ? 'admin' : null;
+    if (sessionQuery.isSuccess) return 'admin';
+    return null;
 }
 
 async function verifyShellAdminSession() {
@@ -61,10 +65,17 @@ function ShellNavigation({className, navigation, showLabel = false}: {
     const {t} = useI18n();
     if (!navigation) return null;
     const admin = navigation === 'admin';
+    let navigationLabel: 'common.adminNavigation' | 'common.mainNavigation' = 'common.mainNavigation';
+    let label: 'common.admin' | 'common.appName' = 'common.appName';
+    if (admin) {
+        navigationLabel = 'common.adminNavigation';
+        label = 'common.admin';
+    }
 
-    return <nav className={className} aria-label={t(admin ? 'common.adminNavigation' : 'common.mainNavigation')}>
-        {showLabel && <p className="sidebar-label">{t(admin ? 'common.admin' : 'common.appName')}</p>}
-        {admin ? <AdminNavigationLinks/> : <NavigationLinks/>}
+    return <nav className={className} aria-label={t(navigationLabel)}>
+        {showLabel && <p className="sidebar-label">{t(label)}</p>}
+        {admin && <AdminNavigationLinks/>}
+        {!admin && <NavigationLinks/>}
     </nav>;
 }
 
@@ -73,6 +84,7 @@ function NavigationLinks() {
     return <ul className="nav-list">
         <li><NavLink className="nav-item" to="/" end>{t('common.home')}</NavLink></li>
         <li><NavLink className="nav-item" to="/polls">{t('common.polls')}</NavLink></li>
+        <li><NavLink className="nav-item" to="/profile">{t('profile.title')}</NavLink></li>
     </ul>;
 }
 
@@ -88,7 +100,9 @@ function AdminNavigationLinks() {
 }
 
 function AdminNavigationLink({to, active, children}: { to: string; active: boolean; children: ReactNode }) {
-    return <Link className="nav-item" to={to} aria-current={active ? 'page' : undefined}>{children}</Link>;
+    let current: 'page' | undefined;
+    if (active) current = 'page';
+    return <Link className="nav-item" to={to} aria-current={current}>{children}</Link>;
 }
 
 export function Header() {
@@ -141,6 +155,13 @@ export function Header() {
         themeButtonRef.current?.focus();
     }
 
+    let nextLocale: 'en' | 'de' = 'de';
+    let localeLabel: 'common.english' | 'common.german' = 'common.german';
+    if (locale === 'de') {
+        nextLocale = 'en';
+        localeLabel = 'common.english';
+    }
+
     return <header className="app-header">
         <div className="header-inner">
             <div className="header-context">
@@ -151,13 +172,14 @@ export function Header() {
             </div>
             <div className="header-actions">
                 <button className="control-button" type="button"
-                        aria-label={locale === 'de' ? t('common.english') : t('common.german')}
-                        onClick={() => setLocale(locale === 'de' ? 'en' : 'de')}>{locale.toUpperCase()}</button>
+                        aria-label={t(localeLabel)}
+                        onClick={() => setLocale(nextLocale)}>{locale.toUpperCase()}</button>
                 <div className="theme-menu" ref={themeMenuRef}>
                     <button ref={themeButtonRef} className="icon-button" type="button"
                             aria-label={t('common.chooseTheme')} aria-expanded={themeMenuOpen}
                             aria-controls="theme-menu-panel" onClick={() => setThemeMenuOpen((open) => !open)}>
-                        {theme === 'light' ? <MoonIcon/> : <SunIcon/>}
+                        {theme === 'light' && <MoonIcon/>}
+                        {theme !== 'light' && <SunIcon/>}
                     </button>
                     {themeMenuOpen && <div id="theme-menu-panel" className="theme-menu-panel" role="radiogroup"
                                              aria-label={t('common.chooseTheme')}>
@@ -181,7 +203,9 @@ function routeContext(pathname: string, t: ReturnType<typeof useI18n>['t']) {
     if (route.kind === 'admin') return {to: '/', label: t('common.home')};
     if (route.kind === 'polls') return {to: '/', label: t('common.home')};
     if (route.kind === 'results' || route.kind === 'option' || route.kind === 'audit') {
-        return {to: route.pollId ? `/poll/${route.pollId}` : '/polls', label: t('polls.detail')};
+        let to = '/polls';
+        if (route.pollId) to = `/poll/${route.pollId}`;
+        return {to, label: t('polls.detail')};
     }
     if (route.kind === 'poll') return {to: '/polls', label: t('common.polls')};
     return {to: '/', label: t('common.home')};
@@ -190,6 +214,7 @@ function routeContext(pathname: string, t: ReturnType<typeof useI18n>['t']) {
 function pageTitle(pathname: string, t: ReturnType<typeof useI18n>['t']) {
     switch (routeKind(pathname).kind) {
         case 'home': return t('common.home');
+        case 'profile': return t('profile.title');
         case 'polls': return t('polls.list');
         case 'poll': return t('polls.detail');
         case 'results': return t('polls.results');
@@ -200,11 +225,15 @@ function pageTitle(pathname: string, t: ReturnType<typeof useI18n>['t']) {
     }
 }
 
-function routeKind(pathname: string): {kind: 'home' | 'polls' | 'poll' | 'results' | 'option' | 'audit' | 'admin' | 'notFound'; pollId?: string} {
+function routeKind(pathname: string): {kind: 'home' | 'profile' | 'polls' | 'poll' | 'results' | 'option' | 'audit' | 'admin' | 'notFound'; pollId?: string} {
     if (pathname === '/') return {kind: 'home'};
+    if (pathname === '/profile') return {kind: 'profile'};
     if (pathname === '/polls') return {kind: 'polls'};
     const result = pathname.match(/^\/poll\/results\/([^/]+)(?:\/option\/[^/]+)?$/);
-    if (result) return {kind: pathname.includes('/option/') ? 'option' : 'results', pollId: result[1]};
+    if (result) {
+        if (pathname.includes('/option/')) return {kind: 'option', pollId: result[1]};
+        return {kind: 'results', pollId: result[1]};
+    }
     const audit = pathname.match(/^\/poll\/audit\/([^/]+)$/);
     if (audit) return {kind: 'audit', pollId: audit[1]};
     if (pathname.match(/^\/poll\/[^/]+$/)) return {kind: 'poll'};

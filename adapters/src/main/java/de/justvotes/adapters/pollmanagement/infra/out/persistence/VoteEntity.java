@@ -44,7 +44,7 @@ public class VoteEntity {
     }
 
     Instant votedAt() {
-        return Instant.parse(votedAt.replace(' ', 'T') + (votedAt.endsWith("Z") ? "" : "Z"));
+        return PollEntity.parseInstant(votedAt);
     }
 
     void replaceOption(PollOptionEntity option, Instant votedAt) {

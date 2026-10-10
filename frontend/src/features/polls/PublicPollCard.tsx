@@ -9,7 +9,9 @@ export type PublicPoll = Poll;
 
 export function PublicPollCard({poll, featured = false}: {poll: PublicPoll; featured?: boolean}) {
     const {locale, t} = useI18n();
-    return <Link className={featured ? 'poll-card featured-poll-card' : 'poll-card'}
+    let className = 'poll-card';
+    if (featured) className += ' featured-poll-card';
+    return <Link className={className}
                  to={`/poll/${encodeURIComponent(poll.id)}`} onKeyDown={activateOnKeyDown}
                  onKeyUp={activateOnSpaceUp}>
         <span className="poll-card-heading">

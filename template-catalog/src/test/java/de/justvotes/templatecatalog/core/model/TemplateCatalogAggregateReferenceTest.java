@@ -1,5 +1,7 @@
 package de.justvotes.templatecatalog.core.model;
 
+import de.justvotes.templatecatalog.core.model.OptionTemplate.OptionTemplateId;
+import de.justvotes.templatecatalog.core.model.OptionTemplateGroup.OptionTemplateGroupId;
 import org.junit.jupiter.api.Test;
 
 import java.util.Set;
@@ -9,16 +11,16 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class TemplateCatalogAggregateReferenceTest {
     @Test
     void templateContainsGroupReferencesInsteadOfGroups() {
-        OptionTemplateGroup.OptionTemplateGroupId groupReference = OptionTemplateGroup.OptionTemplateGroupId.of(3);
-        OptionTemplate template = new OptionTemplate(OptionTemplate.OptionTemplateId.of(7), "Vorstand", Set.of(groupReference));
+        OptionTemplateGroupId groupReference = OptionTemplateGroupId.of(3);
+        OptionTemplate template = new OptionTemplate(OptionTemplateId.of(7), "Vorstand", Set.of(groupReference));
 
         assertEquals(Set.of(groupReference), template.groupReferences());
     }
 
     @Test
     void groupContainsTemplateReferencesInsteadOfTemplates() {
-        OptionTemplate.OptionTemplateId templateReference = OptionTemplate.OptionTemplateId.of(7);
-        OptionTemplateGroup group = new OptionTemplateGroup(OptionTemplateGroup.OptionTemplateGroupId.of(3), "Leitung", "", Set.of(templateReference));
+        OptionTemplateId templateReference = OptionTemplateId.of(7);
+        OptionTemplateGroup group = new OptionTemplateGroup(OptionTemplateGroupId.of(3), "Leitung", "", Set.of(templateReference));
 
         assertEquals(Set.of(templateReference), group.templateReferences());
     }

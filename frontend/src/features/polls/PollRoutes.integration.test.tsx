@@ -49,12 +49,12 @@ function resultsFor(optionNumber: number | null) {
         state: poll.state,
         createdAt: poll.createdAt,
         endsAt: poll.endsAt,
-        totalVotes: optionNumber === null ? 0 : 1,
-        options: poll.options.map((option) => ({
-            ...option,
-            voteCount: option.number === optionNumber ? 1 : 0,
-            votes: option.number === optionNumber ? [{userID: 'alice', votedAt: '2026-08-01T10:01:00Z'}] : [],
-        })),
+        totalVotes: Number(optionNumber !== null),
+        options: poll.options.map((option) => {
+            const votes = [];
+            if (option.number === optionNumber) votes.push({userID: 'alice', votedAt: '2026-08-01T10:01:00Z'});
+            return {...option, voteCount: votes.length, votes};
+        }),
     };
 }
 

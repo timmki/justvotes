@@ -156,6 +156,23 @@ paths:
           $ref: '#/components/responses/Problem'
         '403':
           $ref: '#/components/responses/Problem'
+  /identity/votes:
+    get:
+      tags:
+        - Identity
+      operationId: currentIdentityVotes
+      security: []
+      description: Public read without CSRF or identity input. Uses only the current request cookie. Does not set cookies. Entries are ordered by votedAt descending, then opaque poll ID ascending.
+      responses:
+        '200':
+          description: Current personal votes. Absent or malformed identity returns userID null and votes empty.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentIdentityVotes'
   /admin/template-catalog/templates:
     get:
       tags:
@@ -1308,6 +1325,42 @@ components:
           nullable: true
           description: The exact identity, containing at most 64 Unicode code points.
           minLength: 1
+    CurrentIdentityVotes:
+      type: object
+      additionalProperties: false
+      required: [userID, votes]
+      properties:
+        userID:
+          type: string
+          nullable: true
+          description: Exact current identity, or null for an absent or malformed cookie.
+        votes:
+          type: array
+          items:
+            $ref: '#/components/schemas/PersonalVote'
+    PersonalVote:
+      type: object
+      additionalProperties: false
+      required: [poll, option, votedAt]
+      properties:
+        poll:
+          $ref: '#/components/schemas/PersonalVotePoll'
+        option:
+          $ref: '#/components/schemas/Option'
+        votedAt:
+          $ref: '#/components/schemas/UtcTimestamp'
+    PersonalVotePoll:
+      type: object
+      additionalProperties: false
+      required: [id, title, state]
+      properties:
+        id:
+          $ref: '#/components/schemas/PollId'
+        title:
+          type: string
+        state:
+          type: string
+          enum: [active, expired, archived]
     Name:
       type: object
       additionalProperties: false

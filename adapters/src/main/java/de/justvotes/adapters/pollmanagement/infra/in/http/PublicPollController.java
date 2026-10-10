@@ -2,14 +2,18 @@ package de.justvotes.adapters.pollmanagement.infra.in.http;
 
 import de.justvotes.adapters.shared.infra.in.http.OpaqueIdCodec;
 import de.justvotes.api.v1.model.*;
+import de.justvotes.api.v1.model.Poll;
+import de.justvotes.api.v1.model.PollState;
+import de.justvotes.api.v1.model.PollVisibility;
 import de.justvotes.api.v1.server.PublicPollsApi;
 import de.justvotes.pollmanagement.core.model.Identity;
-import de.justvotes.pollmanagement.core.model.Poll;
+import de.justvotes.pollmanagement.core.model.Poll.PollId;
 import de.justvotes.pollmanagement.core.model.PollResults;
 import de.justvotes.pollmanagement.core.model.VoteOutcome;
 import de.justvotes.pollmanagement.core.ports.in.ManageVotes;
 import de.justvotes.pollmanagement.core.ports.in.ViewPolls;
 import de.justvotes.pollmanagement.core.ports.in.ViewVotes;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
@@ -17,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 
 @RestController
@@ -35,8 +40,8 @@ public class PublicPollController implements PublicPollsApi {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(body);
     }
 
-    private static Poll.PollId pollId(String value) {
-        return Poll.PollId.of(OpaqueIdCodec.decodeString("p", value));
+    private static PollId pollId(String value) {
+        return PollId.of(OpaqueIdCodec.decodeString("p", value));
     }
 
     private static Identity identity() {
@@ -48,7 +53,7 @@ public class PublicPollController implements PublicPollsApi {
     private static Identity currentIdentity() {
         HttpServletRequest request = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest();
         if (request.getCookies() != null) {
-            for (var cookie : request.getCookies()) {
+            for (Cookie cookie : request.getCookies()) {
                 if (IdentityCookieCodec.NAME.equals(cookie.getName())) {
                     try {
                         return IdentityCookieCodec.decode(cookie.getValue());
@@ -62,13 +67,17 @@ public class PublicPollController implements PublicPollsApi {
     }
 
     private static de.justvotes.api.v1.model.PollResults mapResults(PollResults results) {
+        OffsetDateTime endsAt = null;
+        if (results.endsAt() != null) {
+            endsAt = PollResponseMapper.utcTimestamp(results.endsAt());
+        }
         return new de.justvotes.api.v1.model.PollResults(
                 OpaqueIdCodec.encode("p", results.id().value()),
                 results.title(),
-                de.justvotes.api.v1.model.PollVisibility.valueOf(results.visibility().name()),
-                de.justvotes.api.v1.model.PollState.valueOf(results.state().name()),
+                PollVisibility.valueOf(results.visibility().name()),
+                PollState.valueOf(results.state().name()),
                 PollResponseMapper.utcTimestamp(results.createdAt()),
-                results.endsAt() == null ? null : PollResponseMapper.utcTimestamp(results.endsAt()),
+                endsAt,
                 results.totalVotes(),
                 results.options().stream().map(option -> new ResultOption(
                         option.number(),
@@ -80,12 +89,12 @@ public class PublicPollController implements PublicPollsApi {
     }
 
     @Override
-    public ResponseEntity<List<de.justvotes.api.v1.model.Poll>> publicPolls() {
+    public ResponseEntity<List<Poll>> publicPolls() {
         return noStore(polls.publicPolls().stream().map(PollResponseMapper::map).toList());
     }
 
     @Override
-    public ResponseEntity<de.justvotes.api.v1.model.Poll> publicPoll(String pollId) {
+    public ResponseEntity<Poll> publicPoll(String pollId) {
         return noStore(PollResponseMapper.map(polls.publicPoll(pollId(pollId))));
     }
 
@@ -109,14 +118,20 @@ public class PublicPollController implements PublicPollsApi {
     @Override
     public ResponseEntity<List<AuditEntry>> pollAudit(String pollId) {
         return noStore(voteQueries.publicAudit(pollId(pollId)).stream()
-                .map(entry -> new AuditEntry()
-                        .event(AuditEventType.fromValue(entry.event()))
-                        .actor(entry.actor())
-                        .occurredAt(PollResponseMapper.utcTimestamp(entry.occurredAt()))
-                        .selection(entry.selection())
-                        .reason(entry.reason())
-                        .userID(entry.voteIdentity())
-                        .optionNumber(entry.optionNumber())
-                        .votedAt(entry.votedAt() == null ? null : PollResponseMapper.utcTimestamp(entry.votedAt()))).toList());
+                .map(entry -> {
+                    OffsetDateTime votedAt = null;
+                    if (entry.votedAt() != null) {
+                        votedAt = PollResponseMapper.utcTimestamp(entry.votedAt());
+                    }
+                    return new AuditEntry()
+                            .event(AuditEventType.fromValue(entry.event()))
+                            .actor(entry.actor())
+                            .occurredAt(PollResponseMapper.utcTimestamp(entry.occurredAt()))
+                            .selection(entry.selection())
+                            .reason(entry.reason())
+                            .userID(entry.voteIdentity())
+                            .optionNumber(entry.optionNumber())
+                            .votedAt(votedAt);
+                }).toList());
     }
 }

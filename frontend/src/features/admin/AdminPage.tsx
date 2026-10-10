@@ -36,10 +36,12 @@ function AdminAccess({mode, error, onRetry}: {
     onRetry?: () => void
 }) {
     const {t} = useI18n();
+    let accessError: FrontendError | undefined;
+    if (mode === 'error' && error instanceof ApiError) accessError = error.frontend;
     return <PageFrame title={t('admin.title')}
                       description={t('common.adminDescription')}>
         {mode === 'loading' && <RouteState status="loading"/>}
-        {mode === 'error' && <RouteState status="error" error={error instanceof ApiError ? error.frontend : undefined}
+        {mode === 'error' && <RouteState status="error" error={accessError}
                                          onRetry={onRetry}/>}
         {mode === 'login' && <AdminLoginForm/>}
     </PageFrame>;
@@ -61,15 +63,20 @@ function AdminLoginForm() {
             await apiClient.login({username, password});
             await queryClient.fetchQuery({queryKey: queryKeys.adminSession, queryFn: verifyAdminSession});
             const returnRoute = sessionCoordinator.consumeReturnRoute();
-            const targetRoute = returnRoute === '/admin' ? '/admin/votes' : returnRoute ?? '/admin/votes';
+            let targetRoute = returnRoute ?? '/admin/votes';
+            if (returnRoute === '/admin') targetRoute = '/admin/votes';
             navigate(targetRoute, {replace: returnRoute !== null});
         } catch (cause) {
-            setError(cause instanceof ApiError ? cause.frontend : null);
+            if (cause instanceof ApiError) setError(cause.frontend);
+            else setError(null);
         } finally {
             setPending(false);
         }
     }
 
+    let submitKey: 'common.signIn' | 'common.signingIn' | 'common.retry' = 'common.signIn';
+    if (pending) submitKey = 'common.signingIn';
+    else if (error?.retryable) submitKey = 'common.retry';
     return <form className="login-form" onSubmit={submit}>
         <label htmlFor="admin-username">{t('common.username')}</label>
         <input id="admin-username" name="username" autoComplete="username" required value={username}
@@ -78,7 +85,7 @@ function AdminLoginForm() {
         <input id="admin-password" name="password" type="password" autoComplete="current-password" required
                value={password} onChange={(event) => setPassword(event.target.value)}/>
         <button className="primary-button" type="submit"
-                disabled={pending}>{pending ? t('common.signingIn') : error?.retryable ? t('common.retry') : t('common.signIn')}</button>
+                disabled={pending}>{t(submitKey)}</button>
         {pending && <p role="status">{t('common.signingIn')}</p>}
         {error && <p className="form-error" role="alert">{t(error.messageKey)}</p>}
     </form>;
@@ -96,7 +103,8 @@ function AdminShell({section}: { section: AdminSectionName }) {
             await apiClient.logout();
             navigate('/admin', {replace: true});
         } catch (cause) {
-            setError(cause instanceof ApiError ? cause.frontend : null);
+            if (cause instanceof ApiError) setError(cause.frontend);
+            else setError(null);
         } finally {
             setPending(false);
         }
@@ -106,7 +114,7 @@ function AdminShell({section}: { section: AdminSectionName }) {
                       description={t('common.adminDescription')}>
         <div className="admin-toolbar">
             <button className="text-button" type="button" onClick={logout}
-                    disabled={pending}>{pending ? t('common.loggingOut') : t('common.logout')}</button>
+                    disabled={pending}>{pending && t('common.loggingOut')}{!pending && t('common.logout')}</button>
         </div>
         {error && <p className="form-error" role="alert">{t(error.messageKey)}</p>}
         <AdminSectionView section={section}/>

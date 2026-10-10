@@ -1,14 +1,19 @@
 package de.justvotes.pollmanagement.core.model;
 
+import de.justvotes.pollmanagement.core.model.Poll.Option;
+import de.justvotes.pollmanagement.core.model.Poll.PollId;
+import de.justvotes.pollmanagement.core.model.Poll.State;
+import de.justvotes.pollmanagement.core.model.Poll.Visibility;
+
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 
 public record PollResults(
-        Poll.PollId id,
+        PollId id,
         String title,
-        Poll.Visibility visibility,
-        Poll.State state,
+        Visibility visibility,
+        State state,
         Instant createdAt,
         Instant endsAt,
         int totalVotes,
@@ -21,7 +26,7 @@ public record PollResults(
     public static PollResults from(Poll poll) {
         List<Vote> currentVotes = poll.votes();
         List<OptionResult> resultOptions = poll.options().stream()
-                .sorted(Comparator.comparingInt(Poll.Option::number))
+                .sorted(Comparator.comparingInt(Option::number))
                 .map(option -> {
                     List<VoteResult> votes = currentVotes.stream()
                             .filter(vote -> vote.optionNumber() == option.number())

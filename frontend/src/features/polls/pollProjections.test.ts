@@ -35,7 +35,10 @@ describe('poll projections', () => {
         const projection = projectPollDomainEvents([
             {event: 'PollPublished', actor: 'admin', occurredAt: '2026-08-01T10:00:00Z'},
             {event: 'FutureEvent', actor: 'system', occurredAt: '2026-08-01T10:01:00Z'} as never,
-        ], (key) => key === 'audit.unknownEvent' ? 'Unknown' : 'Published');
+        ], (key) => {
+            if (key === 'audit.unknownEvent') return 'Unknown';
+            return 'Published';
+        });
 
         expect(projection.entries.map((entry) => entry.label)).toEqual(['Unknown', 'Published']);
         expect(projection.count).toBe(2);

@@ -2,10 +2,13 @@ package de.justvotes.adapters.pollmanagement.infra.in.http;
 
 import de.justvotes.adapters.shared.infra.in.http.OpaqueIdCodec;
 import de.justvotes.api.v1.model.CreatePoll;
+import de.justvotes.api.v1.model.DeleteConfirmation.ConfirmationEnum;
 import de.justvotes.api.v1.model.DeleteConfirmation;
 import de.justvotes.api.v1.model.Expiry;
 import de.justvotes.api.v1.model.Options;
 import de.justvotes.api.v1.server.PollsApi;
+import de.justvotes.pollmanagement.core.model.Poll.PollId;
+import de.justvotes.pollmanagement.core.model.Poll.TemplateGroupId;
 import de.justvotes.pollmanagement.core.model.Poll;
 import de.justvotes.pollmanagement.core.ports.in.ManagePolls;
 import de.justvotes.pollmanagement.core.ports.in.ViewPolls;
@@ -16,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import java.security.Principal;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -30,8 +34,8 @@ public class PollController implements PollsApi {
         this.queries = queries;
     }
 
-    private static Poll.PollId pollId(String value) {
-        return Poll.PollId.of(OpaqueIdCodec.decodeString("p", value));
+    private static PollId pollId(String value) {
+        return PollId.of(OpaqueIdCodec.decodeString("p", value));
     }
 
     private static Instant instant(OffsetDateTime value) {
@@ -39,7 +43,7 @@ public class PollController implements PollsApi {
     }
 
     private static String admin() {
-        var principal = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest().getUserPrincipal();
+        Principal principal = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest().getUserPrincipal();
         if (principal == null) {
             throw new IllegalStateException("An administrator session is required.");
         }
@@ -60,8 +64,8 @@ public class PollController implements PollsApi {
 
     @Override
     public ResponseEntity<de.justvotes.api.v1.model.Poll> createPoll(CreatePoll request) {
-        Poll created = commands.createDraft(request.getTitle(), Poll.TemplateGroupId.of(OpaqueIdCodec.decode("g", request.getTemplateGroupId())), admin());
-        var response = PollResponseMapper.map(created);
+        Poll created = commands.createDraft(request.getTitle(), TemplateGroupId.of(OpaqueIdCodec.decode("g", request.getTemplateGroupId())), admin());
+        de.justvotes.api.v1.model.Poll response = PollResponseMapper.map(created);
         return created(response, "/api/v1/admin/polls/" + response.getId());
     }
 
@@ -117,7 +121,7 @@ public class PollController implements PollsApi {
 
     @Override
     public ResponseEntity<Void> permanentlyDeletePoll(String pollId, DeleteConfirmation confirmation) {
-        commands.permanentlyDelete(pollId(pollId), confirmation.getConfirmation() == DeleteConfirmation.ConfirmationEnum.DELETE, true);
+        commands.permanentlyDelete(pollId(pollId), confirmation.getConfirmation() == ConfirmationEnum.DELETE, true);
         return noContent();
     }
 }

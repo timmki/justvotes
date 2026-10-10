@@ -1,11 +1,17 @@
 package de.justvotes.pollmanagement.core;
 
 import de.justvotes.pollmanagement.core.event.*;
+import de.justvotes.pollmanagement.core.event.PollLifecycleChanged.Type;
 import de.justvotes.pollmanagement.core.exception.PollNotActiveException;
 import de.justvotes.pollmanagement.core.exception.PollNotFoundException;
 import de.justvotes.pollmanagement.core.exception.ResultsNotAvailableException;
 import de.justvotes.pollmanagement.core.exception.VoteNotFoundException;
 import de.justvotes.pollmanagement.core.model.*;
+import de.justvotes.pollmanagement.core.model.Poll.Option;
+import de.justvotes.pollmanagement.core.model.Poll.PollId;
+import de.justvotes.pollmanagement.core.model.Poll.State;
+import de.justvotes.pollmanagement.core.model.Poll.Visibility;
+import de.justvotes.pollmanagement.core.model.VoteOutcome.Status;
 import de.justvotes.pollmanagement.core.ports.in.ManageAdminVotes;
 import de.justvotes.pollmanagement.core.ports.in.ManageVotes;
 import de.justvotes.pollmanagement.core.ports.in.ViewAdminVotes;
@@ -16,6 +22,7 @@ import de.justvotes.pollmanagement.core.ports.out.PollRepository;
 import de.justvotes.pollmanagement.core.ports.out.UtcClock;
 import io.vavr.control.Try;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
@@ -59,10 +66,10 @@ public final class VoteManagement implements ManageVotes, ViewVotes, ManageAdmin
     }
 
     @Override
-    public VoteOutcome castOrReplace(Poll.PollId pollId, Identity identity, int optionNumber) {
+    public VoteOutcome castOrReplace(PollId pollId, Identity identity, int optionNumber) {
         Poll poll = publiclyVotable(pollId);
         VoteOutcome outcome = poll.castOrReplace(identity, optionNumber, clock.now());
-        if (outcome.status() == VoteOutcome.Status.UNCHANGED) {
+        if (outcome.status() == Status.UNCHANGED) {
             return outcome;
         }
         return Try.success(poll)
@@ -80,12 +87,12 @@ public final class VoteManagement implements ManageVotes, ViewVotes, ManageAdmin
     }
 
     @Override
-    public void withdrawVote(Poll.PollId pollId, Identity identity) {
+    public void withdrawVote(PollId pollId, Identity identity) {
         Poll poll = loadAndExpireIfDue(pollId);
-        if (poll.visibility() != Poll.Visibility.PUBLIC) {
+        if (poll.visibility() != Visibility.PUBLIC) {
             throw new PollNotFoundException(pollId);
         }
-        if (poll.state() != Poll.State.ACTIVE) {
+        if (poll.state() != State.ACTIVE) {
             throw new PollNotActiveException(poll.state());
         }
         if (identity == null) {
@@ -126,26 +133,46 @@ public final class VoteManagement implements ManageVotes, ViewVotes, ManageAdmin
     }
 
     @Override
-    public Optional<Vote> currentVote(Poll.PollId pollId, Identity identity) {
+    public List<PersonalVote> currentVotes(Identity identity) {
+        if (identity == null) return List.of();
+        return polls.findAllByVisibility(Visibility.PUBLIC).stream()
+                .map(poll -> {
+                    if (poll.expireIfDue(clock.now())) {
+                        events.publish(new PollLifecycleChanged(poll.id(), "System", Type.PollExpired, null));
+                        polls.save(poll);
+                    }
+                    return poll;
+                })
+                .filter(Poll::isPubliclyReadable)
+                .flatMap(poll -> poll.votes().stream().filter(vote -> vote.identity().equals(identity))
+                        .flatMap(vote -> poll.options().stream().filter(option -> option.number() == vote.optionNumber())
+                                .map(option -> PersonalVote.from(poll, vote, option))))
+                .sorted(Comparator.comparing(PersonalVote::votedAt).reversed()
+                        .thenComparing(vote -> vote.pollId().value()))
+                .toList();
+    }
+
+    @Override
+    public Optional<Vote> currentVote(PollId pollId, Identity identity) {
         return polls.findById(pollId).flatMap(poll -> poll.votes().stream().filter(vote -> vote.identity().equals(identity)).findFirst());
     }
 
     @Override
-    public PollResults results(Poll.PollId pollId, Identity identity) {
+    public PollResults results(PollId pollId, Identity identity) {
         Poll poll = publiclyReadableResults(pollId);
-        if (poll.state() == Poll.State.ACTIVE && (identity == null || poll.votes().stream().noneMatch(vote -> vote.identity().equals(identity)))) {
+        if (poll.state() == State.ACTIVE && (identity == null || poll.votes().stream().noneMatch(vote -> vote.identity().equals(identity)))) {
             throw new ResultsNotAvailableException();
         }
         return PollResults.from(poll);
     }
 
     @Override
-    public List<AuditEntry> publicAudit(Poll.PollId pollId) {
+    public List<AuditEntry> publicAudit(PollId pollId) {
         publiclyReadable(pollId);
         return audit.findByPollId(pollId);
     }
 
-    private Poll publiclyVotable(Poll.PollId pollId) {
+    private Poll publiclyVotable(PollId pollId) {
         Poll poll = loadAndExpireIfDue(pollId);
         if (!poll.isPubliclyVisible()) {
             throw new PollNotFoundException(pollId);
@@ -153,14 +180,14 @@ public final class VoteManagement implements ManageVotes, ViewVotes, ManageAdmin
         return poll;
     }
 
-    private void publiclyReadable(Poll.PollId pollId) {
+    private void publiclyReadable(PollId pollId) {
         Poll poll = loadAndExpireIfDue(pollId);
         if (!poll.isPubliclyReadable()) {
             throw new PollNotFoundException(pollId);
         }
     }
 
-    private Poll publiclyReadableResults(Poll.PollId pollId) {
+    private Poll publiclyReadableResults(PollId pollId) {
         Poll poll = loadAndExpireIfDue(pollId);
         if (!poll.isPubliclyReadable()) {
             throw new PollNotFoundException(pollId);
@@ -168,10 +195,10 @@ public final class VoteManagement implements ManageVotes, ViewVotes, ManageAdmin
         return poll;
     }
 
-    private Poll loadAndExpireIfDue(Poll.PollId pollId) {
+    private Poll loadAndExpireIfDue(PollId pollId) {
         Poll poll = polls.findById(pollId).orElseThrow(() -> new PollNotFoundException(pollId));
         if (poll.expireIfDue(clock.now())) {
-            events.publish(new PollLifecycleChanged(poll.id(), "System", PollLifecycleChanged.Type.PollExpired, null));
+            events.publish(new PollLifecycleChanged(poll.id(), "System", Type.PollExpired, null));
             polls.save(poll);
         }
         return poll;
@@ -181,7 +208,7 @@ public final class VoteManagement implements ManageVotes, ViewVotes, ManageAdmin
         return poll.options().stream()
                 .filter(option -> option.number() == vote.optionNumber())
                 .findFirst()
-                .map(Poll.Option::text)
+                .map(Option::text)
                 .orElse(null);
     }
 }

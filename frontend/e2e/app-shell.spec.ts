@@ -1,12 +1,13 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
-const centralRoutes = ['/', '/polls', '/poll/example', '/poll/results/example', '/poll/results/example/option/1', '/poll/audit/example', '/404', '/admin', '/admin/votes', '/admin/polls', '/admin/groups', '/admin/templates', '/admin/create'];
+const centralRoutes = ['/', '/profile', '/polls', '/poll/example', '/poll/results/example', '/poll/results/example/option/1', '/poll/audit/example', '/404', '/admin', '/admin/votes', '/admin/polls', '/admin/groups', '/admin/templates', '/admin/create'];
 
 test.beforeEach(async ({ page }) => {
   await page.route('**/api/v1/**', async (route) => {
     const url = route.request().url();
     if (url.endsWith('/admin/session')) return route.fulfill({ status: 401, json: { status: 401, code: 'unauthorized' } });
+    if (url.endsWith('/identity/votes')) return route.fulfill({ json: { userID: null, votes: [] } });
     if (url.endsWith('/identity')) return route.fulfill({ json: { userID: null } });
     return route.fulfill({ json: [] });
   });
@@ -106,7 +107,8 @@ test('does not stretch the compact identity bar on a narrow viewport', async ({ 
   await expect.poll(() => page.evaluate(() => {
     const sidebar = document.querySelector('.sidebar')?.getBoundingClientRect();
     const header = document.querySelector('.app-header')?.getBoundingClientRect();
-    return sidebar && header ? header.y - (sidebar.y + sidebar.height) : null;
+    if (sidebar && header) return header.y - (sidebar.y + sidebar.height);
+    return null;
   })).toBe(0);
 });
 
@@ -118,7 +120,8 @@ test('keeps the polls intro close to the mobile navigation', async ({ page }) =>
    await expect.poll(async () => page.evaluate(() => {
        const navigation = document.querySelector('.mobile-navigation')?.getBoundingClientRect();
        const intro = document.querySelector('.page-intro')?.getBoundingClientRect();
-       return navigation && intro ? intro.y - (navigation.y + navigation.height) : Number.POSITIVE_INFINITY;
+       if (navigation && intro) return Math.round(intro.y - (navigation.y + navigation.height));
+       return Number.POSITIVE_INFINITY;
    })).toBeLessThanOrEqual(24);
 });
 
@@ -171,9 +174,9 @@ test('keeps populated public and admin surfaces within supported viewport widths
     await page.setViewportSize({width, height: 720});
     for (const route of ['/', '/polls?date=date&from=2026-08-01&to=2026-09-30', '/poll/p_responsive', '/poll/results/p_responsive', '/poll/results/p_responsive/option/1', '/poll/audit/p_responsive', '/admin/polls']) {
       await page.goto(route);
-      const content = route.includes('/audit')
-        ? page.getByRole('heading', { name: 'Stimme abgegeben', level: 3 })
-        : page.getByText('Responsive browser poll').first();
+      let content;
+      if (route.includes('/audit')) content = page.getByRole('heading', { name: 'Stimme abgegeben', level: 3 });
+      else content = page.getByText('Responsive browser poll').first();
       await expect(content).toBeVisible();
       if (route === '/') {
         const featured = page.getByRole('region', { name: 'Im Fokus' });
@@ -194,13 +197,15 @@ test('has no critical or serious shell accessibility violations', async ({ page 
 });
 
 test('uses only same-origin runtime resources', async ({ page }) => {
-  await page.goto('/');
+  for (const route of ['/', '/profile']) {
+    await page.goto(route);
 
-  const externalResources = await page.evaluate(() => performance.getEntriesByType('resource')
-    .map(({ name }) => new URL(name, location.href).origin)
-    .filter((origin) => origin !== location.origin));
+    const externalResources = await page.evaluate(() => performance.getEntriesByType('resource')
+      .map(({ name }) => new URL(name, location.href).origin)
+      .filter((origin) => origin !== location.origin));
 
-  expect(externalResources).toEqual([]);
+    expect(externalResources).toEqual([]);
+  }
 });
 
 test('changes the identity once after confirming the warning', async ({ page }) => {
@@ -316,7 +321,7 @@ test('casts, replaces, repeats and restores a public poll vote', async ({ page }
     state: 'active',
     createdAt: '2026-08-31T12:00:00.000Z',
     endsAt: '2099-01-01T00:00:00.000Z',
-    totalVotes: selectedOption === null ? 0 : 1,
+    totalVotes: Number(selectedOption !== null),
     templateGroup: { id: 'g_v1_vote', name: 'Vote group', description: '' },
     templateSnapshotOptions: [{ number: 2, text: 'Zebra' }, { number: 7, text: 'Apfel' }],
     options: [{ number: 2, text: 'Zebra' }, { number: 7, text: 'Apfel' }],
@@ -328,12 +333,12 @@ test('casts, replaces, repeats and restores a public poll vote', async ({ page }
     state: 'active',
     createdAt: '2026-08-31T12:00:00.000Z',
     endsAt: '2099-01-01T00:00:00.000Z',
-    totalVotes: selectedOption === null ? 0 : 1,
-    options: [{ number: 2, text: 'Zebra' }, { number: 7, text: 'Apfel' }].map((option) => ({
-      ...option,
-      voteCount: selectedOption === option.number ? 1 : 0,
-      votes: selectedOption === option.number ? [{ userID: 'alice', votedAt: '2026-08-31T12:00:00.000Z' }] : [],
-    })),
+    totalVotes: Number(selectedOption !== null),
+    options: [{ number: 2, text: 'Zebra' }, { number: 7, text: 'Apfel' }].map((option) => {
+      const votes = [];
+      if (selectedOption === option.number) votes.push({ userID: 'alice', votedAt: '2026-08-31T12:00:00.000Z' });
+      return {...option, voteCount: votes.length, votes};
+    }),
   });
 
   await page.route('**/api/v1/**', async (route) => {
@@ -343,14 +348,15 @@ test('casts, replaces, repeats and restores a public poll vote', async ({ page }
     if (url.endsWith('/identity') && request.method() === 'GET') return route.fulfill({ json: { userID: 'alice' } });
     if (url.endsWith('/polls/p_v1_vote') && request.method() === 'GET') return route.fulfill({ json: poll() });
     if (url.endsWith('/polls/p_v1_vote/results') && request.method() === 'GET') {
-      return selectedOption === null
-        ? route.fulfill({ status: 403, json: { status: 403, code: 'results-not-available' } })
-        : route.fulfill({ json: results() });
+      if (selectedOption === null) return route.fulfill({ status: 403, json: { status: 403, code: 'results-not-available' } });
+      return route.fulfill({ json: results() });
     }
     if (url.endsWith('/polls/p_v1_vote/votes') && request.method() === 'POST') {
       const optionNumber = request.postDataJSON().optionNumber;
       voteRequests.push(optionNumber);
-      const status = selectedOption === null ? 'created' : selectedOption === optionNumber ? 'unchanged' : 'replaced';
+      let status = 'replaced';
+      if (selectedOption === null) status = 'created';
+      else if (selectedOption === optionNumber) status = 'unchanged';
       selectedOption = optionNumber;
       return route.fulfill({ json: { status, optionNumber } });
     }
@@ -508,8 +514,10 @@ test('refreshes active results on schedule and stops after the poll expires', as
     if (url.endsWith('/polls/p_live_results/results')) {
       resultsRequest += 1;
       const active = resultsRequest < 3;
+      let state = 'expired';
+      if (active) state = 'active';
       return route.fulfill({ json: {
-        id: 'p_live_results', title: 'Live results poll', visibility: 'public', state: active ? 'active' : 'expired',
+        id: 'p_live_results', title: 'Live results poll', visibility: 'public', state,
         createdAt: '2026-08-31T12:00:00.000Z', endsAt: '2099-01-01T00:00:00.000Z', totalVotes: resultsRequest,
         options: [{ number: 1, text: 'Yes', voteCount: resultsRequest, votes: [{ userID: 'alice', votedAt: '2026-08-31T12:00:00.000Z' }] }],
       } });
@@ -643,17 +651,18 @@ test('confirms vote withdrawal and returns to the poll detail', async ({ page })
     if (url.endsWith('/identity')) return route.fulfill({ json: { userID: 'alice' } });
     if (url.endsWith('/polls/p_withdrawal') && request.method() === 'GET') return route.fulfill({ json: {
       id: 'p_withdrawal', title: 'Withdrawal poll', visibility: 'public', state: 'active',
-      createdAt: '2026-08-31T12:00:00.000Z', endsAt: '2099-01-01T00:00:00.000Z', totalVotes: withdrawn ? 0 : 1,
+      createdAt: '2026-08-31T12:00:00.000Z', endsAt: '2099-01-01T00:00:00.000Z', totalVotes: Number(!withdrawn),
       templateGroup: { id: 'g_withdrawal', name: 'Vote group', description: '' },
       templateSnapshotOptions: [{ number: 7, text: 'Apfel' }], options: [{ number: 7, text: 'Apfel' }],
     } });
-    if (url.endsWith('/polls/p_withdrawal/results')) return withdrawn
-      ? route.fulfill({ status: 403, json: { status: 403, code: 'results-not-available' } })
-      : route.fulfill({ json: {
+    if (url.endsWith('/polls/p_withdrawal/results')) {
+      if (withdrawn) return route.fulfill({ status: 403, json: { status: 403, code: 'results-not-available' } });
+      return route.fulfill({ json: {
         id: 'p_withdrawal', title: 'Withdrawal poll', visibility: 'public', state: 'active',
         createdAt: '2026-08-31T12:00:00.000Z', endsAt: '2099-01-01T00:00:00.000Z', totalVotes: 1,
         options: [{ number: 7, text: 'Apfel', voteCount: 1, votes: [{ userID: 'alice', votedAt: '2026-08-31T12:00:00.000Z' }] }],
       } });
+    }
     if (url.endsWith('/polls/p_withdrawal/votes') && request.method() === 'DELETE') {
       deleteRequests += 1;
       csrfHeader = request.headers()['x-xsrf-token'];
@@ -686,8 +695,11 @@ test('logs in, restores the active admin area after reload, and logs out', async
     const request = route.request();
     const url = request.url();
     if (url.endsWith('/csrf')) return route.fulfill({ json: { token: 'csrf-token', headerName: 'X-XSRF-TOKEN' } });
-    if (url.endsWith('/admin/session')) return authenticated ? route.fulfill({ status: 204 }) : route.fulfill({ status: 401, json: { status: 401, code: 'unauthorized' } });
     if (url.endsWith('/admin/login')) { authenticated = true; return route.fulfill({ status: 204 }); }
+    if (url.endsWith('/admin/session')) {
+      if (authenticated) return route.fulfill({ status: 204 });
+      return route.fulfill({ status: 401, json: { status: 401, code: 'unauthorized' } });
+    }
     if (url.endsWith('/admin/logout')) { authenticated = false; return route.fulfill({ status: 204 }); }
     if (url.includes('/admin/votes?')) return route.fulfill({ json: { votes: [], page: 0, size: 50, totalElements: 0 } });
     return route.fulfill({ json: [] });
@@ -741,23 +753,30 @@ test('removes an administrative vote through the browser flow', async ({ page })
       votePresent = false;
       return route.fulfill({ status: 204 });
     }
-    if (url.includes('/admin/votes?')) return route.fulfill({ json: votePresent ? {
-      votes: [{ voteId: 'v_v1_browser', userID: 'alice', votedAt: '2026-08-31T12:00:00.000Z', poll: { id: 'p_v1_browser', title: 'Browser poll' }, option: { number: 1, text: 'Yes' } }],
-      page: 0,
-      size: 50,
-      totalElements: 1,
-    } : { votes: [], page: 0, size: 50, totalElements: 0 } });
-    if (url.endsWith('/polls/p_v1_browser/results')) return route.fulfill({ json: {
-      id: 'p_v1_browser',
-      title: 'Browser poll',
-      visibility: 'public',
-      state: 'active',
-      createdAt: '2026-08-31T12:00:00.000Z',
-      endsAt: null,
-      totalVotes: votePresent ? 1 : 0,
-      options: [{ number: 1, text: 'Yes', voteCount: votePresent ? 1 : 0, votes: votePresent ? [{ userID: 'alice', votedAt: '2026-08-31T12:00:00.000Z' }] : [] }],
-    } });
-    if (url.endsWith('/polls/p_v1_browser/audit')) return route.fulfill({ json: votePresent ? [] : [{ event: 'VoteRemovedByAdmin', actor: 'admin', occurredAt: '2026-08-31T12:00:00.000Z', selection: 'Yes', reason: 'Browser test', userID: 'alice', optionNumber: 1, votedAt: '2026-08-31T12:00:00.000Z' }] });
+    if (url.includes('/admin/votes?')) {
+      const votes = [];
+      if (votePresent) votes.push({ voteId: 'v_v1_browser', userID: 'alice', votedAt: '2026-08-31T12:00:00.000Z', poll: { id: 'p_v1_browser', title: 'Browser poll' }, option: { number: 1, text: 'Yes' } });
+      return route.fulfill({ json: {votes, page: 0, size: 50, totalElements: votes.length} });
+    }
+    if (url.endsWith('/polls/p_v1_browser/results')) {
+      const votes = [];
+      if (votePresent) votes.push({ userID: 'alice', votedAt: '2026-08-31T12:00:00.000Z' });
+      return route.fulfill({ json: {
+        id: 'p_v1_browser',
+        title: 'Browser poll',
+        visibility: 'public',
+        state: 'active',
+        createdAt: '2026-08-31T12:00:00.000Z',
+        endsAt: null,
+        totalVotes: votes.length,
+        options: [{ number: 1, text: 'Yes', voteCount: votes.length, votes }],
+      } });
+    }
+    if (url.endsWith('/polls/p_v1_browser/audit')) {
+      const events = [];
+      if (!votePresent) events.push({ event: 'VoteRemovedByAdmin', actor: 'admin', occurredAt: '2026-08-31T12:00:00.000Z', selection: 'Yes', reason: 'Browser test', userID: 'alice', optionNumber: 1, votedAt: '2026-08-31T12:00:00.000Z' });
+      return route.fulfill({ json: events });
+    }
     return route.fulfill({ json: [] });
   });
 
@@ -798,9 +817,15 @@ test('shows login on session expiry and restores the previous admin route', asyn
     const request = route.request();
     const url = request.url();
     if (url.endsWith('/csrf')) return route.fulfill({ json: { token: 'csrf-token', headerName: 'X-XSRF-TOKEN' } });
-    if (url.endsWith('/admin/session')) return authenticated ? route.fulfill({ status: 204 }) : route.fulfill({ status: 401, json: { status: 401, code: 'unauthorized' } });
+    if (url.endsWith('/admin/session')) {
+      if (authenticated) return route.fulfill({ status: 204 });
+      return route.fulfill({ status: 401, json: { status: 401, code: 'unauthorized' } });
+    }
     if (url.endsWith('/admin/login')) { authenticated = true; expired = false; return route.fulfill({ status: 204 }); }
-    if (url.endsWith('/admin/polls')) return expired ? route.fulfill({ status: 401, json: { status: 401, code: 'unauthorized' } }) : route.fulfill({ json: [] });
+    if (url.endsWith('/admin/polls')) {
+      if (expired) return route.fulfill({ status: 401, json: { status: 401, code: 'unauthorized' } });
+      return route.fulfill({ json: [] });
+    }
     return route.fulfill({ json: [] });
   });
 
@@ -823,18 +848,24 @@ test('runs an admin poll through publication, expiry, archive, restore and destr
   let state: 'draft' | 'active' | 'expired' | 'archived' | 'deleted' = 'draft';
   let permanentlyDeleted = false;
   const lifecycleTitle = 'A deliberately long poll title that remains readable inside the responsive administration card';
-  const poll = (currentState = state) => ({
-    id: 'p_v1_lifecycle',
-    title: lifecycleTitle,
-    visibility: currentState === 'draft' || currentState === 'deleted' ? 'private' : 'public',
-    state: currentState,
-    createdAt: '2026-08-31T12:00:00.000Z',
-    endsAt: currentState === 'draft' ? null : '2099-01-01T00:00:00.000Z',
-    totalVotes: 0,
-    templateGroup: { id: 'g_v1_lifecycle', name: 'Lifecycle group', description: 'Snapshot' },
-    templateSnapshotOptions: [{ number: 1, text: 'Yes' }, { number: 2, text: 'No' }],
-    options: [{ number: 1, text: 'Yes' }, { number: 2, text: 'No' }],
-  });
+  const poll = (currentState = state) => {
+    let visibility = 'public';
+    if (currentState === 'draft' || currentState === 'deleted') visibility = 'private';
+    let endsAt: string | null = '2099-01-01T00:00:00.000Z';
+    if (currentState === 'draft') endsAt = null;
+    return {
+      id: 'p_v1_lifecycle',
+      title: lifecycleTitle,
+      visibility,
+      state: currentState,
+      createdAt: '2026-08-31T12:00:00.000Z',
+      endsAt,
+      totalVotes: 0,
+      templateGroup: { id: 'g_v1_lifecycle', name: 'Lifecycle group', description: 'Snapshot' },
+      templateSnapshotOptions: [{ number: 1, text: 'Yes' }, { number: 2, text: 'No' }],
+      options: [{ number: 1, text: 'Yes' }, { number: 2, text: 'No' }],
+    };
+  };
 
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
@@ -844,7 +875,11 @@ test('runs an admin poll through publication, expiry, archive, restore and destr
     if (url.endsWith('/admin/template-catalog/groups') && request.method() === 'GET') return route.fulfill({ json: [{ id: 'g_v1_lifecycle', name: 'Lifecycle group', description: '' }] });
     if (url.endsWith('/admin/template-catalog/groups/g_v1_lifecycle/templates')) return route.fulfill({ json: [{ id: 't_v1_yes', name: 'Yes' }] });
     if (url.endsWith('/admin/polls') && request.method() === 'POST') { state = 'draft'; return route.fulfill({ status: 201, json: poll() }); }
-    if (url.endsWith('/admin/polls') && request.method() === 'GET') return route.fulfill({ json: permanentlyDeleted ? [] : [poll()] });
+    if (url.endsWith('/admin/polls') && request.method() === 'GET') {
+      const polls = [];
+      if (!permanentlyDeleted) polls.push(poll());
+      return route.fulfill({ json: polls });
+    }
     if (url.endsWith('/publication') && request.method() === 'PUT') { state = 'expired'; return route.fulfill({ json: poll('active') }); }
     if (url.endsWith('/archive') && request.method() === 'PUT') { state = 'archived'; return route.fulfill({ json: poll() }); }
     if (url.endsWith('/restore-from-archive') && request.method() === 'PUT') { state = 'expired'; return route.fulfill({ json: poll('expired') }); }

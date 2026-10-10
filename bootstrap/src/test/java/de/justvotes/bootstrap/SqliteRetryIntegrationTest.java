@@ -2,15 +2,17 @@ package de.justvotes.bootstrap;
 
 import de.justvotes.adapters.sqlite.SqliteRetryingTransaction;
 import org.junit.jupiter.api.Test;
-import org.springframework.jdbc.datasource.DataSourceUtils;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.jdbc.datasource.DataSourceUtils;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.jdbc.support.JdbcUtils;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
+import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -37,7 +39,7 @@ class SqliteRetryIntegrationTest {
             new SqliteRetryingTransaction(new DataSourceTransactionManager(dataSource)).execute(() -> {
                 attempts.incrementAndGet();
                 Connection connection = DataSourceUtils.getConnection(dataSource);
-                try (var statement = connection.createStatement()) {
+                try (Statement statement = connection.createStatement()) {
                     statement.execute("pragma busy_timeout = 0");
                     statement.executeUpdate("insert into values_table values (1)");
                 } catch (SQLException exception) {
@@ -48,7 +50,7 @@ class SqliteRetryIntegrationTest {
             releaser.join();
 
             assertEquals(2, attempts.get());
-            try (var statement = setup.createStatement(); var rows = statement.executeQuery("select count(*) from values_table")) {
+            try (Statement statement = setup.createStatement(); ResultSet rows = statement.executeQuery("select count(*) from values_table")) {
                 rows.next();
                 assertEquals(1, rows.getInt(1));
             }

@@ -40,7 +40,8 @@ export function currentOptionNumberFromResults(results: PollResults | undefined,
 }
 
 export function percentage(voteCount: number, totalVotes: number) {
-    return totalVotes === 0 ? 0 : Math.round(voteCount / totalVotes * 100);
+    if (totalVotes === 0) return 0;
+    return Math.round(voteCount / totalVotes * 100);
 }
 
 export function isWinner(option: PollResults['options'][number], options: PollResults['options'], totalVotes: number) {
@@ -56,7 +57,10 @@ function orderResultOptions(options: PollResults['options'], locale: Locale, tot
     return [...options].sort((left, right) => {
         const leftWinner = isWinner(left, options, totalVotes);
         const rightWinner = isWinner(right, options, totalVotes);
-        if (leftWinner !== rightWinner) return leftWinner ? -1 : 1;
+        if (leftWinner !== rightWinner) {
+            if (leftWinner) return -1;
+            return 1;
+        }
         return left.text.localeCompare(right.text, locale);
     });
 }
@@ -111,7 +115,8 @@ function auditEventLabel(event: AuditEntry['event'], t: (key: TranslationKey) =>
 
 function auditOptionLabel(entry: AuditEntry, t: (key: TranslationKey) => string) {
     if (entry.selection != null) return entry.selection;
-    return entry.optionNumber == null ? null : `${t('audit.optionNumber')} ${entry.optionNumber}`;
+    if (entry.optionNumber == null) return null;
+    return `${t('audit.optionNumber')} ${entry.optionNumber}`;
 }
 
 export type ResultsReleaseState = 'available' | 'requiresVote' | 'unavailable' | 'checking';

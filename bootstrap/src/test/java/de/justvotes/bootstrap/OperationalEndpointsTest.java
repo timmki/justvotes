@@ -1,6 +1,7 @@
 package de.justvotes.bootstrap;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -13,7 +14,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 class OperationalEndpointsTest {
     static final Path databasePath = Path.of("target", "operational-" + UUID.randomUUID() + ".db");
     @LocalServerPort
@@ -28,7 +29,7 @@ class OperationalEndpointsTest {
 
     @Test
     void exposesHealthAndReadinessAfterMigratingTheDatabase() {
-        var client = new TestRestTemplate();
+        TestRestTemplate client = new TestRestTemplate();
 
         ResponseEntity<String> health = client.getForEntity("http://localhost:" + port + "/actuator/health", String.class);
         ResponseEntity<String> readiness = client.getForEntity("http://localhost:" + port + "/actuator/health/readiness", String.class);

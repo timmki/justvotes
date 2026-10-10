@@ -10,9 +10,12 @@ export function presentQuery<T>(query: {
     isError: boolean;
     error: unknown
 }): QueryPresentation<T> {
+    let status: QueryPresentation<T>['status'] = 'success';
+    if (query.isPending) status = 'loading';
+    else if (query.isError) status = 'error';
     return {
         data: query.data,
-        status: query.isPending ? 'loading' : query.isError ? 'error' : 'success',
+        status,
         error: query.error,
     };
 }

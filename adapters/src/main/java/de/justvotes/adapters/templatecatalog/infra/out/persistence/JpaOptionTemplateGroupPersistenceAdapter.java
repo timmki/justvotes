@@ -1,6 +1,7 @@
 package de.justvotes.adapters.templatecatalog.infra.out.persistence;
 
-import de.justvotes.templatecatalog.core.model.OptionTemplate;
+import de.justvotes.templatecatalog.core.model.OptionTemplate.OptionTemplateId;
+import de.justvotes.templatecatalog.core.model.OptionTemplateGroup.OptionTemplateGroupId;
 import de.justvotes.templatecatalog.core.model.OptionTemplateGroup;
 import de.justvotes.templatecatalog.core.ports.out.OptionTemplateGroupRepository;
 
@@ -20,7 +21,7 @@ public final class JpaOptionTemplateGroupPersistenceAdapter implements OptionTem
     }
 
     @Override
-    public Optional<OptionTemplateGroup> findById(OptionTemplateGroup.OptionTemplateGroupId id) {
+    public Optional<OptionTemplateGroup> findById(OptionTemplateGroupId id) {
         return groups.findById(id.value()).map(this::group);
     }
 
@@ -30,7 +31,7 @@ public final class JpaOptionTemplateGroupPersistenceAdapter implements OptionTem
     }
 
     @Override
-    public List<OptionTemplateGroup> findAllReferencing(OptionTemplate.OptionTemplateId template) {
+    public List<OptionTemplateGroup> findAllReferencing(OptionTemplateId template) {
         return groups.findAllByTemplatesId(template.value()).stream().map(this::group).toList();
     }
 
@@ -41,9 +42,12 @@ public final class JpaOptionTemplateGroupPersistenceAdapter implements OptionTem
 
     @Override
     public OptionTemplateGroup save(OptionTemplateGroup group) {
-        OptionTemplateGroupEntity entity = group.id().isNew()
-                ? new OptionTemplateGroupEntity(group.name(), group.description())
-                : groups.findById(group.id().value()).orElseThrow();
+        OptionTemplateGroupEntity entity;
+        if (group.id().isNew()) {
+            entity = new OptionTemplateGroupEntity(group.name(), group.description());
+        } else {
+            entity = groups.findById(group.id().value()).orElseThrow();
+        }
         entity.rename(group.name());
         entity.templates().clear();
         entity.templates().addAll(group.templateReferences().stream()
@@ -58,9 +62,9 @@ public final class JpaOptionTemplateGroupPersistenceAdapter implements OptionTem
     }
 
     private OptionTemplateGroup group(OptionTemplateGroupEntity entity) {
-        Set<OptionTemplate.OptionTemplateId> templateReferences = entity.templates().stream()
-                .map(template -> OptionTemplate.OptionTemplateId.of(template.id()))
+        Set<OptionTemplateId> templateReferences = entity.templates().stream()
+                .map(template -> OptionTemplateId.of(template.id()))
                 .collect(Collectors.toUnmodifiableSet());
-        return new OptionTemplateGroup(OptionTemplateGroup.OptionTemplateGroupId.of(entity.id()), entity.name(), entity.description(), templateReferences);
+        return new OptionTemplateGroup(OptionTemplateGroupId.of(entity.id()), entity.name(), entity.description(), templateReferences);
     }
 }

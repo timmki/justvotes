@@ -23,7 +23,10 @@ public class RuntimeConfigController {
 
     @GetMapping(value = "/config.js", produces = "application/javascript")
     ResponseEntity<String> config() throws JsonProcessingException {
-        Map<String, String> config = appName.isBlank() ? Map.of() : Map.of("appName", appName.trim());
+        Map<String, String> config = Map.of();
+        if (!appName.isBlank()) {
+            config = Map.of("appName", appName.trim());
+        }
         return ResponseEntity.ok()
                 .contentType(MediaType.valueOf("application/javascript"))
                 .cacheControl(CacheControl.noStore())

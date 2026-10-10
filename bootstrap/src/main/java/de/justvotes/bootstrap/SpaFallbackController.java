@@ -35,8 +35,9 @@ public class SpaFallbackController {
             return ResponseEntity.notFound().build();
         }
         Resource index = resources.getResource("classpath:/static/index.html");
-        return index.exists()
-                ? ResponseEntity.ok().contentType(MediaType.TEXT_HTML).body(index)
-                : ResponseEntity.notFound().build();
+        if (index.exists()) {
+            return ResponseEntity.ok().contentType(MediaType.TEXT_HTML).body(index);
+        }
+        return ResponseEntity.notFound().build();
     }
 }

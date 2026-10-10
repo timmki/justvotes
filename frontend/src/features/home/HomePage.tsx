@@ -31,9 +31,10 @@ function HomeDiscovery({polls}: {polls: PublicPoll[]}) {
         <section className="home-featured" aria-label={t('common.featuredPoll')}>
             <div className="home-featured-heading">
                 <p className="eyebrow">{t('common.featuredPoll')}</p>
-                <p>{featuredPoll ? t('common.featuredPollDescription') : t('common.noActivePollText')}</p>
+                <p>{featuredPoll && t('common.featuredPollDescription')}{!featuredPoll && t('common.noActivePollText')}</p>
             </div>
-            {featuredPoll ? <PublicPollCard poll={featuredPoll} featured/> : <div className="featured-fallback">
+            {featuredPoll && <PublicPollCard poll={featuredPoll} featured/>}
+            {!featuredPoll && <div className="featured-fallback">
                 <h2>{t('common.noActivePoll')}</h2>
                 <Link className="text-link" to="/polls">{t('common.viewAllPolls')}</Link>
             </div>}
@@ -48,7 +49,8 @@ function HomeDiscovery({polls}: {polls: PublicPoll[]}) {
                 <h2 id="latest-polls-heading">{t('common.latestPolls')}</h2>
                 <Link to="/polls">{t('common.viewAllPolls')}</Link>
             </div>
-            {publicPolls.length === 0 ? <RouteState status="empty"/> : <ul className="poll-list" aria-label={t('common.latestPolls')}>
+            {publicPolls.length === 0 && <RouteState status="empty"/>}
+            {publicPolls.length !== 0 && <ul className="poll-list" aria-label={t('common.latestPolls')}>
                 {publicPolls.slice(0, 4).map((poll) => <li key={poll.id}><PublicPollCard poll={poll}/></li>)}
             </ul>}
         </section>
@@ -58,7 +60,9 @@ function HomeDiscovery({polls}: {polls: PublicPoll[]}) {
 function newestFirst(left: PublicPoll, right: PublicPoll) {
     const createdAt = Date.parse(right.createdAt) - Date.parse(left.createdAt);
     if (createdAt !== 0) return createdAt;
-    return left.id < right.id ? -1 : left.id > right.id ? 1 : 0;
+    if (left.id < right.id) return -1;
+    if (left.id > right.id) return 1;
+    return 0;
 }
 
 export function NotFoundPage() {

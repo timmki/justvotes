@@ -71,7 +71,7 @@ public class PollDomainEventEntity {
     }
 
     Instant createdAt() {
-        return Instant.parse(createdAt.replace(' ', 'T') + (createdAt.endsWith("Z") ? "" : "Z"));
+        return PollEntity.parseInstant(createdAt);
     }
 
     Integer voteId() {
@@ -91,6 +91,9 @@ public class PollDomainEventEntity {
     }
 
     Instant voteVotedAt() {
-        return voteVotedAt == null ? null : Instant.parse(voteVotedAt.replace(' ', 'T') + (voteVotedAt.endsWith("Z") ? "" : "Z"));
+        if (voteVotedAt == null) {
+            return null;
+        }
+        return PollEntity.parseInstant(voteVotedAt);
     }
 }

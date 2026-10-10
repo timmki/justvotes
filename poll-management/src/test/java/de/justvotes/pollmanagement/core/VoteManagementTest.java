@@ -1,6 +1,7 @@
 package de.justvotes.pollmanagement.core;
 
 import de.justvotes.pollmanagement.core.event.PollDomainEvent;
+import de.justvotes.pollmanagement.core.event.PollLifecycleChanged;
 import de.justvotes.pollmanagement.core.event.VoteRemovedByAdmin;
 import de.justvotes.pollmanagement.core.event.VoteRemovedForIdentityChange;
 import de.justvotes.pollmanagement.core.event.VoteWithdrawn;
@@ -9,6 +10,14 @@ import de.justvotes.pollmanagement.core.exception.PollNotFoundException;
 import de.justvotes.pollmanagement.core.exception.ResultsNotAvailableException;
 import de.justvotes.pollmanagement.core.exception.VoteNotFoundException;
 import de.justvotes.pollmanagement.core.model.*;
+import de.justvotes.pollmanagement.core.model.AdminVotePage;
+import de.justvotes.pollmanagement.core.model.Poll.PollId;
+import de.justvotes.pollmanagement.core.model.Poll.State;
+import de.justvotes.pollmanagement.core.model.Poll.TemplateGroup;
+import de.justvotes.pollmanagement.core.model.Poll.TemplateGroupId;
+import de.justvotes.pollmanagement.core.model.Poll.Visibility;
+import de.justvotes.pollmanagement.core.model.PollResults.OptionResult;
+import de.justvotes.pollmanagement.core.model.PollSummary;
 import de.justvotes.pollmanagement.core.ports.out.PollRepository;
 import org.junit.jupiter.api.Test;
 
@@ -16,6 +25,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -27,15 +37,15 @@ class VoteManagementTest {
 
     private static Poll activePollWithVote(Identity identity) {
         Poll poll = Poll.reconstitue(
-                Poll.PollId.newId(), "Aktuelle Wahl", "systemadmin", Poll.Visibility.PUBLIC, Poll.State.ACTIVE,
+                PollId.newId(), "Aktuelle Wahl", "systemadmin", Visibility.PUBLIC, State.ACTIVE,
                 group(), List.of("Ja"), List.of("Ja"), List.of()
         );
         poll.castOrReplace(identity, 1, VOTE_TIME);
         return poll;
     }
 
-    private static Poll.TemplateGroup group() {
-        return Poll.TemplateGroup.of(Poll.TemplateGroupId.of(1), "Wahl", "");
+    private static TemplateGroup group() {
+        return TemplateGroup.of(TemplateGroupId.of(1), "Wahl", "");
     }
 
     private static VoteManagement management(Poll... polls) {
@@ -61,11 +71,11 @@ class VoteManagementTest {
         Poll firstOpenPoll = activePollWithVote(OLD_IDENTITY);
         Poll secondOpenPoll = activePollWithVote(OLD_IDENTITY);
         Poll closedPoll = Poll.reconstitue(
-                Poll.PollId.newId(), "Vergangene Wahl", "systemadmin", Poll.Visibility.PUBLIC, Poll.State.EXPIRED,
+                PollId.newId(), "Vergangene Wahl", "systemadmin", Visibility.PUBLIC, State.EXPIRED,
                 group(), List.of("Ja"), List.of("Ja"), List.of(new Vote(OLD_IDENTITY, 1, VOTE_TIME))
         );
-        var polls = new InMemoryPollRepository(firstOpenPoll, secondOpenPoll, closedPoll);
-        var events = new ArrayList<PollDomainEvent>();
+        InMemoryPollRepository polls = new InMemoryPollRepository(firstOpenPoll, secondOpenPoll, closedPoll);
+        List<PollDomainEvent> events = new ArrayList<>();
         VoteManagement management = new VoteManagement(polls, pollId -> List.of(), events::add, Instant::now);
 
         management.changeIdentity(OLD_IDENTITY, NEW_IDENTITY);
@@ -83,8 +93,8 @@ class VoteManagementTest {
     @Test
     void leavesVotesAndHistoryUntouchedWhenTheIdentityDoesNotChange() {
         Poll openPoll = activePollWithVote(OLD_IDENTITY);
-        var polls = new InMemoryPollRepository(openPoll);
-        var events = new ArrayList<PollDomainEvent>();
+        InMemoryPollRepository polls = new InMemoryPollRepository(openPoll);
+        List<PollDomainEvent> events = new ArrayList<>();
         VoteManagement management = new VoteManagement(polls, pollId -> List.of(), events::add, Instant::now);
 
         management.changeIdentity(OLD_IDENTITY, OLD_IDENTITY);
@@ -97,8 +107,8 @@ class VoteManagementTest {
     @Test
     void withdrawsOwnVoteIdempotentlyAndRecordsTheRemovalAtTheClockTime() {
         Poll poll = activePollWithVote(OLD_IDENTITY);
-        var polls = new InMemoryPollRepository(poll);
-        var events = new ArrayList<PollDomainEvent>();
+        InMemoryPollRepository polls = new InMemoryPollRepository(poll);
+        List<PollDomainEvent> events = new ArrayList<>();
         Instant withdrawalTime = Instant.parse("2026-08-30T10:05:00Z");
         VoteManagement management = new VoteManagement(polls, pollId -> List.of(), events::add, () -> withdrawalTime);
 
@@ -113,16 +123,16 @@ class VoteManagementTest {
     @Test
     void rejectsPrivateAndNonActivePollsWithTheirDocumentedSemantics() {
         Poll privatePoll = Poll.reconstitue(
-                Poll.PollId.newId(), "Privat", "systemadmin", Poll.Visibility.PRIVATE, Poll.State.ACTIVE,
+                PollId.newId(), "Privat", "systemadmin", Visibility.PRIVATE, State.ACTIVE,
                 group(), List.of("Ja"), List.of("Ja"), List.of());
         Poll expiredPoll = Poll.reconstitue(
-                Poll.PollId.newId(), "Abgelaufen", "systemadmin", Poll.Visibility.PUBLIC, Poll.State.EXPIRED,
+                PollId.newId(), "Abgelaufen", "systemadmin", Visibility.PUBLIC, State.EXPIRED,
                 group(), List.of("Ja"), List.of("Ja"), List.of());
         VoteManagement management = management(privatePoll, expiredPoll);
 
         assertThrows(PollNotFoundException.class, () -> management.withdrawVote(privatePoll.id(), OLD_IDENTITY));
         assertThrows(PollNotActiveException.class, () -> management.withdrawVote(expiredPoll.id(), OLD_IDENTITY));
-        assertThrows(PollNotFoundException.class, () -> management.withdrawVote(Poll.PollId.newId(), OLD_IDENTITY));
+        assertThrows(PollNotFoundException.class, () -> management.withdrawVote(PollId.newId(), OLD_IDENTITY));
         Poll activePoll = activePollWithVote(OLD_IDENTITY);
         assertThrows(IllegalArgumentException.class, () -> management(activePoll).withdrawVote(activePoll.id(), null));
     }
@@ -133,7 +143,7 @@ class VoteManagementTest {
         Instant aliceVotedAt = Instant.parse("2026-08-01T10:02:00Z");
         Instant zuluVotedAt = Instant.parse("2026-08-01T10:01:00Z");
         Poll poll = Poll.reconstitue(
-                Poll.PollId.newId(), "Aktuelle Wahl", "systemadmin", Poll.Visibility.PUBLIC, Poll.State.ACTIVE,
+                PollId.newId(), "Aktuelle Wahl", "systemadmin", Visibility.PUBLIC, State.ACTIVE,
                 createdAt, Instant.parse("2099-01-01T00:00:00Z"), group(), List.of("Ja", "Nein"), List.of("Ja", "Nein"),
                 List.of(new Vote(Identity.of("zulu"), 1, zuluVotedAt), new Vote(Identity.of("alice"), 2, aliceVotedAt))
         );
@@ -143,8 +153,8 @@ class VoteManagementTest {
 
         assertEquals(createdAt, results.createdAt());
         assertEquals(2, results.totalVotes());
-        assertEquals(List.of(1, 2), results.options().stream().map(PollResults.OptionResult::number).toList());
-        assertEquals(List.of(1, 1), results.options().stream().map(PollResults.OptionResult::voteCount).toList());
+        assertEquals(List.of(1, 2), results.options().stream().map(OptionResult::number).toList());
+        assertEquals(List.of(1, 1), results.options().stream().map(OptionResult::voteCount).toList());
         assertEquals(List.of("alice"), results.options().get(1).votes().stream().map(vote -> vote.identity().value()).toList());
         assertEquals(aliceVotedAt, results.options().get(1).votes().get(0).votedAt());
         assertEquals(List.of("zulu"), results.options().get(0).votes().stream().map(vote -> vote.identity().value()).toList());
@@ -153,12 +163,12 @@ class VoteManagementTest {
     @Test
     void onlyAllowsActivePollResultsToTheVoterAndAllowsExpiredResultsWithoutAnIdentity() {
         Poll active = Poll.reconstitue(
-                Poll.PollId.newId(), "Aktive Wahl", "systemadmin", Poll.Visibility.PUBLIC, Poll.State.ACTIVE,
+                PollId.newId(), "Aktive Wahl", "systemadmin", Visibility.PUBLIC, State.ACTIVE,
                 Instant.parse("2026-08-01T10:00:00Z"), Instant.parse("2099-01-01T00:00:00Z"), group(), List.of("Ja"), List.of("Ja"),
                 List.of(new Vote(OLD_IDENTITY, 1, Instant.parse("2026-08-01T10:01:00Z")))
         );
         Poll expired = Poll.reconstitue(
-                Poll.PollId.newId(), "Vergangene Wahl", "systemadmin", Poll.Visibility.PUBLIC, Poll.State.EXPIRED,
+                PollId.newId(), "Vergangene Wahl", "systemadmin", Visibility.PUBLIC, State.EXPIRED,
                 Instant.parse("2026-08-01T10:00:00Z"), Instant.parse("2026-08-01T09:00:00Z"), group(), List.of("Ja"), List.of("Ja"), List.of()
         );
         VoteManagement management = management(active, expired);
@@ -172,28 +182,28 @@ class VoteManagementTest {
     void expiresDuePollBeforeReleasingItsResults() {
         Instant expiry = Instant.parse("2026-08-16T10:00:00Z");
         Poll due = Poll.reconstitue(
-                Poll.PollId.newId(), "Faellige Wahl", "systemadmin", Poll.Visibility.PUBLIC, Poll.State.ACTIVE,
+                PollId.newId(), "Faellige Wahl", "systemadmin", Visibility.PUBLIC, State.ACTIVE,
                 Instant.parse("2026-08-01T10:00:00Z"), expiry, group(), List.of("Ja"), List.of("Ja"), List.of()
         );
-        var polls = new InMemoryPollRepository(due);
+        InMemoryPollRepository polls = new InMemoryPollRepository(due);
         VoteManagement management = new VoteManagement(polls, pollId -> List.of(), ignored -> {
         }, () -> expiry);
 
         PollResults results = management.results(due.id(), null);
 
         assertEquals(due.id(), results.id());
-        assertEquals(Poll.State.EXPIRED, due.state());
+        assertEquals(State.EXPIRED, due.state());
         assertEquals(List.of(due), polls.saved());
     }
 
     @Test
     void removesTheAddressedCurrentVoteWithAnImmutableAdminAuditEvent() {
         Poll poll = Poll.reconstitue(
-                Poll.PollId.newId(), "Aktuelle Wahl", "systemadmin", Poll.Visibility.PUBLIC, Poll.State.ACTIVE,
+                PollId.newId(), "Aktuelle Wahl", "systemadmin", Visibility.PUBLIC, State.ACTIVE,
                 group(), List.of("Ja", "Nein"), List.of("Ja", "Nein"),
                 List.of(new Vote(42L, OLD_IDENTITY, 2, VOTE_TIME)));
-        var polls = new InMemoryPollRepository(poll);
-        var events = new ArrayList<PollDomainEvent>();
+        InMemoryPollRepository polls = new InMemoryPollRepository(poll);
+        List<PollDomainEvent> events = new ArrayList<>();
         Instant removalTime = Instant.parse("2026-08-30T10:05:00Z");
         VoteManagement management = new VoteManagement(polls, pollId -> List.of(), events::add, () -> removalTime);
 
@@ -232,6 +242,69 @@ class VoteManagementTest {
         assertThrows(IllegalArgumentException.class, () -> management.adminVotes(0, 101));
     }
 
+    @Test
+    void personalVotesIsolateExactIdentityAndOnlyIncludeReadableResolvedVotesInStableOrder() {
+        List<Poll> eligible = new ArrayList<>();
+        for (State state : State.values()) {
+            for (Visibility visibility : Visibility.values()) {
+                eligible.add(Poll.reconstitue(PollId.newId(), state.name(), "admin", visibility, state,
+                        group(), List.of("Ja"), List.of("Ja"), List.of(new Vote(OLD_IDENTITY, 1, VOTE_TIME))));
+            }
+        }
+        Poll other = activePollWithVote(Identity.of("Alice"));
+        Poll unresolved = Poll.reconstitue(PollId.newId(), "Unresolved", "admin", Visibility.PUBLIC,
+                State.EXPIRED, group(), List.of("Ja"), List.of("Ja"), List.of(new Vote(OLD_IDENTITY, 99, VOTE_TIME)));
+        eligible.add(other);
+        eligible.add(unresolved);
+        VoteManagement service = management(VOTE_TIME, eligible.toArray(Poll[]::new));
+        List<PersonalVote> actual = service.currentVotes(OLD_IDENTITY);
+        assertEquals(3, actual.size());
+        assertEquals(List.of(State.ACTIVE, State.EXPIRED, State.ARCHIVED).stream().sorted().toList(),
+                actual.stream().map(PersonalVote::pollState).sorted().toList());
+        assertEquals(actual.stream().map(v -> v.pollId().value()).sorted().toList(),
+                actual.stream().map(v -> v.pollId().value()).toList());
+        assertEquals(1, service.currentVotes(Identity.of("Alice")).size());
+        assertEquals(List.of(), service.currentVotes(Identity.of(" alice")));
+        assertEquals(List.of(), service.currentVotes(null));
+        actual.forEach(v -> { assertEquals("Ja", v.optionText()); assertEquals(VOTE_TIME, v.votedAt()); });
+    }
+
+    @Test
+    void personalVotesExpireOnReadAndPersistExactlyOneLifecycleEvent() {
+        Poll due = Poll.reconstitue(PollId.newId(), "Due", "admin", Visibility.PUBLIC, State.ACTIVE,
+                VOTE_TIME.minusSeconds(60), VOTE_TIME, group(), List.of("Ja"), List.of("Ja"),
+                List.of(new Vote(OLD_IDENTITY, 1, VOTE_TIME.minusSeconds(30))));
+        InMemoryPollRepository repository = new InMemoryPollRepository(due);
+        List<PollDomainEvent> events = new ArrayList<>();
+        VoteManagement service = new VoteManagement(repository, id -> List.of(), events::add, () -> VOTE_TIME);
+        assertEquals(State.EXPIRED, service.currentVotes(OLD_IDENTITY).getFirst().pollState());
+        service.currentVotes(OLD_IDENTITY);
+        assertEquals(List.of(due), repository.saved());
+        assertEquals(1, events.size());
+        assertEquals("PollExpired", ((PollLifecycleChanged) events.getFirst()).type().name());
+    }
+
+    @Test
+    void personalVotesTrackCastReplacementWithdrawalAndIdentityChangesWithNewestFirst() {
+        Poll first = Poll.reconstitue(PollId.newId(), "First", "admin", Visibility.PUBLIC, State.ACTIVE,
+                group(), List.of("Ja", "Nein"), List.of("Ja", "Nein"), List.of());
+        Poll second = activePollWithVote(OLD_IDENTITY);
+        AtomicReference<Instant> now = new AtomicReference<>(VOTE_TIME.plusSeconds(60));
+        VoteManagement service = new VoteManagement(new InMemoryPollRepository(first, second), id -> List.of(), event -> {}, now::get);
+        service.castOrReplace(first.id(), OLD_IDENTITY, 1);
+        assertEquals(List.of(first.id(), second.id()), service.currentVotes(OLD_IDENTITY).stream().map(PersonalVote::pollId).toList());
+        now.set(VOTE_TIME.plusSeconds(120));
+        service.castOrReplace(first.id(), OLD_IDENTITY, 2);
+        assertEquals(2, service.currentVotes(OLD_IDENTITY).getFirst().optionNumber());
+        assertEquals(now.get(), service.currentVotes(OLD_IDENTITY).getFirst().votedAt());
+        service.withdrawVote(first.id(), OLD_IDENTITY);
+        assertEquals(List.of(second.id()), service.currentVotes(OLD_IDENTITY).stream().map(PersonalVote::pollId).toList());
+        service.castOrReplace(first.id(), NEW_IDENTITY, 1);
+        service.changeIdentity(OLD_IDENTITY, NEW_IDENTITY);
+        assertEquals(List.of(), service.currentVotes(OLD_IDENTITY));
+        assertEquals(List.of(first.id()), service.currentVotes(NEW_IDENTITY).stream().map(PersonalVote::pollId).toList());
+    }
+
     private static final class InMemoryPollRepository implements PollRepository {
         private final List<Poll> polls;
         private final List<Poll> saved = new ArrayList<>();
@@ -248,7 +321,7 @@ class VoteManagementTest {
         }
 
         @Override
-        public Optional<Poll> findById(Poll.PollId id) {
+        public Optional<Poll> findById(PollId id) {
             return polls.stream().filter(poll -> poll.id().equals(id)).findFirst();
         }
 
@@ -258,12 +331,12 @@ class VoteManagementTest {
         }
 
         @Override
-        public List<Poll> findAllByVisibility(Poll.Visibility visibility) {
+        public List<Poll> findAllByVisibility(Visibility visibility) {
             return polls.stream().filter(poll -> poll.visibility() == visibility).toList();
         }
 
         @Override
-        public List<de.justvotes.pollmanagement.core.model.PollSummary> findAllPublicSummaries() {
+        public List<PollSummary> findAllPublicSummaries() {
             return List.of();
         }
 
@@ -274,11 +347,11 @@ class VoteManagementTest {
 
         @Override
         public List<Poll> findAllActive() {
-            return polls.stream().filter(poll -> poll.state() == Poll.State.ACTIVE).toList();
+            return polls.stream().filter(poll -> poll.state() == State.ACTIVE).toList();
         }
 
         @Override
-        public de.justvotes.pollmanagement.core.model.AdminVotePage findAdminVotes(int page, int size) {
+        public AdminVotePage findAdminVotes(int page, int size) {
             return adminPage;
         }
 

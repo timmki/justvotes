@@ -3,7 +3,9 @@ package de.justvotes.templatecatalog.core;
 import de.justvotes.templatecatalog.core.exception.CatalogItemNotFoundException;
 import de.justvotes.templatecatalog.core.exception.CatalogNameAlreadyExistsException;
 import de.justvotes.templatecatalog.core.model.OptionTemplate;
+import de.justvotes.templatecatalog.core.model.OptionTemplate.OptionTemplateId;
 import de.justvotes.templatecatalog.core.model.OptionTemplateGroup;
+import de.justvotes.templatecatalog.core.model.OptionTemplateGroup.OptionTemplateGroupId;
 import de.justvotes.templatecatalog.core.ports.in.ManageTemplateCatalog;
 import de.justvotes.templatecatalog.core.ports.in.ViewTemplateCatalog;
 import de.justvotes.templatecatalog.core.ports.out.OptionTemplateGroupRepository;
@@ -33,7 +35,7 @@ public class TemplateCatalogAdministration implements ManageTemplateCatalog, Vie
 
     @Override
     public OptionTemplate renameTemplate(long templateId, String name) {
-        return Try.of(() -> OptionTemplate.OptionTemplateId.of(templateId))
+        return Try.of(() -> OptionTemplateId.of(templateId))
                 .map(this::template)
                 .andThen(template -> ensureNameIsAvailable(name, template.id(), null))
                 .map(template -> template.rename(name))
@@ -43,11 +45,11 @@ public class TemplateCatalogAdministration implements ManageTemplateCatalog, Vie
 
     @Override
     public void deleteTemplate(long templateId) {
-        Try.of(() -> OptionTemplate.OptionTemplateId.of(templateId))
+        Try.of(() -> OptionTemplateId.of(templateId))
                 .map(this::template)
-                .andThen(template -> this.groups.findAllReferencing(OptionTemplate.OptionTemplateId.of(templateId))
+                .andThen(template -> this.groups.findAllReferencing(OptionTemplateId.of(templateId))
                         .forEach(group -> {
-                            group.removeTemplate(OptionTemplate.OptionTemplateId.of(templateId));
+                            group.removeTemplate(OptionTemplateId.of(templateId));
                             groups.save(group);
                         }))
                 .andThen(templates::delete)
@@ -65,7 +67,7 @@ public class TemplateCatalogAdministration implements ManageTemplateCatalog, Vie
 
     @Override
     public OptionTemplateGroup renameGroup(long groupId, String name) {
-        return Try.of(() -> OptionTemplateGroup.OptionTemplateGroupId.of(groupId))
+        return Try.of(() -> OptionTemplateGroupId.of(groupId))
                 .map(this::group)
                 .andThen(group -> ensureNameIsAvailable(name, null, group.id()))
                 .map(group -> group.rename(name))
@@ -75,7 +77,7 @@ public class TemplateCatalogAdministration implements ManageTemplateCatalog, Vie
 
     @Override
     public void deleteGroup(long groupId) {
-        Try.of(() -> OptionTemplateGroup.OptionTemplateGroupId.of(groupId))
+        Try.of(() -> OptionTemplateGroupId.of(groupId))
                 .map(this::group)
                 .andThen(groups::delete)
                 .get();
@@ -83,9 +85,9 @@ public class TemplateCatalogAdministration implements ManageTemplateCatalog, Vie
 
     @Override
     public OptionTemplateGroup assignTemplateToGroup(long templateId, long groupId) {
-        Try<OptionTemplate> templateIdTry = Try.of(() -> OptionTemplate.OptionTemplateId.of(templateId))
+        Try<OptionTemplate> templateIdTry = Try.of(() -> OptionTemplateId.of(templateId))
                 .mapTry(this::template);
-        Try<OptionTemplateGroup> groupIdTry = Try.of(() -> OptionTemplateGroup.OptionTemplateGroupId.of(groupId))
+        Try<OptionTemplateGroup> groupIdTry = Try.of(() -> OptionTemplateGroupId.of(groupId))
                 .mapTry(this::group);
 
         return API.For(templateIdTry, groupIdTry).yield((template, group) -> {
@@ -96,9 +98,9 @@ public class TemplateCatalogAdministration implements ManageTemplateCatalog, Vie
 
     @Override
     public OptionTemplateGroup removeTemplateFromGroup(long templateId, long groupId) {
-        Try<OptionTemplate> templateIdTry = Try.of(() -> OptionTemplate.OptionTemplateId.of(templateId))
+        Try<OptionTemplate> templateIdTry = Try.of(() -> OptionTemplateId.of(templateId))
                 .mapTry(this::template);
-        Try<OptionTemplateGroup> groupIdTry = Try.of(() -> OptionTemplateGroup.OptionTemplateGroupId.of(groupId))
+        Try<OptionTemplateGroup> groupIdTry = Try.of(() -> OptionTemplateGroupId.of(groupId))
                 .mapTry(this::group);
 
         return API.For(templateIdTry, groupIdTry).yield((template, group) -> {
@@ -119,7 +121,7 @@ public class TemplateCatalogAdministration implements ManageTemplateCatalog, Vie
 
     @Override
     public List<OptionTemplate> templatesInGroup(long groupId) {
-        return group(OptionTemplateGroup.OptionTemplateGroupId.of(groupId))
+        return group(OptionTemplateGroupId.of(groupId))
                 .templateReferences().stream()
                 .map(this::template)
                 .toList();
@@ -133,7 +135,7 @@ public class TemplateCatalogAdministration implements ManageTemplateCatalog, Vie
         return name;
     }
 
-    private void ensureNameIsAvailable(String name, OptionTemplate.OptionTemplateId templateId, OptionTemplateGroup.OptionTemplateGroupId groupId) {
+    private void ensureNameIsAvailable(String name, OptionTemplateId templateId, OptionTemplateGroupId groupId) {
         boolean usedByAnotherTemplate = templates.findByNormalizedName(name)
                 .filter(template -> !template.id().equals(templateId)).isPresent();
         boolean usedByAnotherGroup = groups.findByNormalizedName(name)
@@ -143,11 +145,11 @@ public class TemplateCatalogAdministration implements ManageTemplateCatalog, Vie
         }
     }
 
-    private OptionTemplate template(OptionTemplate.OptionTemplateId id) {
+    private OptionTemplate template(OptionTemplateId id) {
         return templates.findById(id).orElseThrow(() -> new CatalogItemNotFoundException("Template", id));
     }
 
-    private OptionTemplateGroup group(OptionTemplateGroup.OptionTemplateGroupId id) {
+    private OptionTemplateGroup group(OptionTemplateGroupId id) {
         return groups.findById(id).orElseThrow(() -> new CatalogItemNotFoundException("Template group", id));
     }
 }

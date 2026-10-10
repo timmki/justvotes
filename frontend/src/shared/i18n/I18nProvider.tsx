@@ -15,7 +15,8 @@ const I18nContext = createContext<I18nContextValue | null>(null);
 
 function storedLocale(): Locale {
     const value = browserStorage()?.getItem(localeStorageKey);
-    return value === 'en' ? 'en' : 'de';
+    if (value === 'en') return 'en';
+    return 'de';
 }
 
 export function I18nProvider({children}: { children: ReactNode }) {

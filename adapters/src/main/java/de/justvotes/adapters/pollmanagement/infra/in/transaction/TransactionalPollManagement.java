@@ -1,10 +1,12 @@
 package de.justvotes.adapters.pollmanagement.infra.in.transaction;
 
+import de.justvotes.adapters.sqlite.SqliteRetryingTransaction;
+import de.justvotes.pollmanagement.core.model.Poll.PollId;
+import de.justvotes.pollmanagement.core.model.Poll.TemplateGroupId;
 import de.justvotes.pollmanagement.core.model.Poll;
 import de.justvotes.pollmanagement.core.model.PollSummary;
 import de.justvotes.pollmanagement.core.ports.in.ManagePolls;
 import de.justvotes.pollmanagement.core.ports.in.ViewPolls;
-import de.justvotes.adapters.sqlite.SqliteRetryingTransaction;
 
 import java.time.Instant;
 import java.util.List;
@@ -21,22 +23,22 @@ public class TransactionalPollManagement implements ManagePolls, ViewPolls {
     }
 
     @Override
-    public Poll createDraft(String title, Poll.TemplateGroupId templateGroupId, String systemAdmin) {
+    public Poll createDraft(String title, TemplateGroupId templateGroupId, String systemAdmin) {
         return transactions.execute(() -> commands.createDraft(title, templateGroupId, systemAdmin));
     }
 
     @Override
-    public Poll replaceDraftOptions(Poll.PollId pollId, List<String> optionTexts) {
+    public Poll replaceDraftOptions(PollId pollId, List<String> optionTexts) {
         return transactions.execute(() -> commands.replaceDraftOptions(pollId, optionTexts));
     }
 
     @Override
-    public Poll makePrivate(Poll.PollId pollId) {
+    public Poll makePrivate(PollId pollId) {
         return transactions.execute(() -> commands.makePrivate(pollId));
     }
 
     @Override
-    public Poll publish(Poll.PollId pollId, String admin, Instant endsAt) {
+    public Poll publish(PollId pollId, String admin, Instant endsAt) {
         return transactions.execute(() -> commands.publish(pollId, admin, endsAt));
     }
 
@@ -46,37 +48,37 @@ public class TransactionalPollManagement implements ManagePolls, ViewPolls {
     }
 
     @Override
-    public Poll archive(Poll.PollId id, String admin) {
+    public Poll archive(PollId id, String admin) {
         return transactions.execute(() -> commands.archive(id, admin));
     }
 
     @Override
-    public Poll restoreFromArchive(Poll.PollId id, String admin) {
+    public Poll restoreFromArchive(PollId id, String admin) {
         return transactions.execute(() -> commands.restoreFromArchive(id, admin));
     }
 
     @Override
-    public Poll changeExpiry(Poll.PollId id, Instant endsAt, String admin) {
+    public Poll changeExpiry(PollId id, Instant endsAt, String admin) {
         return transactions.execute(() -> commands.changeExpiry(id, endsAt, admin));
     }
 
     @Override
-    public Poll reopen(Poll.PollId id, Instant now, String admin) {
+    public Poll reopen(PollId id, Instant now, String admin) {
         return transactions.execute(() -> commands.reopen(id, now, admin));
     }
 
     @Override
-    public Poll softDelete(Poll.PollId id, String admin) {
+    public Poll softDelete(PollId id, String admin) {
         return transactions.execute(() -> commands.softDelete(id, admin));
     }
 
     @Override
-    public Poll restore(Poll.PollId id, String admin) {
+    public Poll restore(PollId id, String admin) {
         return transactions.execute(() -> commands.restore(id, admin));
     }
 
     @Override
-    public void permanentlyDelete(Poll.PollId id, boolean confirmed, boolean repeated) {
+    public void permanentlyDelete(PollId id, boolean confirmed, boolean repeated) {
         transactions.execute(() -> {
             commands.permanentlyDelete(id, confirmed, repeated);
             return null;
@@ -94,7 +96,7 @@ public class TransactionalPollManagement implements ManagePolls, ViewPolls {
     }
 
     @Override
-    public Poll publicPoll(Poll.PollId pollId) {
+    public Poll publicPoll(PollId pollId) {
         return transactions.execute(() -> queries.publicPoll(pollId));
     }
 
