@@ -8,14 +8,14 @@ halten. Anwendungsfälle werden über In- und Out-Ports definiert; HTTP,
 Persistenz, Transaktionen und Scheduling bleiben Adapter- beziehungsweise
 Bootstrap-Verantwortung. Domänenmodelle MUST ihre Invarianten und
 Zustandsübergänge selbst erzwingen. Die konkrete Modulzuordnung und ihre
-Abhängigkeiten sind im [Architekturleitfaden](../../docs/development/architecture.md)
+Abhängigkeiten sind im [Architekturleitfaden](docs/development/architecture.md)
 dokumentiert.
 Dadurch bleibt die Fachlogik unabhängig von technischen Integrationen
 testbar, ohne die heutige Modulaufteilung als abschließende Liste festzuschreiben.
 
 ### II. Contract-First API
 Die versionierte OpenAPI-Datei
-[`api-contract/src/main/openapi/justvotes-v1.yaml`](../../api-contract/src/main/openapi/justvotes-v1.yaml) MUST der maßgebliche
+[`api-contract/src/main/openapi/justvotes-v1.yaml`](api-contract/src/main/openapi/justvotes-v1.yaml) MUST der maßgebliche
 HTTP-Vertrag sein. API-Änderungen MUST den Vertrag und die daraus generierten
 Server- und TypeScript-Quellen berücksichtigen; generierte Quellen dürfen weder
 manuell bearbeitet noch committed werden. Bestehende Endpunkte und ihre
@@ -29,14 +29,14 @@ modelliert werden, nicht als implizite Controller- oder Persistenzlogik.
 Fachliche Aggregate und Entities MUST ihre veränderlichen Zustände kapseln.
 Technische Details dürfen nicht in den Domänenkern gelangen, weil dadurch
 Abhängigkeiten und Testaufwand wachsen. Sprach- und Frameworkkonventionen
-sind im [Java-Entwicklungsleitfaden](../../docs/development/java.md) verbindlich
+sind im [Java-Entwicklungsleitfaden](docs/development/java.md) verbindlich
 festgehalten.
 
 ### IV. Feature-Oriented React Frontend
 Das Frontend MUST typsicher und fachlich nach Features modularisiert sein.
 Zugriff auf Serverzustand und lokaler UI-Zustand MUST klar getrennt bleiben.
 Die verbindlichen TypeScript-, Verzeichnis-, API-Client- und React-Query-
-Konventionen sind im [Frontend-Entwicklungsleitfaden](../../docs/development/frontend.md)
+Konventionen sind im [Frontend-Entwicklungsleitfaden](docs/development/frontend.md)
 dokumentiert.
 
 ### V. Testable Changes and Quality Gates
@@ -61,7 +61,7 @@ Fokuszustände, Tastaturbedienung und geeignete ARIA- beziehungsweise
 Live-Regionen erhalten. Layouts MUST auf kleinen und großen Bildschirmen
 funktionieren. Sichtbare Texte und Fehlermeldungen MUST über die vorhandenen
 Internationalisierungsressourcen gepflegt werden. Fachliche Begriffe MUST der
-Terminologie in [`CONTEXT.md`](../../CONTEXT.md) entsprechen; insbesondere sind dort vermiedene
+Terminologie in [`CONTEXT.md`](CONTEXT.md) entsprechen; insbesondere sind dort vermiedene
 Synonyme nicht erneut einzuführen.
 
 ## Development Workflow
@@ -74,7 +74,7 @@ prüfen. Bei Frontend-Änderungen sind Serverzustand, Fehler- und Ladezustände,
 Internationalisierung, Barrierefreiheit und responsive Darstellung zu prüfen.
 
 Die konkreten Voraussetzungen sowie ausführbaren Build- und Testbefehle sind
-im [README](../../README.md) dokumentiert und werden dort gepflegt. Vor dem Abschluss sind
+im [README](README.md) dokumentiert und werden dort gepflegt. Vor dem Abschluss sind
 die relevanten etablierten Prüfungen auszuführen; alle verpflichtenden CI-
 Prüfungen MUST erfolgreich sein. Änderungen an generierten Artefakten werden
 durch die jeweiligen Generatoren reproduziert und nicht direkt korrigiert.
@@ -83,8 +83,8 @@ durch die jeweiligen Generatoren reproduziert und nicht direkt korrigiert.
 
 Diese Constitution definiert die verbindlichen Architektur-, Coding- und
 Qualitätsgrenzen für neue Änderungen und ergänzt, aber ersetzt nicht, den
-fachlichen Vertrag in [`CONTEXT.md`](../../CONTEXT.md) oder den versionierten
-[OpenAPI-Vertrag](../../api-contract/src/main/openapi/justvotes-v1.yaml).
+fachlichen Vertrag in [`CONTEXT.md`](CONTEXT.md) oder den versionierten
+[OpenAPI-Vertrag](api-contract/src/main/openapi/justvotes-v1.yaml).
 Bei widersprüchlichen Vorschlägen MUSS der Konflikt vor der Implementierung
 geklärt und dokumentiert werden.
 
@@ -95,8 +95,8 @@ neue oder wesentlich erweiterte Regeln und PATCH für redaktionelle
 Klarstellungen. Der Entwickler prüft bei Planung und Abschluss die betroffenen
 Prinzipien und Qualitätsprüfungen. Abweichungen sind nur zulässig, wenn sie im
 Änderungsumfang begründet und bei dieser Prüfung ausdrücklich festgehalten
-werden. Die Constitution ergänzt, aber ersetzt nicht [`CONTEXT.md`](../../CONTEXT.md)
+werden. Die Constitution ergänzt, aber ersetzt nicht [`CONTEXT.md`](CONTEXT.md)
 als fachliche Quelle oder den versionierten
-[OpenAPI-Vertrag](../../api-contract/src/main/openapi/justvotes-v1.yaml) als HTTP-Vertrag.
+[OpenAPI-Vertrag](api-contract/src/main/openapi/justvotes-v1.yaml) als HTTP-Vertrag.
 
 **Version**: 2.0.0 | **Ratified**: TODO(RATIFICATION_DATE): ursprüngliches Ratifikationsdatum unbekannt | **Last Amended**: 2026-10-10
