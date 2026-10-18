@@ -1,6 +1,6 @@
 import type {UseQueryResult} from '@tanstack/react-query';
 import {Link, useParams} from 'react-router-dom';
-import {useEffect, useId, useRef, useState} from 'react';
+import {useEffect, useId, useRef, useState, type FormEvent, type ReactNode} from 'react';
 import {apiClient} from '../../shared/api/client';
 import {ApiError, type FrontendError} from '../../shared/api/errors';
 import {useApiQuery} from '../../shared/api/useApiQuery';
@@ -8,6 +8,8 @@ import {queryKeys} from '../../shared/api/queryKeys';
 import {useI18n} from '../../shared/i18n/I18nProvider';
 import type {TranslationKey} from '../../shared/i18n/translations';
 import {IdentityEditor} from '../../shared/ui/IdentityEditor';
+import {identityActionKey} from '../../shared/ui/identityActionKey';
+import {useMediaQuery} from '../../shared/ui/useMediaQuery';
 import {QueryState} from '../../shared/ui/QueryState';
 import {RouteState} from '../../shared/ui/RouteState';
 import {useCastVoteMutation, frontendError, voteFeedback} from './pollCommands';
@@ -15,16 +17,19 @@ import {DataPage, notFoundError} from './pollPageShared';
 import {currentOptionNumberFromResults, isResultsUnavailable, classifyResultsRelease, pollStateTranslationKey, type Poll, type PollResults} from './pollProjections';
 import {usePollQuery, usePollResultsQuery} from './pollQueries';
 import {formatTimestamp, formatVoteCount} from './pollFormatters';
-import {PollStateBadge} from './PollStateBadge';
+import {PollFactLine} from './PollFactLine';
 
 export function PollPage() {
     const {t} = useI18n();
     const {pollId = ''} = useParams();
     const query = usePollQuery(pollId);
     let title = t('polls.detail');
-    if (query.data && query.data.visibility === 'public') title = query.data.title;
-    return <DataPage title={title}
-                     description={t('common.pollDescription')}>
+    let meta: ReactNode;
+    if (query.data && query.data.visibility === 'public') {
+        title = query.data.title;
+        meta = <PollFactLine poll={query.data}/>;
+    }
+    return <DataPage title={title} meta={meta}>
         <QueryState query={query}>{(poll) => {
             if (poll.visibility === 'public') return <PollDetail poll={poll}/>;
             return <RouteState status="error" error={notFoundError}/>;
@@ -41,65 +46,136 @@ function PollDetail({poll}: { poll: Poll }) {
     if (!resultsQuery.isError) results = resultsQuery.data;
     const currentOptionNumber = currentOptionNumberFromResults(results, identity);
     const [confirmedOptionNumber, setConfirmedOptionNumber] = useState<number | null>(currentOptionNumber);
+    const confirmedRef = useRef<number | null>(currentOptionNumber);
     const [selectedOptionNumber, setSelectedOptionNumber] = useState<number | null>(currentOptionNumber);
     const [feedback, setFeedback] = useState<string | null>(null);
     const [mutationError, setMutationError] = useState<FrontendError | null>(null);
     const [identityEditorOpen, setIdentityEditorOpen] = useState(false);
+    const [votesFocusPending, setVotesFocusPending] = useState(false);
+    const [identityLeaveDelay, setIdentityLeaveDelay] = useState<number | null>(null);
+    const [noticeLeaveDelay, setNoticeLeaveDelay] = useState<number | null>(null);
+    const noticeWasShown = useRef(false);
+    const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
     const noticeButtonRef = useRef<HTMLButtonElement>(null);
+    const fieldsetRef = useRef<HTMLFieldSetElement>(null);
     const wasEditorOpen = useRef(false);
+    const identitySavedRef = useRef(false);
     const noticeTextId = useId();
+    const editorHeadingId = useId();
     const mutation = useCastVoteMutation(poll.id, {
-        onMutate: (optionNumber) => {
-            setSelectedOptionNumber(optionNumber);
+        onMutate: () => {
             setFeedback(null);
             setMutationError(null);
             return confirmedOptionNumber;
         },
         onSuccess: (vote) => {
+            confirmedRef.current = vote.optionNumber;
             setConfirmedOptionNumber(vote.optionNumber);
             setSelectedOptionNumber(vote.optionNumber);
             setFeedback(voteFeedback(vote.status, t));
         },
-        onError: (cause, _optionNumber, previousOptionNumber) => {
-            setSelectedOptionNumber(previousOptionNumber);
+        onError: (cause) => {
             setMutationError(frontendError(cause));
         },
     });
 
     useEffect(() => {
-        if (!mutation.isPending) {
-            setConfirmedOptionNumber(currentOptionNumber);
-            setSelectedOptionNumber(currentOptionNumber);
-        }
-    }, [currentOptionNumber, mutation.isPending]);
+        const previousConfirmed = confirmedRef.current;
+        confirmedRef.current = currentOptionNumber;
+        setConfirmedOptionNumber(currentOptionNumber);
+        setSelectedOptionNumber((selected) => {
+            if (selected === null || selected === previousConfirmed) return currentOptionNumber;
+            return selected;
+        });
+    }, [currentOptionNumber]);
 
     useEffect(() => {
-        if (!identityEditorOpen && wasEditorOpen.current) noticeButtonRef.current?.focus();
+        if (!identityEditorOpen && wasEditorOpen.current && !identitySavedRef.current) noticeButtonRef.current?.focus();
+        identitySavedRef.current = false;
         wasEditorOpen.current = identityEditorOpen;
     }, [identityEditorOpen]);
+
+    useEffect(() => {
+        if (identityLeaveDelay === null) return undefined;
+        const timer = window.setTimeout(() => {
+            setIdentityEditorOpen(false);
+            setIdentityLeaveDelay(null);
+        }, identityLeaveDelay);
+        return () => window.clearTimeout(timer);
+    }, [identityLeaveDelay]);
 
     const sortedOptions = [...poll.options].sort((left, right) => left.text.localeCompare(right.text, locale));
     const canVote = poll.visibility === 'public' && poll.state === 'active' && Boolean(identity) && !identityQuery.isPending && !identityQuery.isError;
     const identityNoticeVisible = poll.state === 'active' && !identityQuery.isPending && !identityQuery.isError && !identity;
+    const noticeShown = identityNoticeVisible && !identityEditorOpen;
+
+    useEffect(() => {
+        if (noticeShown) {
+            noticeWasShown.current = true;
+            return undefined;
+        }
+        if (!noticeWasShown.current) return undefined;
+        noticeWasShown.current = false;
+        if (identityNoticeVisible) return undefined;
+        let leaveDelay = 200;
+        if (reducedMotion) leaveDelay = 0;
+        setNoticeLeaveDelay(leaveDelay);
+        return undefined;
+    }, [noticeShown, identityNoticeVisible, reducedMotion]);
+
+    useEffect(() => {
+        if (noticeLeaveDelay === null) return undefined;
+        const timer = window.setTimeout(() => setNoticeLeaveDelay(null), noticeLeaveDelay);
+        return () => window.clearTimeout(timer);
+    }, [noticeLeaveDelay]);
     let describedBy: string | undefined;
     if (identityNoticeVisible && !identityEditorOpen) describedBy = noticeTextId;
+    if (identityNoticeVisible && identityEditorOpen) describedBy = editorHeadingId;
     const resultForbiddenBeforeVote = poll.state === 'active' && isResultsUnavailable(resultsQuery.error);
     const resultsLinkAvailable = Boolean(resultsQuery.data && !resultsQuery.isError && !resultsQuery.isFetching);
+    const submitEnabled = canVote && selectedOptionNumber !== null && selectedOptionNumber !== confirmedOptionNumber && !mutation.isPending;
+
+    useEffect(() => {
+        if (!votesFocusPending || !canVote || identityLeaveDelay !== null) return;
+        const target = fieldsetRef.current?.querySelector<HTMLInputElement>('input:checked') ?? fieldsetRef.current?.querySelector<HTMLInputElement>('input');
+        target?.focus();
+        setFeedback(t('polls.identitySavedCanVote'));
+        setVotesFocusPending(false);
+    }, [votesFocusPending, canVote, identityLeaveDelay, t]);
+
+    function submitVote(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        if (submitEnabled && selectedOptionNumber !== null) mutation.mutate(selectedOptionNumber);
+    }
 
     return <div className="poll-layout">
         <section className="data-card poll-detail-card">
-            {identityNoticeVisible && !identityEditorOpen && <div className="poll-identity-notice">
-                <p id={noticeTextId}>{t('polls.identityRequired')}</p>
-                <button ref={noticeButtonRef} className="primary-button" type="button"
-                        onClick={() => setIdentityEditorOpen(true)}>{t('polls.setIdentity')}</button>
+            {(noticeShown || noticeLeaveDelay !== null) && <div className={identitySlotClassName(!noticeShown)} inert={!noticeShown} aria-hidden={!noticeShown}>
+                <div className="poll-identity-slot-body">
+                    <div className="poll-identity-notice">
+                        <p id={noticeTextId}>{t('polls.identityRequired')}</p>
+                        <button ref={noticeButtonRef} className="primary-button" type="button"
+                                onClick={() => setIdentityEditorOpen(true)}>{t(identityActionKey(identity))}</button>
+                    </div>
+                </div>
             </div>}
-            {identityNoticeVisible && identityEditorOpen && <IdentityEditor identity={null} startEditing
-                                                                             onClose={() => setIdentityEditorOpen(false)}/>}
-            <div className="poll-sheet-heading">
-                <p className="poll-detail-date"><time dateTime={poll.createdAt}>{formatTimestamp(poll.createdAt, locale)}</time></p>
-                <PollStateBadge state={poll.state}/>
-            </div>
-            <fieldset className="poll-vote-form" disabled={!canVote || mutation.isPending} aria-describedby={describedBy}>
+            {((identityNoticeVisible && identityEditorOpen) || identityLeaveDelay !== null) && <div className={identitySlotClassName(identityLeaveDelay !== null)} inert={identityLeaveDelay !== null}>
+                <div className="poll-identity-slot-body">
+                <IdentityEditor identity={identity} startEditing editorHeadingId={editorHeadingId}
+                                onSaved={() => {
+                                    identitySavedRef.current = true;
+                                    setVotesFocusPending(true);
+                                    let leaveDelay = 200;
+                                    if (reducedMotion) leaveDelay = 0;
+                                    setIdentityLeaveDelay(leaveDelay);
+                                }}
+                                onClose={() => {
+                                    if (!identitySavedRef.current) setIdentityEditorOpen(false);
+                                }}/>
+                </div>
+            </div>}
+            <form className="poll-vote-form-wrapper" onSubmit={submitVote}>
+            <fieldset ref={fieldsetRef} className="poll-vote-form" disabled={!canVote || mutation.isPending} aria-describedby={describedBy}>
                 <legend>{t('polls.vote')}</legend>
                 <div className="poll-option-list">{sortedOptions.map((option) => {
                     const isCurrent = currentOptionNumber === option.number;
@@ -110,18 +186,20 @@ function PollDetail({poll}: { poll: Poll }) {
                                   key={option.number}>
                         <input type="radio" name={`poll-${poll.id}`} value={option.number}
                                aria-label={option.text} checked={selectedOptionNumber === option.number}
-                               onChange={() => mutation.mutate(option.number)}
-                               onClick={() => {
-                                   if (selectedOptionNumber === option.number) mutation.mutate(option.number);
-                               }}/>
+                               onChange={() => setSelectedOptionNumber(option.number)}/>
                         <span><strong>{option.text}</strong>{isCurrent && <small>{t('polls.yourVote')}</small>}</span>
                     </label>;
                 })}</div>
             </fieldset>
+            {poll.state === 'active' && <button className="primary-button" type="submit" disabled={!submitEnabled} aria-busy={mutation.isPending}>
+                {mutation.isPending && <span className="button-spinner" aria-hidden="true"/>}
+                {t('polls.submitVote')}
+            </button>}
+            </form>
             {identityQuery.isError && <p className="form-error" role="alert">{t('errors.generic')}</p>}
             {poll.state !== 'active' && <p className="poll-notice">{t('polls.voteUnavailable')} ({t(pollStateTranslationKey(poll.state))}{poll.endsAt && `, ${formatTimestamp(poll.endsAt, locale)}`})</p>}
             {mutationError && <p className="form-error" role="alert">{t(mutationError.messageKey)}</p>}
-            {feedback && <p className="poll-feedback" role="status">{feedback}</p>}
+            <p className="poll-feedback" role="status">{feedback}</p>
             <ResultsState poll={poll} query={resultsQuery} forbiddenBeforeVote={resultForbiddenBeforeVote}/>
             <p className="poll-detail-links"><>{resultsLinkAvailable && <Link className="text-link"
                 to={`/poll/results/${encodeURIComponent(poll.id)}`}>{t('polls.results')}</Link>}{resultsLinkAvailable && ' | '}<Link className="text-link"
@@ -163,4 +241,9 @@ function ResultsState({poll, query, forbiddenBeforeVote}: {
         return <RouteState status="error" error={error} onRetry={() => void query.refetch()}/>;
     }
     return null;
+}
+
+function identitySlotClassName(leaving: boolean) {
+    if (leaving) return 'poll-identity-slot leaving';
+    return 'poll-identity-slot';
 }

@@ -1,5 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 const centralRoutes = ['/', '/profile', '/polls', '/poll/example', '/poll/results/example', '/poll/results/example/option/1', '/poll/audit/example', '/404', '/admin', '/admin/votes', '/admin/polls', '/admin/groups', '/admin/templates', '/admin/create'];
 
@@ -66,7 +66,7 @@ test('keeps the public navigation reachable on a narrow viewport', async ({ page
   await expect(navigation).toBeVisible();
   await expect(navigation.getByRole('link', { name: 'Startseite' })).toBeVisible();
   await expect(navigation.getByRole('link', { name: 'Abstimmungen' })).toHaveAttribute('aria-current', 'page');
-  expect(await page.locator('.mobile-menu-navigation .nav-item').first().evaluate((element) => element.getBoundingClientRect().height)).toBeGreaterThanOrEqual(44);
+  await expect.poll(() => page.locator('.mobile-menu-navigation .nav-item').first().evaluate((element) => element.getBoundingClientRect().height)).toBeGreaterThanOrEqual(44);
   await page.keyboard.press('Escape');
   await expect(navigation).toHaveCount(0);
   await page.goto('/');
@@ -215,7 +215,7 @@ test('uses only same-origin runtime resources', async ({ page }) => {
   }
 });
 
-test('changes the identity once after confirming the warning', async ({ page }) => {
+test('sets the identity once after confirming without a removal warning', async ({ page }) => {
   let identity: string | null = null;
   const requests: { method: string; url: string }[] = [];
   await page.route('**/api/v1/**', async (route) => {
@@ -235,8 +235,9 @@ test('changes the identity once after confirming the warning', async ({ page }) 
   await page.getByLabel('Neue Identität').fill('Alice_1');
   await page.getByRole('button', { name: 'Speichern' }).click();
 
-  await expect(page.getByRole('dialog')).toContainText('Stimmen der bisherigen Identität');
-  await page.getByRole('button', { name: 'Änderung bestätigen' }).click();
+  await expect(page.getByRole('dialog')).toContainText('Identität festlegen?');
+  await expect(page.getByRole('dialog')).not.toContainText('Stimmen der bisherigen Identität');
+  await page.getByRole('button', { name: 'Festlegen', exact: true }).click();
   await expect(page.getByTitle('Alice_1')).toHaveCount(1);
 
   expect(requests.filter(({ method, url }) => method === 'POST' && url.endsWith('/identity'))).toHaveLength(1);
@@ -269,7 +270,7 @@ test('keeps the identity confirmation above poll content', async ({ page }) => {
   await page.goto('/poll/poll-z-index');
   await expect(page.getByText('Poll behind identity dialog')).toBeVisible();
   await page.evaluate(() => window.scrollTo(0, 450));
-  await page.locator('.identity-shell-editor').getByRole('button', { name: 'Identität bearbeiten' }).click();
+  await page.locator('.identity-shell-editor').getByRole('button', { name: 'Identität ändern' }).click();
   await page.getByLabel('Neue Identität').fill('bob');
   await page.locator('.identity-shell-editor').getByRole('button', { name: 'Speichern' }).click();
 
@@ -317,7 +318,7 @@ test('renders public poll cards from one list request without N+1 detail request
   expect(requests.some((url) => /\/polls\/[^/]+$/.test(url))).toBe(false);
 });
 
-test('casts, replaces, repeats and restores a public poll vote', async ({ page }) => {
+test('casts and replaces a public poll vote only after submitting', async ({ page }) => {
   let selectedOption: number | null = null;
   const voteRequests: number[] = [];
   const requestMethods: string[] = [];
@@ -378,17 +379,22 @@ test('casts, replaces, repeats and restores a public poll vote', async ({ page }
   await expect(page.getByRole('radio', { name: 'Apfel' })).toBeVisible();
   await page.getByRole('radio', { name: 'Apfel' }).focus();
   await page.keyboard.press('Space');
+  expect(voteRequests).toEqual([]);
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowUp');
+  expect(voteRequests).toEqual([]);
+  await page.getByRole('button', { name: 'Stimme abgeben' }).click();
   await expect(page.getByText('Stimme abgegeben.')).toBeVisible();
   await page.getByRole('radio', { name: 'Zebra' }).click();
+  expect(voteRequests).toEqual([7]);
+  await page.getByRole('button', { name: 'Stimme abgeben' }).click();
   await expect(page.getByText('Stimme geändert.')).toBeVisible();
-  await page.getByRole('radio', { name: 'Zebra' }).click();
-  await expect(page.getByText('Stimme unverändert.')).toBeVisible();
   await expect(page.getByRole('link', { name: 'Abstimmung - Ergebnisse' })).toBeVisible();
 
   await page.reload();
   await expect(page.getByRole('radio', { name: 'Zebra' })).toBeChecked();
   await expect(page.getByText('Eigene Stimme')).toBeVisible();
-  expect(voteRequests).toEqual([7, 2, 2]);
+  expect(voteRequests).toEqual([7, 2]);
   expect(requestMethods).not.toContain('DELETE');
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
 });
@@ -481,7 +487,7 @@ test('schützt Poll-Ergebnisse vor Stimmabgabe und gibt sie nach Stimmabgabe ode
   await expect(page.getByText('Abgelaufen')).toBeVisible();
 });
 
-test('rolls back the selected option after a failed vote mutation', async ({ page }) => {
+test('keeps a failed vote selection so it can be submitted again', async ({ page }) => {
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const url = request.url();
@@ -505,10 +511,11 @@ test('rolls back the selected option after a failed vote mutation', async ({ pag
   await page.goto('/poll/p_failed_vote');
   await expect(page.getByRole('radio', { name: 'Zebra' })).toBeChecked();
   await page.getByRole('radio', { name: 'Apfel' }).click();
+  await page.getByRole('button', { name: 'Stimme abgeben' }).click();
 
   await expect(page.getByRole('alert')).toHaveText('Die Anfrage konnte nicht verarbeitet werden.');
-  await expect(page.getByRole('radio', { name: 'Zebra' })).toBeChecked();
-  await expect(page.getByRole('radio', { name: 'Apfel' })).not.toBeChecked();
+  await expect(page.getByRole('radio', { name: 'Apfel' })).toBeChecked();
+  await expect(page.getByRole('button', { name: 'Stimme abgeben' })).toBeEnabled();
 });
 
 test('refreshes active results on schedule and stops after the poll expires', async ({ page }) => {
@@ -1155,10 +1162,10 @@ test('changes the identity from the mobile menu dialog and shows it in the menu 
   await page.goto('/polls');
 
   await page.getByRole('button', { name: 'Menü', exact: true }).click();
-  await page.locator('.mobile-identity').getByRole('button', { name: 'Identität bearbeiten' }).click();
+  await page.locator('.mobile-identity').getByRole('button', { name: 'Identität festlegen' }).click();
   await page.getByLabel('Neue Identität').fill('Bob');
   await page.getByRole('button', { name: 'Speichern' }).click();
-  await page.getByRole('button', { name: 'Änderung bestätigen' }).click();
+  await page.getByRole('button', { name: 'Festlegen', exact: true }).click();
 
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.getByRole('button', { name: 'Menü', exact: true }).click();
@@ -1176,4 +1183,369 @@ test('closes the mobile menu when the viewport reaches desktop width', async ({ 
 
   await expect(page.locator('#mobile-menu-panel')).toHaveCount(0);
   await expect(page.locator('.sidebar-navigation')).toBeVisible();
+});
+
+test('keeps primary button text and focus rings readable in every theme', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 800 });
+  let signedIn = false;
+  await page.route('**/api/v1/**', (route) => {
+    if (route.request().url().endsWith('/admin/session')) {
+      if (signedIn) return route.fulfill({ status: 204 });
+      return route.fulfill({ status: 401, json: { status: 401, code: 'unauthorized' } });
+    }
+    return route.fulfill({ json: [] });
+  });
+
+  for (const path of ['/', '/admin', '/admin/polls']) {
+    signedIn = path === '/admin/polls';
+    await page.goto(path);
+    for (const label of ['Hell', 'Dunkel', 'Sepia', 'Eco']) {
+      await page.getByRole('button', { name: 'Theme auswählen' }).click();
+      await page.locator('label.theme-option', { hasText: label }).click();
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(250); // let the 150ms colour transition of the primary button finish
+
+      await page.locator('button:not([disabled])').first().focus();
+      await page.keyboard.press('Shift+Tab');
+      await page.keyboard.press('Tab');
+
+      const contrast = await page.evaluate(() => {
+        const toRgb = (value: string) => {
+          const context = document.createElement('canvas').getContext('2d');
+          if (!context) return [0, 0, 0];
+          context.fillStyle = value;
+          context.fillRect(0, 0, 1, 1);
+          const [r, g, b] = context.getImageData(0, 0, 1, 1).data;
+          return [r, g, b];
+        };
+        const luminance = (rgb: number[]) => {
+          const [r, g, b] = rgb.map((channel) => {
+            const value = channel / 255;
+            if (value <= 0.03928) return value / 12.92;
+            return ((value + 0.055) / 1.055) ** 2.4;
+          });
+          return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        };
+        const ratio = (first: number[], second: number[]) => {
+          const lighter = Math.max(luminance(first), luminance(second));
+          const darker = Math.min(luminance(first), luminance(second));
+          return (lighter + 0.05) / (darker + 0.05);
+        };
+        const button = document.querySelector('.primary-button') as HTMLElement;
+        const buttonStyle = getComputedStyle(button);
+        const surface = getComputedStyle(document.querySelector('.app-shell') as HTMLElement).backgroundColor;
+        const focused = document.activeElement as HTMLElement;
+        return {
+          text: ratio(toRgb(buttonStyle.color), toRgb(buttonStyle.backgroundColor)),
+          ring: ratio(toRgb(getComputedStyle(focused).outlineColor), toRgb(surface)),
+          focusedIsInteractive: focused !== document.body,
+        };
+      });
+      expect(contrast.focusedIsInteractive, `focus moved to an element in theme ${label} on ${path}`).toBe(true);
+      expect(contrast.text, `primary button text contrast in theme ${label} on ${path}`).toBeGreaterThanOrEqual(4.5);
+      expect(contrast.ring, `focus ring contrast in theme ${label} on ${path}`).toBeGreaterThanOrEqual(3);
+    }
+  }
+});
+
+test('keeps poll list filter controls equally tall with matching corners', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 800 });
+  await page.route('**/api/v1/**', (route) => route.fulfill({ json: [] }));
+  await page.goto('/polls');
+
+  const controls = page.locator('.filter-control');
+  await expect(controls).toHaveCount(3);
+  const sizes = await controls.evaluateAll((elements) => elements.map((element) => ({
+    height: element.getBoundingClientRect().height,
+    radius: getComputedStyle(element).borderTopLeftRadius,
+  })));
+  for (const size of sizes) {
+    expect(size.height).toBeGreaterThanOrEqual(44);
+    expect(size.radius).toBe(sizes[0].radius);
+  }
+});
+
+test('locks page scrolling behind the open mobile menu and closes it from the backdrop', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.route('**/api/v1/**', (route) => route.fulfill({ json: [] }));
+  await page.goto('/polls');
+
+  await page.getByRole('button', { name: 'Menü', exact: true }).click();
+  await expect(page.locator('html')).toHaveClass(/menu-open/);
+  await expect(page.locator('html')).toHaveCSS('overflow', 'hidden');
+  await page.locator('.mobile-menu-backdrop').click({ position: { x: 10, y: 700 } });
+
+  await expect(page.locator('html')).not.toHaveClass(/menu-open/);
+  await expect(page.getByRole('button', { name: 'Menü', exact: true })).toBeFocused();
+});
+
+test('stacks the start page statistics one per row and keeps the intro out of the layout at 375px', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.route('**/api/v1/**', (route) => route.fulfill({ json: [] }));
+  await page.goto('/');
+
+  await expect(page.locator('.discovery-stats > div')).toHaveCount(3);
+  const columns = await page.locator('.discovery-stats').evaluate((element) => getComputedStyle(element).gridTemplateColumns.trim().split(/\s+/).length);
+  expect(columns).toBe(1);
+  await expect(page.locator('.page-intro')).toHaveClass(/sr-only/);
+});
+
+test('removes button and menu motion when reduced motion is requested', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.route('**/api/v1/**', (route) => route.fulfill({ json: [] }));
+  await page.goto('/polls');
+
+  await page.getByRole('button', { name: 'Menü', exact: true }).click();
+  const panel = page.locator('#mobile-menu-panel');
+  await expect(panel).toBeVisible();
+  const duration = await panel.evaluate((element) => parseFloat(getComputedStyle(element).animationDuration));
+  expect(duration).toBeLessThanOrEqual(0.001);
+});
+
+test('shows the poll title, fact line and identity action without scrolling at 375px', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.route('**/api/v1/**', async (route) => {
+    const url = route.request().url();
+    if (url.endsWith('/identity')) return route.fulfill({ json: { userID: null } });
+    if (url.endsWith('/polls/p_fact_line')) return route.fulfill({ json: {
+      id: 'p_fact_line', title: 'Fact line poll', visibility: 'public', state: 'active',
+      createdAt: '2026-08-31T12:00:00.000Z', endsAt: '2099-01-01T00:00:00.000Z', totalVotes: 2,
+      options: [{ number: 1, text: 'Yes' }],
+    } });
+    if (url.endsWith('/polls/p_fact_line/results')) return route.fulfill({ json: {
+      id: 'p_fact_line', totalVotes: 2, options: [{ number: 1, text: 'Yes', voteCount: 2, votes: [] }],
+    } });
+    return route.fulfill({ json: [] });
+  });
+
+  await page.goto('/poll/p_fact_line');
+  const title = page.getByRole('heading', { name: 'Fact line poll', level: 1 });
+  const fact = page.locator('.poll-fact-line');
+  const action = page.getByRole('button', { name: 'Identität festlegen' });
+  await expect(fact).toContainText('2 Stimmen');
+  for (const locator of [title, fact, action]) {
+    const box = await locator.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.y + box!.height).toBeLessThanOrEqual(812);
+  }
+});
+
+async function tabUntilFocused(page: Page, target: Locator) {
+  for (let step = 0; step < 25; step += 1) {
+    if (await target.evaluate((element) => element === document.activeElement)) return;
+    await page.keyboard.press('Tab');
+  }
+  await expect(target).toBeFocused();
+}
+
+test('sets the identity and casts a vote using only the keyboard', async ({ page }) => {
+  let identity: string | null = null;
+  let selectedOption: number | null = null;
+  const voteRequests: number[] = [];
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request();
+    const url = request.url();
+    if (url.endsWith('/csrf')) return route.fulfill({ json: { token: 'csrf-token', headerName: 'X-XSRF-TOKEN' } });
+    if (url.endsWith('/identity') && request.method() === 'GET') return route.fulfill({ json: { userID: identity } });
+    if (url.endsWith('/identity') && request.method() === 'POST') {
+      identity = request.postDataJSON().userID;
+      return route.fulfill({ status: 204 });
+    }
+    if (url.endsWith('/polls/p_keyboard') && request.method() === 'GET') return route.fulfill({ json: {
+      id: 'p_keyboard', title: 'Keyboard poll', visibility: 'public', state: 'active',
+      createdAt: '2026-08-31T12:00:00.000Z', endsAt: '2099-01-01T00:00:00.000Z', totalVotes: Number(selectedOption !== null),
+      options: [{ number: 2, text: 'Zebra' }, { number: 7, text: 'Apfel' }],
+    } });
+    if (url.endsWith('/polls/p_keyboard/results')) {
+      if (selectedOption === null) return route.fulfill({ status: 403, json: { status: 403, code: 'results-not-available' } });
+      return route.fulfill({ json: {
+        id: 'p_keyboard', totalVotes: 1,
+        options: [{ number: 2, text: 'Zebra', voteCount: 0, votes: [] }, { number: 7, text: 'Apfel', voteCount: 1, votes: [{ userID: 'bob', votedAt: '2026-08-31T12:00:00.000Z' }] }],
+      } });
+    }
+    if (url.endsWith('/polls/p_keyboard/votes') && request.method() === 'POST') {
+      const optionNumber = request.postDataJSON().optionNumber;
+      voteRequests.push(optionNumber);
+      selectedOption = optionNumber;
+      return route.fulfill({ json: { status: 'created', optionNumber } });
+    }
+    return route.fulfill({ json: [] });
+  });
+
+  await page.setViewportSize({ width: 1024, height: 800 });
+  await page.goto('/poll/p_keyboard');
+  const notice = page.locator('.poll-identity-notice');
+  await expect(notice).toBeVisible();
+  await tabUntilFocused(page, notice.getByRole('button', { name: 'Identität festlegen' }));
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('bob');
+  await tabUntilFocused(page, page.getByRole('button', { name: 'Speichern' }));
+  await page.keyboard.press('Enter');
+  await tabUntilFocused(page, page.getByRole('dialog').getByRole('button', { name: 'Festlegen', exact: true }));
+  await page.keyboard.press('Enter');
+
+  await expect(page.getByRole('radio', { name: 'Apfel' })).toBeFocused();
+  await expect(page.getByText('Identität gesetzt. Du kannst jetzt abstimmen.')).toBeVisible();
+  await page.keyboard.press('Space');
+  expect(voteRequests).toEqual([]);
+  await tabUntilFocused(page, page.getByRole('button', { name: 'Stimme abgeben' }));
+  await page.keyboard.press('Enter');
+  await expect(page.getByText('Stimme abgegeben.')).toBeVisible();
+  expect(voteRequests).toEqual([7]);
+});
+
+test('keeps start page statistic labels within two lines and clips no text at 375px', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.route('**/api/v1/**', (route) => {
+    const url = route.request().url();
+    if (url.endsWith('/polls/p_clip')) return route.fulfill({ json: {
+      id: 'p_clip', title: 'Ein langer Titel für die Klippprüfung auf dem Handy', visibility: 'public', state: 'active',
+      createdAt: '2026-08-31T12:00:00.000Z', endsAt: '2099-01-01T00:00:00.000Z', totalVotes: 2,
+      options: [{ number: 1, text: 'Ja mit einer ziemlich langen Optionsbezeichnung für den Test' }, { number: 2, text: 'Nein' }],
+    } });
+    if (url.endsWith('/polls/p_clip/results')) return route.fulfill({ status: 403, json: { status: 403, code: 'results-not-available' } });
+    return route.fulfill({ json: [] });
+  });
+
+  for (const path of ['/', '/polls', '/poll/p_clip']) {
+    await page.goto(path);
+    await expect(page.locator('main')).toBeVisible();
+    const clipped = await page.locator('main').evaluate((main) => Array.from(main.querySelectorAll<HTMLElement>('*'))
+      .filter((element) => {
+        if (element.classList.contains('sr-only')) return false;
+        const style = getComputedStyle(element);
+        const clipsHorizontally = style.overflowX === 'hidden' || style.overflowX === 'clip';
+        return clipsHorizontally && element.scrollWidth > element.clientWidth + 1;
+      })
+      .map((element) => element.className || element.tagName));
+    expect(clipped, `clipped elements on ${path}`).toEqual([]);
+  }
+
+  await page.goto('/');
+  await expect(page.locator('.discovery-stats dt')).toHaveCount(3);
+  const lineCounts = await page.locator('.discovery-stats dt').evaluateAll((elements) => elements.map((element) => {
+    const lineHeight = parseFloat(getComputedStyle(element).lineHeight);
+    return Math.round(element.getBoundingClientRect().height / lineHeight);
+  }));
+  expect(lineCounts.length).toBeGreaterThan(0);
+  for (const lines of lineCounts) expect(lines).toBeLessThanOrEqual(2);
+});
+
+test('aligns the sidebar identity action and the mobile menu identity text with their neighbours', async ({ page }) => {
+  await page.route('**/api/v1/**', (route) => route.fulfill({ json: [] }));
+  await page.setViewportSize({ width: 1024, height: 800 });
+  await page.goto('/polls');
+  const sidebarStatus = await page.locator('.identity-mini h2 span').evaluate((element) => element.getBoundingClientRect().left);
+  const sidebarAction = await page.locator('.identity-mini .identity-edit-button').evaluate((element) => element.getBoundingClientRect().left);
+  expect(Math.abs(sidebarAction - sidebarStatus)).toBeLessThanOrEqual(1);
+
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.getByRole('button', { name: 'Menü', exact: true }).click();
+  const navigationText = await page.locator('.mobile-menu-navigation .nav-item').first().evaluate((element) => element.getBoundingClientRect().left + parseFloat(getComputedStyle(element).paddingLeft));
+  const identityText = await page.locator('.mobile-identity .eyebrow').evaluate((element) => element.getBoundingClientRect().left);
+  expect(Math.abs(identityText - navigationText)).toBeLessThanOrEqual(1);
+});
+
+test('starts the start page at the regular main padding and keeps button transitions short', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 800 });
+  await page.route('**/api/v1/**', (route) => route.fulfill({ json: [] }));
+  await page.goto('/');
+  await expect(page.locator('.identity-card')).toBeVisible();
+
+  const offset = await page.evaluate(() => {
+    const main = document.querySelector('main') as HTMLElement;
+    const card = document.querySelector('.identity-card') as HTMLElement;
+    return card.getBoundingClientRect().top - main.getBoundingClientRect().top - parseFloat(getComputedStyle(main).paddingTop);
+  });
+  expect(Math.abs(offset)).toBeLessThanOrEqual(2);
+
+  const transition = await page.locator('.primary-button').first().evaluate((element) => parseFloat(getComputedStyle(element).transitionDuration));
+  expect(transition).toBeGreaterThan(0);
+  expect(transition).toBeLessThanOrEqual(0.2);
+});
+
+test('removes primary button transitions when reduced motion is requested', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.setViewportSize({ width: 1024, height: 800 });
+  await page.route('**/api/v1/**', (route) => route.fulfill({ json: [] }));
+  await page.goto('/');
+  await expect(page.locator('.primary-button').first()).toBeVisible();
+
+  const transition = await page.locator('.primary-button').first().evaluate((element) => parseFloat(getComputedStyle(element).transitionDuration));
+  expect(transition).toBeLessThanOrEqual(0.001);
+});
+
+test('keeps the tablet band free of horizontal overflow and opens the mobile menu at 768px', async ({ page }) => {
+  await page.setViewportSize({ width: 768, height: 1024 });
+  await page.route('**/api/v1/**', (route) => {
+    const url = route.request().url();
+    if (url.endsWith('/admin/session')) return route.fulfill({ status: 401, json: { status: 401, code: 'unauthorized' } });
+    if (url.endsWith('/polls/p_tablet')) return route.fulfill({ json: {
+      id: 'p_tablet', title: 'Ein Abstimmungstitel für das Tablet mit mehreren Wörtern', visibility: 'public', state: 'active',
+      createdAt: '2026-08-31T12:00:00.000Z', endsAt: '2099-01-01T00:00:00.000Z', totalVotes: 1,
+      options: [{ number: 1, text: 'Ja' }, { number: 2, text: 'Nein' }],
+    } });
+    if (url.endsWith('/polls/p_tablet/results')) return route.fulfill({ status: 403, json: { status: 403, code: 'results-not-available' } });
+    return route.fulfill({ json: [] });
+  });
+
+  for (const path of ['/', '/polls', '/poll/p_tablet', '/admin']) {
+    await page.goto(path);
+    await expect(page.locator('main')).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth), `horizontal overflow on ${path}`).toBeLessThanOrEqual(768);
+  }
+
+  await page.goto('/polls');
+  await page.getByRole('button', { name: 'Menü', exact: true }).click();
+  await expect(page.locator('#mobile-menu-panel')).toBeVisible();
+  await page.getByRole('button', { name: 'Menü schließen', exact: true }).click();
+  await expect(page.locator('#mobile-menu-panel')).toHaveCount(0);
+});
+
+test('keeps the page still while the mobile menu is open', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.route('**/api/v1/**', (route) => route.fulfill({ json: [] }));
+  await page.goto('/polls');
+  await page.evaluate(() => { document.body.style.minHeight = '3000px'; });
+
+  await page.mouse.wheel(0, 300);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.getByRole('button', { name: 'Menü', exact: true }).click();
+  await page.mouse.wheel(0, 300);
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+});
+
+test('keeps every supported width free of horizontal overflow in all four themes', async ({ page }) => {
+  test.setTimeout(300000);
+  await page.route('**/api/v1/**', (route) => {
+    const url = route.request().url();
+    if (url.endsWith('/admin/session')) return route.fulfill({ status: 401, json: { status: 401, code: 'unauthorized' } });
+    if (url.endsWith('/polls/p_theme_overflow')) return route.fulfill({ json: {
+      id: 'p_theme_overflow', title: 'Ein Abstimmungstitel über mehrere Wörter für die Breitenprüfung', visibility: 'public', state: 'active',
+      createdAt: '2026-08-31T12:00:00.000Z', endsAt: '2099-01-01T00:00:00.000Z', totalVotes: 1,
+      options: [{ number: 1, text: 'Ja' }, { number: 2, text: 'Nein' }],
+    } });
+    if (url.endsWith('/polls/p_theme_overflow/results')) return route.fulfill({ status: 403, json: { status: 403, code: 'results-not-available' } });
+    return route.fulfill({ json: [] });
+  });
+
+  const pages = ['/', '/polls', '/poll/p_theme_overflow', '/admin'];
+  for (const width of [320, 375, 768, 1024]) {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto('/');
+    for (const label of ['Hell', 'Dunkel', 'Sepia', 'Eco']) {
+      await page.getByRole('button', { name: 'Theme auswählen' }).click();
+      await page.locator('label.theme-option', { hasText: label }).click();
+      await page.keyboard.press('Escape');
+      for (const path of pages) {
+        await page.goto(path);
+        await expect(page.locator('main')).toBeVisible();
+        const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+        expect(scrollWidth, `overflow at ${width}px in theme ${label} on ${path}`).toBeLessThanOrEqual(width);
+      }
+    }
+  }
 });

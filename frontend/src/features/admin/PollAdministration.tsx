@@ -117,7 +117,7 @@ function PollAdministrationCard({poll}: { poll: Poll }) {
                 }}/>{optionsInvalid && <p className="form-error" role="alert">{t('errors.generic')}</p>}
                     <div className="identity-actions">
                         <button className="primary-button" type="submit"
-                                disabled={mutation.isPending}>{t('forms.submit')}</button>
+                                aria-busy={mutation.isPending} disabled={mutation.isPending}>{mutation.isPending && <span className="button-spinner" aria-hidden="true"/>}{t('forms.submit')}</button>
                         <button className="text-button" type="button" onClick={() => setEditingOptions(false)}
                                 disabled={mutation.isPending}>{t('forms.cancel')}</button>
                     </div>
@@ -242,7 +242,7 @@ export function CreatePoll() {
                 <option value="">{t('admin.selectGroup')}</option>
                 {availableGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select>
                 <button className="primary-button" type="submit"
-                        disabled={mutation.isPending || availableGroups.length === 0 || !groupId}>{mutation.isPending && t('common.saving')}{!mutation.isPending && t('forms.submit')}</button>
+                        aria-busy={mutation.isPending} disabled={mutation.isPending || availableGroups.length === 0 || !groupId}>{mutation.isPending && <span className="button-spinner" aria-hidden="true"/>}{mutation.isPending && t('common.saving')}{!mutation.isPending && t('forms.submit')}</button>
                 {error && <p className="form-error" role="alert">{t(error.messageKey)}</p>}</form>
         </section>;
     }}</QueryState>;

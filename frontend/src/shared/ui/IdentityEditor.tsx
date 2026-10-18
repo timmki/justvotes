@@ -6,6 +6,7 @@ import {ApiError, type FrontendError} from '../api/errors';
 import {queryClient} from '../api/queryClient';
 import {queryKeys} from '../api/queryKeys';
 import {useI18n} from '../i18n/I18nProvider';
+import {identityActionKey} from './identityActionKey';
 import {useDialogFocusTrap} from './useDialogFocusTrap';
 
 type IdentityEditorProps = {
@@ -14,6 +15,8 @@ type IdentityEditorProps = {
     identityState?: 'ready' | 'loading' | 'error';
     startEditing?: boolean;
     onClose?: () => void;
+    onSaved?: () => void;
+    editorHeadingId?: string;
     confirmation?: 'dialog' | 'inline';
 };
 
@@ -32,6 +35,8 @@ export function IdentityEditor({
     identityState = 'ready',
     startEditing = false,
     onClose,
+    onSaved,
+    editorHeadingId,
     confirmation = 'dialog',
 }: IdentityEditorProps) {
     const {t} = useI18n();
@@ -47,7 +52,8 @@ export function IdentityEditor({
     const saveButtonRef = useRef<HTMLButtonElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const wasEditing = useRef(false);
-    const headingId = useId();
+    const generatedHeadingId = useId();
+    const headingId = editorHeadingId ?? generatedHeadingId;
     const inputId = useId();
     const mutation = useMutation({
         mutationFn: (userID: string) => apiClient.changeIdentity({userID}),
@@ -64,6 +70,7 @@ export function IdentityEditor({
             setEditing(false);
             setConfirmOpen(false);
             setServerError(null);
+            onSaved?.();
             onClose?.();
         },
         onError: (cause) => {
@@ -118,15 +125,12 @@ export function IdentityEditor({
     const compact = variant === 'compact';
     let className = 'identity-card';
     let editButtonClassName = 'text-button';
-    let editLabel = t('common.identityEdit');
+    const editLabel = t(identityActionKey(identity));
     if (compact) {
         className = 'identity-mini identity-shell-editor';
         editButtonClassName = 'identity-edit-button';
     }
-    if (!identity && !compact) {
-        editButtonClassName = 'primary-button';
-        editLabel = t('polls.setIdentity');
-    }
+    if (!identity && !compact) editButtonClassName = 'primary-button';
     if (editing) className += ' is-editing';
     return <section className={className}
                     data-identity-editor aria-labelledby={headingId}>
@@ -138,7 +142,7 @@ export function IdentityEditor({
                     onClick={openEditor} disabled={identityState === 'error'}>{editLabel}</button>
         </>}
         {editing && <>
-            <h2 id={headingId}>{t('common.identityEdit')}</h2>
+            <h2 id={headingId}>{t(identityActionKey(identity))}</h2>
             {identity && <p className="confirmed-identity">{t('common.identity')}: <span title={identity}>{displayIdentity(identity)}</span></p>}
             <label htmlFor={inputId}>{t('common.identityInput')}</label>
             <input ref={inputRef} id={inputId} value={draft} onChange={(event) => {
@@ -150,12 +154,16 @@ export function IdentityEditor({
             {serverError && <p className="form-error" role="alert">{t(serverError.messageKey)}</p>}
             <div className="identity-actions">
                 <button ref={saveButtonRef} className="primary-button" type="button" onClick={requestSave}
-                        disabled={mutation.isPending}>{t('forms.submit')}</button>
+                        aria-busy={mutation.isPending} disabled={mutation.isPending}>
+                    {mutation.isPending && <span className="button-spinner" aria-hidden="true"/>}
+                    {t('forms.submit')}
+                </button>
                 <button className="text-button" type="button" onClick={cancelEditing}
                         disabled={mutation.isPending}>{t('forms.cancel')}</button>
             </div>
         </>}
         {confirmOpen && confirmation === 'dialog' && <IdentityConfirmation
+            identity={identity}
             onCancel={() => {
                 setConfirmOpen(false);
                 saveButtonRef.current?.focus();
@@ -164,6 +172,7 @@ export function IdentityEditor({
             pending={mutation.isPending}/>
         }
         {confirmOpen && confirmation === 'inline' && <IdentityConfirmationContent
+            identity={identity}
             onCancel={() => {
                 setConfirmOpen(false);
                 saveButtonRef.current?.focus();
@@ -175,24 +184,36 @@ export function IdentityEditor({
 }
 
 type ConfirmationProps = {
+    identity: string | null;
     onCancel: () => void;
     onConfirm: () => void;
     pending: boolean;
 };
 
-function IdentityConfirmation({onCancel, onConfirm, pending}: ConfirmationProps) {
+function confirmationKeys(identity: string | null) {
+    if (identity) return {title: 'common.identityChangeTitle', confirm: 'common.identityChangeConfirm'} as const;
+    return {title: 'common.identitySetTitle', confirm: 'common.identitySetConfirm'} as const;
+}
+
+function IdentityConfirmation({identity, onCancel, onConfirm, pending}: ConfirmationProps) {
     const {t} = useI18n();
     const dialogRef = useRef<HTMLDivElement>(null);
+    const keys = confirmationKeys(identity);
     useDialogFocusTrap(dialogRef, onCancel);
+    let describedBy: string | undefined;
+    if (identity) describedBy = 'identity-dialog-warning';
 
     return createPortal(<div className="modal-backdrop">
         <div ref={dialogRef} className="identity-dialog" role="dialog" aria-modal="true" tabIndex={-1}
-             aria-labelledby="identity-dialog-heading" aria-describedby="identity-dialog-warning">
-            <h3 id="identity-dialog-heading">{t('common.identityChangeTitle')}</h3>
-            <p id="identity-dialog-warning">{t('common.identityChangeWarning')}</p>
+             aria-labelledby="identity-dialog-heading" aria-describedby={describedBy}>
+            <h3 id="identity-dialog-heading">{t(keys.title)}</h3>
+            {identity && <p id="identity-dialog-warning">{t('common.identityChangeWarning')}</p>}
             <div className="identity-actions">
                 <button className="primary-button" type="button" onClick={onConfirm}
-                        disabled={pending}>{t('common.identityChangeConfirm')}</button>
+                        aria-busy={pending} disabled={pending}>
+                    {pending && <span className="button-spinner" aria-hidden="true"/>}
+                    {t(keys.confirm)}
+                </button>
                 <button className="text-button" type="button" onClick={onCancel}
                         disabled={pending}>{t('forms.cancel')}</button>
             </div>
@@ -200,15 +221,19 @@ function IdentityConfirmation({onCancel, onConfirm, pending}: ConfirmationProps)
     </div>, document.body);
 }
 
-function IdentityConfirmationContent({onCancel, onConfirm, pending}: ConfirmationProps) {
+function IdentityConfirmationContent({identity, onCancel, onConfirm, pending}: ConfirmationProps) {
     const {t} = useI18n();
     const headingId = useId();
+    const keys = confirmationKeys(identity);
     return <div className="identity-confirmation" role="group" aria-labelledby={headingId}>
-        <h3 id={headingId}>{t('common.identityChangeTitle')}</h3>
-        <p>{t('common.identityChangeWarning')}</p>
+        <h3 id={headingId}>{t(keys.title)}</h3>
+        {identity && <p>{t('common.identityChangeWarning')}</p>}
         <div className="identity-actions">
             <button className="primary-button" type="button" onClick={onConfirm}
-                    disabled={pending}>{t('common.identityChangeConfirm')}</button>
+                    aria-busy={pending} disabled={pending}>
+                {pending && <span className="button-spinner" aria-hidden="true"/>}
+                {t(keys.confirm)}
+            </button>
             <button className="text-button" type="button" onClick={onCancel}
                     disabled={pending}>{t('forms.cancel')}</button>
         </div>
