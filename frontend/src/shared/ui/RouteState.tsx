@@ -1,15 +1,17 @@
+import type {ReactNode} from 'react';
 import {useI18n} from '../i18n/I18nProvider';
 import type {FrontendError} from '../api/errors';
 import {EmptyIcon, ErrorIcon, SpinnerIcon} from './Icons';
 
 export type StateStatus = 'loading' | 'empty' | 'error';
 
-export function RouteState({status, onRetry = () => window.location.reload(), error, title, text}: {
+export function RouteState({status, onRetry = () => window.location.reload(), error, title, text, action}: {
     status: StateStatus;
     onRetry?: () => void;
     error?: FrontendError;
     title?: string;
-    text?: string
+    text?: string;
+    action?: ReactNode;
 }) {
     const {t} = useI18n();
     const content = {
@@ -28,7 +30,7 @@ export function RouteState({status, onRetry = () => window.location.reload(), er
                 <div role="status">{content.icon}<span className="sr-only">{content.title}</span></div>}
             {status !== 'loading' && <div aria-hidden="true">{content.icon}</div>}
             <div><h3>{content.title}</h3><p>{content.text}</p>{status === 'error' &&
-                <button className="text-button" type="button" onClick={onRetry}>{t('common.retry')}</button>}</div>
+                <button className="text-button" type="button" onClick={onRetry}>{t('common.retry')}</button>}{status === 'empty' && action}</div>
         </section>
     );
 }

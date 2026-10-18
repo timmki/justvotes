@@ -225,7 +225,8 @@ describe('PollsPage', () => {
         vi.spyOn(apiClient, 'getPublicPolls').mockResolvedValue([]);
         renderPolls();
 
-        expect(await screen.findByText('Noch keine Daten vorhanden')).toBeVisible();
+        expect(await screen.findByText('Keine Abstimmungen für „Datum“')).toBeVisible();
+        expect(within(screen.getByRole('region', {name: 'Seitenstatus'})).getByRole('button', {name: 'Filter zurücksetzen'})).toBeVisible();
     });
 
     it('offers retry after a failed list request', async () => {
@@ -267,7 +268,7 @@ describe('PollsPage', () => {
         ]);
     });
 
-    it('defaults to today and supports yesterday, tomorrow, and custom dates', async () => {
+    it('defaults to all polls and supports yesterday, today, tomorrow, and custom dates', async () => {
         vi.spyOn(apiClient, 'getPublicPolls').mockResolvedValue([
             listPoll('yesterday', 'Yesterday poll', relativeLocalIso(-1)),
             listPoll('today', 'Today poll', relativeLocalIso(0)),
@@ -276,10 +277,11 @@ describe('PollsPage', () => {
 
         renderPolls('/polls');
 
-        expect(screen.getByLabelText('Datum')).toHaveValue('today');
+        expect(screen.getByLabelText('Datum')).toHaveValue('all');
         expect(screen.queryByLabelText('Von')).toBeNull();
         expect(await screen.findByRole('link', {name: /Today poll/})).toBeVisible();
-        expect(screen.queryByRole('link', {name: /Yesterday poll/})).toBeNull();
+        expect(screen.getByRole('link', {name: /Yesterday poll/})).toBeVisible();
+        expect(screen.getByRole('link', {name: /Tomorrow poll/})).toBeVisible();
         fireEvent.change(screen.getByLabelText('Datum'), {target: {value: 'yesterday'}});
         expect(await screen.findByRole('link', {name: /Yesterday poll/})).toBeVisible();
         expect(screen.queryByRole('link', {name: /Today poll/})).toBeNull();
@@ -387,7 +389,7 @@ describe('PollsPage', () => {
         await screen.findByRole('link', {name: /Old/});
         fireEvent.click(screen.getByRole('button', {name: 'Filter zurücksetzen'}));
         expect(screen.getByLabelText('Sortierung')).toHaveValue('newest');
-        expect(screen.getByLabelText('Datum')).toHaveValue('today');
+        expect(screen.getByLabelText('Datum')).toHaveValue('all');
         expect(screen.queryByLabelText('Von')).toBeNull();
         expect(screen.queryByLabelText('Bis')).toBeNull();
         expect(screen.getByLabelText('URL-Suche')).toHaveTextContent('');
@@ -408,13 +410,13 @@ describe('PollPage', () => {
 
         renderPollPage();
 
-        expect(await screen.findByRole('heading', {name: 'Team-Ausflug', level: 3})).toBeVisible();
+        expect(await screen.findByRole('heading', {name: 'Team-Ausflug', level: 1})).toBeVisible();
         expect(screen.getByRole('complementary', {name: 'Abstimmungs-Metadaten'})).toHaveTextContent('01.08.2026');
         expect(screen.getByRole('complementary', {name: 'Abstimmungs-Metadaten'})).toHaveTextContent('01.01.2099');
         expect(screen.getByRole('complementary', {name: 'Abstimmungs-Metadaten'})).toHaveTextContent('1');
         expect(await screen.findByText('Nach eigener Stimme')).toBeVisible();
-        expect(screen.getByRole('radio', {name: 'Apfel'}).parentElement).toHaveTextContent('Optionsnummer 7');
-        expect(screen.getByRole('radio', {name: 'Zebra'}).parentElement).toHaveTextContent('Optionsnummer 2');
+        expect(screen.getByRole('radio', {name: 'Apfel'}).parentElement).not.toHaveTextContent('Optionsnummer');
+        expect(screen.getByRole('radio', {name: 'Zebra'}).parentElement).not.toHaveTextContent('Optionsnummer');
         expect(screen.queryByRole('button', {name: /Speichern/})).toBeNull();
     });
 
@@ -489,7 +491,7 @@ describe('PollPage', () => {
         renderPollPage();
 
         expect(await screen.findByText('Ergebnisse werden nach eigener Stimme freigegeben.')).toBeVisible();
-        expect(screen.getByRole('heading', {name: 'Team-Ausflug', level: 3})).toBeVisible();
+        expect(screen.getByRole('heading', {name: 'Team-Ausflug', level: 1})).toBeVisible();
         expect(screen.queryByText('Daten konnten nicht geladen werden')).toBeNull();
         expect(screen.queryByRole('link', {name: 'Abstimmung - Ergebnisse'})).toBeNull();
     });
@@ -606,7 +608,7 @@ describe('ResultsPage', () => {
         expect(screen.getByRole('region', {name: 'Ergebnisübersicht'})).toHaveTextContent('67 %');
         expect(screen.getByText('33 %')).toBeVisible();
         expect(screen.getAllByText('Gewinner')).toHaveLength(2);
-        expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual(['Apfel', 'Zebra', 'Abstimmungen', 'Audit Log']);
+        expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual(['Apfel', 'Zebra', 'Abstimmungen', 'Prüfprotokoll']);
 
         const zeroResult = {...result, totalVotes: 0, options: result.options.map((option) => ({...option, voteCount: 0, votes: []}))};
         vi.mocked(apiClient.getPollResults).mockResolvedValue(zeroResult);
@@ -710,9 +712,9 @@ describe('ResultsPage', () => {
         expect(screen.getAllByRole('listitem').map((item) => item.textContent)).toEqual([
             expect.stringContaining('first.identity'), expect.stringContaining('second.identity'),
         ]);
-        expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual(['Abstimmung - Ergebnisse', 'Audit Log']);
+        expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual(['Abstimmung - Ergebnisse', 'Prüfprotokoll']);
 
-        fireEvent.click(screen.getByRole('link', {name: 'Audit Log'}));
+        fireEvent.click(screen.getByRole('link', {name: 'Prüfprotokoll'}));
         expect(screen.getByText('Audit log')).toBeVisible();
     });
 
@@ -880,8 +882,8 @@ describe('AuditPage', () => {
 
         const sheet = await screen.findByRole('region', {name: 'Domänenereignis-Timeline'});
         expect(sheet).toBeVisible();
-        expect(screen.getByRole('complementary', {name: 'Audit-Kontext'})).toHaveTextContent('3');
-        expect(await screen.findByRole('heading', {name: 'Audit Log', level: 1})).toBeVisible();
+        expect(screen.getByRole('complementary', {name: 'Prüfprotokoll-Kontext'})).toHaveTextContent('3');
+        expect(await screen.findByRole('heading', {name: 'Prüfprotokoll', level: 1})).toBeVisible();
         expect(await screen.findByRole('heading', {name: 'Stimme administrativ entfernt', level: 3})).toBeVisible();
         expect(screen.getAllByRole('heading', {level: 3}).map((heading) => heading.textContent)).toEqual([
             'Stimme administrativ entfernt', 'Stimme abgegeben', 'Abstimmung veröffentlicht',
@@ -958,5 +960,120 @@ describe('AuditPage', () => {
         vi.spyOn(apiClient, 'getPollAudit').mockRejectedValue(problemError({}, 404));
         renderAuditPage();
         expect(await screen.findByRole('heading', {name: 'Seite nicht gefunden', level: 3})).toBeVisible();
+    });
+});
+
+describe('PollPage identity notice', () => {
+    it('offers in-place identity assignment above locked options and restores the notice on cancel', async () => {
+        queryClient.clear();
+        vi.spyOn(apiClient, 'getPoll').mockResolvedValue(poll);
+        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: null});
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(resultsFor(2));
+
+        renderPollPage();
+
+        expect(await screen.findByText('Lege eine Identität fest, um abzustimmen.')).toBeVisible();
+        expect(document.querySelector('fieldset.poll-vote-form')).toHaveAttribute('aria-describedby');
+        const radios = await screen.findAllByRole('radio');
+        expect(radios.length).toBeGreaterThan(0);
+        radios.forEach((radio) => expect(radio).toBeDisabled());
+        fireEvent.click(screen.getByRole('button', {name: 'Identität festlegen'}));
+        expect(screen.getByLabelText('Neue Identität')).toHaveFocus();
+        fireEvent.click(screen.getByRole('button', {name: 'Abbrechen'}));
+        expect(await screen.findByText('Lege eine Identität fest, um abzustimmen.')).toBeVisible();
+        expect(screen.getByRole('button', {name: 'Identität festlegen'})).toHaveFocus();
+    });
+});
+
+describe('PollPage convergence checks', () => {
+    it('omits the identity notice for an expired poll', async () => {
+        vi.spyOn(apiClient, 'getPoll').mockResolvedValue({...poll, state: 'expired' as const});
+        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: null});
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue({...resultsFor(null), state: 'expired' as const});
+
+        renderPollPage();
+
+        expect(await screen.findByRole('heading', {name: 'Team-Ausflug', level: 1})).toBeVisible();
+        expect(screen.queryByText('Lege eine Identität fest, um abzustimmen.')).toBeNull();
+    });
+
+    it('keeps options locked and shows the error in the editor when the identity change fails', async () => {
+        vi.spyOn(apiClient, 'getPoll').mockResolvedValue(poll);
+        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: null});
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(resultsFor(null));
+        vi.spyOn(apiClient, 'changeIdentity').mockRejectedValue(problemError({code: 'identity-invalid'}, 422));
+
+        renderPollPage();
+
+        fireEvent.click(await screen.findByRole('button', {name: 'Identität festlegen'}));
+        fireEvent.change(screen.getByLabelText('Neue Identität'), {target: {value: 'bob'}});
+        fireEvent.click(screen.getByRole('button', {name: 'Speichern'}));
+        fireEvent.click(await screen.findByRole('button', {name: 'Änderung bestätigen'}));
+
+        expect(await screen.findByRole('alert')).toBeVisible();
+        expect(screen.getAllByRole('radio')[0]).toBeDisabled();
+    });
+
+    it('marks the vote of the newly set identity after a successful change', async () => {
+        let identity: string | null = null;
+        let voted = false;
+        vi.spyOn(apiClient, 'getPoll').mockResolvedValue(poll);
+        vi.spyOn(apiClient, 'getIdentity').mockImplementation(async () => ({userID: identity}));
+        vi.spyOn(apiClient, 'getPollResults').mockImplementation(async () => ({
+            ...resultsFor(null),
+            totalVotes: Number(voted),
+            options: poll.options.map((option) => {
+                const hasVote = voted && option.number === 2;
+                let voteCount = 0;
+                let votes: Array<{userID: string; votedAt: string}> = [];
+                if (hasVote) {
+                    voteCount = 1;
+                    votes = [{userID: 'bob', votedAt: '2026-08-01T10:01:00Z'}];
+                }
+                return {...option, voteCount, votes};
+            }),
+        }));
+        vi.spyOn(apiClient, 'changeIdentity').mockImplementation(async ({userID}) => {
+            identity = userID;
+            voted = true;
+        });
+
+        renderPollPage();
+
+        fireEvent.click(await screen.findByRole('button', {name: 'Identität festlegen'}));
+        fireEvent.change(screen.getByLabelText('Neue Identität'), {target: {value: 'bob'}});
+        fireEvent.click(screen.getByRole('button', {name: 'Speichern'}));
+        fireEvent.click(await screen.findByRole('button', {name: 'Änderung bestätigen'}));
+
+        expect(await screen.findByText('Eigene Stimme')).toBeVisible();
+        expect(screen.getByRole('radio', {name: 'Zebra'})).toBeChecked();
+        expect(screen.queryByText('Lege eine Identität fest, um abzustimmen.')).toBeNull();
+    });
+
+    it('uses the poll title as the only level-1 heading and no generic metadata heading', async () => {
+        vi.spyOn(apiClient, 'getPoll').mockResolvedValue(poll);
+        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(resultsFor(null));
+
+        renderPollPage();
+
+        expect(await screen.findByRole('heading', {name: 'Team-Ausflug', level: 1})).toBeVisible();
+        expect(screen.getAllByRole('heading', {level: 1})).toHaveLength(1);
+        expect(within(screen.getByRole('complementary', {name: 'Abstimmungs-Metadaten'})).queryByRole('heading')).toBeNull();
+    });
+});
+
+describe('poll list card semantics', () => {
+    it('shows a state badge and a text vote count, with the title and state as accessible name', async () => {
+        vi.spyOn(apiClient, 'getPublicPolls').mockResolvedValue([listPoll('badge-poll', 'Badge poll', relativeLocalIso(0))]);
+
+        renderPolls();
+
+        const card = await screen.findByRole('link', {name: /Badge poll/});
+        expect(card.querySelector('.poll-state-badge')).not.toBeNull();
+        expect(card.querySelector('.poll-vote-badge')).toBeNull();
+        expect(card).toHaveTextContent(/\d+ Stimmen?/);
+        expect(card).toHaveAccessibleName(/^Badge poll /);
+        expect(card).not.toHaveAccessibleName(/Erstellt/);
     });
 });

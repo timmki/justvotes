@@ -1088,16 +1088,6 @@ main {
 
 .featured-poll-card .poll-card-meta { color: var(--muted); }
 
-.featured-poll-card .poll-card-state {
-    border-color: var(--separator);
-    color: var(--accent-text);
-}
-
-.featured-poll-card .poll-vote-badge {
-    color: var(--accent-on);
-    background: var(--accent);
-}
-
 .featured-fallback {
     display: grid;
     gap: .8rem;
@@ -1673,16 +1663,6 @@ main {
     overflow-wrap: anywhere;
 }
 
-.poll-state {
-    flex: 0 0 auto;
-    padding: .25rem .6rem;
-    border: 1px solid var(--separator);
-    border-radius: 999px;
-    color: var(--muted);
-    font-size: .78rem;
-    font-weight: 700;
-}
-
 .poll-vote-form {
     min-width: 0;
     padding: 0;
@@ -2079,18 +2059,6 @@ main {
     font-size: 1.1rem;
 }
 
-.poll-vote-badge {
-    flex: 0 0 auto;
-    min-width: 2rem;
-    padding: .2rem .55rem;
-    border-radius: 999px;
-    color: #001b36;
-    background: #007aff;
-    font-size: .82rem;
-    font-weight: 800;
-    text-align: center;
-}
-
 .poll-card-meta {
     display: flex;
     flex-wrap: wrap;
@@ -2270,18 +2238,6 @@ main {
     background: var(--accent-text);
     box-shadow: 0 0 0 1px var(--accent-text);
     content: '';
-}
-
-.poll-card-state {
-    display: inline-flex;
-    align-items: center;
-    min-height: 1.8rem;
-    padding: .2rem .55rem;
-    border: 1px solid var(--separator);
-    border-radius: 999px;
-    color: var(--muted);
-    font-size: .78rem;
-    font-weight: 700;
 }
 
 .poll-card-arrow {
@@ -2624,11 +2580,6 @@ main {
     border-color: var(--accent);
 }
 
-:root[data-theme='claude'] .poll-vote-badge {
-    color: var(--accent-on);
-    background: var(--accent);
-}
-
 :root[data-theme='claude'] .poll-option:hover,
 :root[data-theme='claude'] .poll-option.selected,
 :root[data-theme='claude'] .group-choice.active,
@@ -2850,11 +2801,6 @@ main {
     border-color: var(--accent);
 }
 
-:root[data-theme='openai'] .poll-vote-badge {
-    color: var(--accent-on);
-    background: var(--accent);
-}
-
 :root[data-theme='openai'] .spinner,
 :root[data-theme='openai'] .state-dot {
     border-color: color-mix(in srgb, var(--accent) 28%, transparent);
@@ -2873,4 +2819,277 @@ main {
 :root[data-theme='openai'] .poll-option input,
 :root[data-theme='openai'] .theme-option input {
     accent-color: var(--accent);
+}
+
+/* Frontend UX refactor (spec 003): shared badge, link/action styles, identity notice, mobile menu */
+:root { --control-border: #6e6e73; }
+:root[data-theme='dark'] { --control-border: #8e8e93; }
+:root[data-theme='claude'] { --control-border: #76736c; }
+:root[data-theme='openai'] { --control-border: #6e6e6e; }
+
+.eyebrow, .identity-mini .eyebrow { font-size: .75rem; }
+
+.poll-state-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 1.8rem;
+    padding: .2rem .6rem;
+    border: 1px solid var(--separator);
+    border-radius: 999px;
+    color: var(--muted);
+    font-size: .78rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.poll-state-badge--active {
+    border-color: var(--accent-text);
+    color: var(--accent-text);
+}
+
+.text-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+    color: var(--accent-text);
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: .2em;
+}
+
+.text-button {
+    padding: .5rem .9rem;
+    border: 1px solid var(--separator);
+    border-radius: .8rem;
+    background: var(--surface);
+    color: var(--accent-text);
+    text-decoration: none;
+}
+
+.section-head a, .home-footer a, .poll-detail-links a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+}
+
+.poll-identity-notice {
+    display: grid;
+    gap: .6rem;
+    margin: 0 0 1rem;
+    padding: .9rem 1rem;
+    border: 1px solid var(--accent-text);
+    border-radius: .9rem;
+    background: var(--raised);
+}
+
+.poll-identity-notice p {
+    margin: 0;
+}
+
+.identity-confirmation {
+    display: grid;
+    gap: .5rem;
+    margin-top: .75rem;
+    padding: .85rem;
+    border: 1px solid var(--separator);
+    border-radius: .9rem;
+    background: var(--surface);
+}
+
+.identity-confirmation h3, .identity-confirmation p {
+    margin: 0;
+}
+
+.poll-option input {
+    appearance: none;
+    width: 1.25rem;
+    height: 1.25rem;
+    margin: 0;
+    border: 2px solid var(--control-border);
+    border-radius: 50%;
+    background: var(--surface);
+    display: inline-grid;
+    place-content: center;
+    cursor: pointer;
+}
+
+.poll-option input::before {
+    width: .65rem;
+    height: .65rem;
+    border-radius: 50%;
+    background: var(--accent);
+    content: '';
+    transform: scale(0);
+}
+
+.poll-option input:checked::before {
+    transform: scale(1);
+}
+
+.poll-option input:focus-visible {
+    outline: 3px solid var(--accent-text);
+    outline-offset: 2px;
+}
+
+.poll-metadata {
+    background: transparent;
+    box-shadow: none;
+    border: 0;
+    border-top: 1px solid var(--separator-soft);
+    border-radius: 0;
+    padding: .9rem 0 0;
+}
+
+.home-featured {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.header-brand {
+    display: none;
+}
+
+.mobile-menu {
+    display: none;
+}
+
+@media (max-width: 899px) {
+    .app-header {
+        position: sticky;
+        top: 0;
+        z-index: 12;
+    }
+
+    .sidebar {
+        display: none;
+    }
+
+    .header-context {
+        display: none;
+    }
+
+    .header-inner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .6rem;
+        min-height: 3.9rem;
+        padding: .5rem 1rem;
+    }
+
+    .header-brand {
+        display: inline-flex;
+        align-items: center;
+        gap: .5rem;
+        min-width: 0;
+        min-height: 2.75rem;
+        color: inherit;
+        font-weight: 800;
+        text-decoration: none;
+    }
+
+    .header-brand-name {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .header-actions {
+        display: flex;
+        align-items: center;
+        gap: .4rem;
+    }
+
+    .mobile-menu {
+        display: block;
+        position: static;
+    }
+
+    .mobile-menu-panel {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        z-index: 13;
+        display: grid;
+        gap: 1rem;
+        max-height: calc(100vh - 4rem);
+        overflow-y: auto;
+        padding: 1rem;
+        border-bottom: 1px solid var(--separator-soft);
+        background: var(--surface);
+        box-shadow: var(--shadow);
+    }
+
+    .mobile-menu-navigation .nav-list {
+        grid-template-columns: 1fr;
+        gap: .25rem;
+    }
+
+    .mobile-menu-navigation .nav-item {
+        min-height: 2.75rem;
+        justify-content: flex-start;
+    }
+
+    .mobile-identity {
+        display: grid;
+        gap: .4rem;
+    }
+
+    .mobile-identity-value {
+        margin: 0;
+        font-weight: 700;
+    }
+
+    main {
+        padding-top: 1rem;
+    }
+}
+
+@media (min-width: 900px) {
+    .header-brand {
+        display: none;
+    }
+}
+
+/* Metadata panel without own fill or shadow (FR-016), overriding the theme panel styles */
+.poll-metadata {
+    color: inherit;
+}
+
+:root[data-theme='claude'] .poll-metadata,
+:root[data-theme='openai'] .poll-metadata {
+    color: inherit;
+    background: transparent;
+    box-shadow: none;
+}
+
+:root[data-theme='claude'] .poll-metadata dt,
+:root[data-theme='claude'] .poll-metadata dd,
+:root[data-theme='claude'] .poll-metadata > p:last-child,
+:root[data-theme='openai'] .poll-metadata dt,
+:root[data-theme='openai'] .poll-metadata dd,
+:root[data-theme='openai'] .poll-metadata > p:last-child {
+    color: inherit;
+}
+
+/* Metadata text uses the page text color and the accent text token (contrast in all themes) */
+.poll-metadata dt,
+.poll-metadata dd,
+.poll-metadata > p:last-child {
+    color: inherit;
+}
+
+.poll-metadata .eyebrow {
+    color: var(--accent-text);
+}
+
+:root[data-theme='claude'] .poll-metadata .eyebrow {
+    color: var(--accent-text);
+}
+
+:root[data-theme='openai'] .poll-metadata .eyebrow {
+    color: var(--accent-text);
 }

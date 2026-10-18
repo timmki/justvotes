@@ -16,7 +16,7 @@ test('missing identity supports keyboard setting and becomes a distinct no-vote 
     });
     await page.goto('/profile');
     await expect(page.getByText('Zuerst eine Identität setzen')).toBeVisible();
-    const action = page.locator('.profile-page').getByRole('button', {name: 'Identität bearbeiten'});
+    const action = page.locator('.profile-page').getByRole('button', {name: 'Identität festlegen'});
     await action.focus();
     await page.keyboard.press('Enter');
     await page.locator('.profile-page').getByLabel('Neue Identität').fill('Alice');

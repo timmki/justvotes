@@ -1,5 +1,5 @@
 import {useMutation} from '@tanstack/react-query';
-import {type ReactNode, useEffect, useId, useRef, useState} from 'react';
+import {useEffect, useId, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
 import {apiClient} from '../api/client';
 import {ApiError, type FrontendError} from '../api/errors';
@@ -12,17 +12,40 @@ type IdentityEditorProps = {
     identity: string | null;
     variant?: 'card' | 'compact';
     identityState?: 'ready' | 'loading' | 'error';
+    startEditing?: boolean;
+    onClose?: () => void;
+    confirmation?: 'dialog' | 'inline';
 };
 
-export function IdentityEditor({identity, variant = 'card', identityState = 'ready'}: IdentityEditorProps) {
+type IdentityState = 'ready' | 'loading' | 'error';
+
+export function IdentityStatus({identity, identityState = 'ready'}: {identity: string | null; identityState?: IdentityState}) {
     const {t} = useI18n();
-    const [editing, setEditing] = useState(false);
-    const [draft, setDraft] = useState('');
+    if (identity) return <span aria-label={identity} title={identity}>{displayIdentity(identity)}</span>;
+    if (identityState === 'ready') return <span>{t('common.identityNotSet')}</span>;
+    return <span>{t('common.identityNotLoaded')}</span>;
+}
+
+export function IdentityEditor({
+    identity,
+    variant = 'card',
+    identityState = 'ready',
+    startEditing = false,
+    onClose,
+    confirmation = 'dialog',
+}: IdentityEditorProps) {
+    const {t} = useI18n();
+    const [editing, setEditing] = useState(startEditing);
+    const [draft, setDraft] = useState(() => {
+        if (startEditing) return identity ?? '';
+        return '';
+    });
     const [validationError, setValidationError] = useState(false);
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [serverError, setServerError] = useState<FrontendError | null>(null);
     const editButtonRef = useRef<HTMLButtonElement>(null);
     const saveButtonRef = useRef<HTMLButtonElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
     const wasEditing = useRef(false);
     const headingId = useId();
     const inputId = useId();
@@ -41,6 +64,7 @@ export function IdentityEditor({identity, variant = 'card', identityState = 'rea
             setEditing(false);
             setConfirmOpen(false);
             setServerError(null);
+            onClose?.();
         },
         onError: (cause) => {
             setConfirmOpen(false);
@@ -59,7 +83,11 @@ export function IdentityEditor({identity, variant = 'card', identityState = 'rea
         wasEditing.current = editing;
     }, [editing]);
 
-    function startEditing() {
+    useEffect(() => {
+        if (startEditing) inputRef.current?.focus();
+    }, [startEditing]);
+
+    function openEditor() {
         setDraft(identity ?? '');
         setValidationError(false);
         setServerError(null);
@@ -70,6 +98,7 @@ export function IdentityEditor({identity, variant = 'card', identityState = 'rea
         setEditing(false);
         setValidationError(false);
         setServerError(null);
+        onClose?.();
     }
 
     function requestSave() {
@@ -87,31 +116,32 @@ export function IdentityEditor({identity, variant = 'card', identityState = 'rea
     }
 
     const compact = variant === 'compact';
-    let identityLabel: ReactNode;
-    if (identity) identityLabel = <span aria-label={identity} title={identity}>{displayIdentity(identity)}</span>;
-    else if (identityState === 'ready') identityLabel = t('common.identityNotSet');
-    else identityLabel = t('common.identityNotLoaded');
     let className = 'identity-card';
     let editButtonClassName = 'text-button';
+    let editLabel = t('common.identityEdit');
     if (compact) {
         className = 'identity-mini identity-shell-editor';
         editButtonClassName = 'identity-edit-button';
+    }
+    if (!identity && !compact) {
+        editButtonClassName = 'primary-button';
+        editLabel = t('polls.setIdentity');
     }
     if (editing) className += ' is-editing';
     return <section className={className}
                     data-identity-editor aria-labelledby={headingId}>
         <p className="eyebrow">{t('common.identity')}</p>
         {!editing && <>
-            <h2 id={headingId}>{identityLabel}</h2>
+            <h2 id={headingId}><IdentityStatus identity={identity} identityState={identityState}/></h2>
             {!compact && <p>{t('common.identityNote')}</p>}
             <button ref={editButtonRef} className={editButtonClassName} type="button"
-                    onClick={startEditing} disabled={identityState === 'error'}>{t('common.identityEdit')}</button>
+                    onClick={openEditor} disabled={identityState === 'error'}>{editLabel}</button>
         </>}
         {editing && <>
             <h2 id={headingId}>{t('common.identityEdit')}</h2>
             {identity && <p className="confirmed-identity">{t('common.identity')}: <span title={identity}>{displayIdentity(identity)}</span></p>}
             <label htmlFor={inputId}>{t('common.identityInput')}</label>
-            <input id={inputId} value={draft} onChange={(event) => {
+            <input ref={inputRef} id={inputId} value={draft} onChange={(event) => {
                 setDraft(event.target.value);
                 setValidationError(false);
                 setServerError(null);
@@ -125,7 +155,15 @@ export function IdentityEditor({identity, variant = 'card', identityState = 'rea
                         disabled={mutation.isPending}>{t('forms.cancel')}</button>
             </div>
         </>}
-        {confirmOpen && <IdentityConfirmation
+        {confirmOpen && confirmation === 'dialog' && <IdentityConfirmation
+            onCancel={() => {
+                setConfirmOpen(false);
+                saveButtonRef.current?.focus();
+            }}
+            onConfirm={() => mutation.mutate(draft)}
+            pending={mutation.isPending}/>
+        }
+        {confirmOpen && confirmation === 'inline' && <IdentityConfirmationContent
             onCancel={() => {
                 setConfirmOpen(false);
                 saveButtonRef.current?.focus();
@@ -136,11 +174,13 @@ export function IdentityEditor({identity, variant = 'card', identityState = 'rea
     </section>;
 }
 
-function IdentityConfirmation({onCancel, onConfirm, pending}: {
+type ConfirmationProps = {
     onCancel: () => void;
     onConfirm: () => void;
     pending: boolean;
-}) {
+};
+
+function IdentityConfirmation({onCancel, onConfirm, pending}: ConfirmationProps) {
     const {t} = useI18n();
     const dialogRef = useRef<HTMLDivElement>(null);
     useDialogFocusTrap(dialogRef, onCancel);
@@ -158,6 +198,21 @@ function IdentityConfirmation({onCancel, onConfirm, pending}: {
             </div>
         </div>
     </div>, document.body);
+}
+
+function IdentityConfirmationContent({onCancel, onConfirm, pending}: ConfirmationProps) {
+    const {t} = useI18n();
+    const headingId = useId();
+    return <div className="identity-confirmation" role="group" aria-labelledby={headingId}>
+        <h3 id={headingId}>{t('common.identityChangeTitle')}</h3>
+        <p>{t('common.identityChangeWarning')}</p>
+        <div className="identity-actions">
+            <button className="primary-button" type="button" onClick={onConfirm}
+                    disabled={pending}>{t('common.identityChangeConfirm')}</button>
+            <button className="text-button" type="button" onClick={onCancel}
+                    disabled={pending}>{t('forms.cancel')}</button>
+        </div>
+    </div>;
 }
 
 function isValidIdentity(value: string) {

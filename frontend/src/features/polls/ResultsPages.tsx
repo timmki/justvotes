@@ -8,7 +8,8 @@ import {QueryState} from '../../shared/ui/QueryState';
 import {RouteState} from '../../shared/ui/RouteState';
 import {useWithdrawVoteMutation, frontendError} from './pollCommands';
 import {DataPage} from './pollPageShared';
-import {formatTimestamp} from './pollFormatters';
+import {formatTimestamp, formatVoteCount} from './pollFormatters';
+import {PollStateBadge} from './PollStateBadge';
 import {isWinner, percentage, pollStateTranslationKey, projectPollResults, type PollResults} from './pollProjections';
 import {usePollingResultsQuery} from './usePollingResultsQuery';
 
@@ -57,7 +58,7 @@ function ResultsDetail({results, identity, locale}: { results: PollResults; iden
     return <div className="result-layout">
         <section className="data-card results-card" aria-label={t('polls.resultSheet')}>
             <div className="results-heading"><div><p className="results-date"><time dateTime={results.createdAt}>{formatTimestamp(results.createdAt, locale)}</time></p>
-                <h3>{results.title}</h3></div><span className="poll-state">{t(pollStateTranslationKey(results.state))}</span></div>
+                <h3>{results.title}</h3></div><PollStateBadge state={results.state}/></div>
             <dl className="result-summary">
                 <div><dt>{t('polls.totalVotes')}</dt><dd>{results.totalVotes}</dd></div>
                 <div><dt>{t('polls.highestShare')}</dt><dd>{projection.highestPercentage} %</dd></div>
@@ -72,7 +73,7 @@ function ResultsDetail({results, identity, locale}: { results: PollResults; iden
                     <div className="result-option-heading"><Link to={`/poll/results/${encodeURIComponent(results.id)}/option/${option.number}`}>{option.text}</Link>
                         {isWinner(option, results.options, results.totalVotes) && <strong>{winnerLabel}</strong>}</div>
                     <div className="result-option-progress" aria-hidden="true"><span style={{width: `${optionPercentage}%`}}/></div>
-                    <div className="result-option-meta"><span>{optionPercentage} %</span><span>{option.voteCount} {t('polls.votes')}</span></div>
+                    <div className="result-option-meta"><span>{optionPercentage} %</span><span>{formatVoteCount(option.voteCount, locale, t)}</span></div>
                     {current && <small>{t('polls.yourVote')}</small>}
                 </li>;
             })}</ol>
@@ -105,7 +106,7 @@ function OptionDetail({results, option, locale}: { results: PollResults; option:
     return <div className="result-layout option-layout">
         <section className="data-card option-detail" aria-label={t('polls.optionOverview')}>
             <div className="option-detail-heading"><div><p className="option-poll-title">{results.title}</p><h3>{option.text}</h3></div>
-                <span className="poll-state">{t(pollStateTranslationKey(results.state))}</span></div>
+                <PollStateBadge state={results.state}/></div>
             <dl className="option-summary">
                 <div><dt>{t('polls.optionNumber')}</dt><dd>{option.number}</dd></div>
                 <div><dt>{t('polls.votes')}</dt><dd>{option.voteCount}</dd></div>
@@ -128,7 +129,7 @@ function OptionDetail({results, option, locale}: { results: PollResults; option:
                 <div><dt>{t('polls.optionNumber')}</dt><dd>{option.number}</dd></div>
                 <div><dt>{t('polls.state')}</dt><dd>{t(pollStateTranslationKey(results.state))}</dd></div>
                 <div><dt>{t('polls.createdAt')}</dt><dd><time dateTime={results.createdAt}>{formatTimestamp(results.createdAt, locale)}</time></dd></div>
-                <div><dt>{t('polls.duration')}</dt><dd>{results.endsAt && <time dateTime={results.endsAt}>{formatTimestamp(results.endsAt, locale)}</time>}{!results.endsAt && t('polls.noEndDate')}</dd></div>
+                <div><dt>{t('polls.endsAt')}</dt><dd>{results.endsAt && <time dateTime={results.endsAt}>{formatTimestamp(results.endsAt, locale)}</time>}{!results.endsAt && t('polls.noEndDate')}</dd></div>
             </dl>
         </aside>
     </div>;
