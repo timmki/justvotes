@@ -42,10 +42,6 @@
 
 [Gates determined based on constitution file]
 
-Include the applicable repository development guides in this check:
-`docs/development/java.md` and `docs/development/frontend.md`. Their coding
-conventions apply to implementation and tests; generated sources remain excluded.
-
 ## Project Structure
 
 ### Documentation (this feature)
