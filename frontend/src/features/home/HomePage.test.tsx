@@ -91,8 +91,9 @@ describe('HomePage identity', () => {
         fireEvent.click(screen.getByRole('button', {name: 'Speichern'}));
 
         expect(screen.getByRole('dialog')).toBeTruthy();
+        expect(screen.getByRole('heading', {name: 'Identität festlegen?'})).toBeVisible();
         expect(changeIdentity).not.toHaveBeenCalled();
-        fireEvent.click(screen.getByRole('button', {name: 'Änderung bestätigen'}));
+        fireEvent.click(screen.getByRole('button', {name: 'Festlegen'}));
 
         await waitFor(() => expect(changeIdentity).toHaveBeenCalledWith({userID: 'Älice #1'}));
         expect(withdrawVote).not.toHaveBeenCalled();
@@ -107,7 +108,7 @@ describe('HomePage identity', () => {
         const changeIdentity = vi.spyOn(apiClient, 'changeIdentity').mockResolvedValue(undefined);
 
         renderHome();
-        fireEvent.click(await screen.findByRole('button', {name: 'Identität bearbeiten'}));
+        fireEvent.click(await screen.findByRole('button', {name: 'Identität ändern'}));
         fireEvent.change(screen.getByLabelText('Neue Identität'), {target: {value: 'alice'}});
         fireEvent.click(screen.getByRole('button', {name: 'Speichern'}));
 
@@ -121,7 +122,7 @@ describe('HomePage identity', () => {
         vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
 
         renderHome();
-        fireEvent.click(await screen.findByRole('button', {name: 'Identität bearbeiten'}));
+        fireEvent.click(await screen.findByRole('button', {name: 'Identität ändern'}));
         fireEvent.change(screen.getByLabelText('Neue Identität'), {target: {value: 'bob'}});
         fireEvent.click(screen.getByRole('button', {name: 'Abbrechen'}));
 
@@ -134,7 +135,7 @@ describe('HomePage identity', () => {
         vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
 
         renderHome();
-        fireEvent.click(await screen.findByRole('button', {name: 'Identität bearbeiten'}));
+        fireEvent.click(await screen.findByRole('button', {name: 'Identität ändern'}));
         fireEvent.change(screen.getByLabelText('Neue Identität'), {target: {value: 'bob'}});
         const saveButton = screen.getByRole('button', {name: 'Speichern'});
         fireEvent.click(saveButton);
@@ -164,7 +165,7 @@ describe('HomePage identity', () => {
         vi.spyOn(apiClient, 'changeIdentity').mockRejectedValue(error);
 
         renderHome();
-        fireEvent.click(await screen.findByRole('button', {name: 'Identität bearbeiten'}));
+        fireEvent.click(await screen.findByRole('button', {name: 'Identität ändern'}));
         const input = screen.getByLabelText('Neue Identität');
         fireEvent.change(input, {target: {value: ''}});
         fireEvent.click(screen.getByRole('button', {name: 'Speichern'}));
@@ -251,5 +252,22 @@ describe('HomePage identity and hierarchy', () => {
 
         expect(await screen.findByRole('region', {name: 'Im Fokus'})).toBeVisible();
         expect(screen.queryByRole('list', {name: 'Neueste öffentliche Abstimmungen'})).toBeNull();
+    });
+});
+
+describe('HomePage intro and card names', () => {
+    it('keeps the start heading for assistive technology while the visible intro takes no layout space', async () => {
+        renderHome();
+
+        expect(await screen.findByRole('heading', {name: 'Startseite', level: 1})).toBeInTheDocument();
+        expect(document.querySelector('.page-intro')).toHaveClass('sr-only');
+    });
+
+    it('gives a card with a long title its full title as accessible name', async () => {
+        const longTitle = 'Ein sehr langer Abstimmungstitel mit vielen Wörtern für die Kartenbeschriftung'.repeat(2);
+        vi.mocked(apiClient.getPublicPolls).mockResolvedValue([{...discoveryPolls[0], id: 'long-title-poll', title: longTitle}]);
+        renderHome();
+
+        expect(await screen.findByRole('link', {name: new RegExp(longTitle)})).toBeInTheDocument();
     });
 });

@@ -44,7 +44,7 @@ export function PollsPage() {
         <div className="polls-content">
             <section className="poll-filters" aria-label={t('polls.filters')}>
                 <div className="poll-filter-fields">
-                    <label>{t('polls.sort')}<select aria-label={t('polls.sort')} value={state.sort} onChange={(event) => {
+                    <label>{t('polls.sort')}<select className="filter-control" aria-label={t('polls.sort')} value={state.sort} onChange={(event) => {
                         let sort: PollSort = 'newest';
                         if (event.target.value === 'oldest') sort = 'oldest';
                         updateState({sort});
@@ -52,7 +52,7 @@ export function PollsPage() {
                         <option value="newest">{t('polls.newest')}</option>
                         <option value="oldest">{t('polls.oldest')}</option>
                     </select></label>
-                    <label>{t('polls.dateFilter')}<select aria-label={t('polls.dateFilter')} value={state.dateFilter} onChange={(event) => updateState({dateFilter: event.target.value as PollDateFilter})}>
+                    <label>{t('polls.dateFilter')}<select className="filter-control" aria-label={t('polls.dateFilter')} value={state.dateFilter} onChange={(event) => updateState({dateFilter: event.target.value as PollDateFilter})}>
                         <option value="all">{t('polls.allDates')}</option>
                         <option value="yesterday">{t('polls.yesterday')}</option>
                         <option value="today">{t('polls.today')}</option>
@@ -63,7 +63,7 @@ export function PollsPage() {
                         <label>{t('polls.from')}<input aria-label={t('polls.from')} type="date" value={state.from ?? ''} onChange={(event) => updateState({from: event.target.value})}/></label>
                         <label>{t('polls.to')}<input aria-label={t('polls.to')} type="date" value={state.to ?? ''} onChange={(event) => updateState({to: event.target.value})}/></label>
                     </>}
-                    <button className="text-button" type="button" onClick={clearState}>{t('polls.resetFilters')}</button>
+                    <button className="text-button filter-control" type="button" onClick={clearState}>{t('polls.resetFilters')}</button>
                 </div>
                 {hasInvalidPollDateRange(state) && <p className="poll-filter-error" role="alert">{t('polls.invalidDateRange')}</p>}
             </section>

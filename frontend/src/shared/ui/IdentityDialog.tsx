@@ -2,6 +2,7 @@ import {useRef} from 'react';
 import {createPortal} from 'react-dom';
 import {useI18n} from '../i18n/I18nProvider';
 import {IdentityEditor} from './IdentityEditor';
+import {identityActionKey} from './identityActionKey';
 import {useDialogFocusTrap} from './useDialogFocusTrap';
 
 type IdentityDialogProps = {
@@ -16,7 +17,7 @@ export function IdentityDialog({identity, identityState, onClose}: IdentityDialo
     useDialogFocusTrap(dialogRef, onClose);
 
     return createPortal(<div className="modal-backdrop">
-        <div ref={dialogRef} className="identity-dialog" role="dialog" aria-modal="true" aria-label={t('common.identityDialogTitle')} tabIndex={-1}>
+        <div ref={dialogRef} className="identity-dialog" role="dialog" aria-modal="true" aria-label={t(identityActionKey(identity))} tabIndex={-1}>
             <IdentityEditor identity={identity} identityState={identityState} variant="card" startEditing confirmation="inline" onClose={onClose}/>
         </div>
     </div>, document.body);

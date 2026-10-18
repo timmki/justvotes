@@ -1,11 +1,13 @@
 import {NavLink, Link, useLocation} from 'react-router-dom';
 import {useEffect, useRef, useState, useSyncExternalStore, type MouseEvent as ReactMouseEvent, type ReactNode} from 'react';
+import {createPortal} from 'react-dom';
 import {useI18n} from '../shared/i18n/I18nProvider';
 import {queryKeys} from '../shared/api/queryKeys';
 import {useApiQuery} from '../shared/api/useApiQuery';
 import {apiClient, sessionCoordinator} from '../shared/api/client';
 import {ChevronLeftIcon, CloseIcon, MenuIcon, MoonIcon, SunIcon} from '../shared/ui/Icons';
 import {IdentityDialog} from '../shared/ui/IdentityDialog';
+import {identityActionKey} from '../shared/ui/identityActionKey';
 import {IdentityEditor, IdentityStatus} from '../shared/ui/IdentityEditor';
 import {useMediaQuery} from '../shared/ui/useMediaQuery';
 import {themeOptions, useTheme, type Theme} from './theme';
@@ -124,6 +126,8 @@ export function Header({navigation, identity, identityState}: {
     const [themeMenuOpen, setThemeMenuOpen] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
     const [identityDialogOpen, setIdentityDialogOpen] = useState(false);
+    const [panelClosing, setPanelClosing] = useState(false);
+    const menuWasOpen = useRef(false);
     const themeMenuRef = useRef<HTMLDivElement>(null);
     const themeButtonRef = useRef<HTMLButtonElement>(null);
     const themeOptionRefs = useRef<Record<Theme, HTMLInputElement | null>>({light: null, dark: null, claude: null, openai: null});
@@ -133,10 +137,29 @@ export function Header({navigation, identity, identityState}: {
     const previousPathname = useRef(location.pathname);
     const context = routeContext(location.pathname, t);
     const isDesktop = useMediaQuery('(min-width: 900px)');
+    const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
 
     useEffect(() => {
         if (isDesktop) setMenuOpen(false);
     }, [isDesktop]);
+
+    useEffect(() => {
+        if (menuOpen) {
+            menuWasOpen.current = true;
+            setPanelClosing(false);
+            return undefined;
+        }
+        if (!menuWasOpen.current) return undefined;
+        menuWasOpen.current = false;
+        setPanelClosing(true);
+        let closeDelay = 140;
+        if (reducedMotion) closeDelay = 0;
+        const timer = window.setTimeout(() => setPanelClosing(false), closeDelay);
+        return () => {
+            window.clearTimeout(timer);
+            setPanelClosing(false);
+        };
+    }, [menuOpen, reducedMotion]);
 
     useEffect(() => {
         if (!themeMenuOpen) return;
@@ -165,6 +188,7 @@ export function Header({navigation, identity, identityState}: {
 
     useEffect(() => {
         if (!menuOpen) return;
+        document.documentElement.classList.add('menu-open');
 
         function closeOnOutsideClick(event: MouseEvent) {
             if (!isInside(event, menuRef.current)) setMenuOpen(false);
@@ -175,12 +199,18 @@ export function Header({navigation, identity, identityState}: {
                 menuButtonRef.current?.focus();
             }
         }
+        function keepTabInMenu(event: KeyboardEvent) {
+            if (event.key === 'Tab') wrapTabFocus(event, menuRef.current);
+        }
 
         document.addEventListener('click', closeOnOutsideClick);
         document.addEventListener('keydown', closeOnEscape);
+        document.addEventListener('keydown', keepTabInMenu);
         return () => {
+            document.documentElement.classList.remove('menu-open');
             document.removeEventListener('click', closeOnOutsideClick);
             document.removeEventListener('keydown', closeOnEscape);
+            document.removeEventListener('keydown', keepTabInMenu);
         };
     }, [menuOpen]);
 
@@ -209,6 +239,11 @@ export function Header({navigation, identity, identityState}: {
         setMenuOpen((open) => !open);
     }
 
+    function closeFromBackdrop() {
+        setMenuOpen(false);
+        menuButtonRef.current?.focus();
+    }
+
     function closeOnNavigate(event: ReactMouseEvent<HTMLDivElement>) {
         if (event.target instanceof Element && event.target.closest('a')) setMenuOpen(false);
     }
@@ -230,8 +265,6 @@ export function Header({navigation, identity, identityState}: {
         localeLabel = 'common.english';
     }
 
-    let identityEditAvailable = true;
-    if (location.pathname === '/' && !identity) identityEditAvailable = false;
     let menuButtonLabel = t('common.menu');
     if (menuOpen) menuButtonLabel = t('common.closeMenu');
 
@@ -280,14 +313,15 @@ export function Header({navigation, identity, identityState}: {
                         {menuOpen && <CloseIcon/>}
                         {!menuOpen && <MenuIcon/>}
                     </button>
-                    {menuOpen && <div id="mobile-menu-panel" className="mobile-menu-panel" onClick={closeOnNavigate}>
+                    {(menuOpen || panelClosing) && <div id="mobile-menu-panel" className="mobile-menu-panel" data-open={menuOpen} inert={!menuOpen} onClick={closeOnNavigate}>
                         <ShellNavigation className="mobile-menu-navigation" navigation={navigation} label={t('common.menu')}/>
                         <section className="mobile-identity" aria-labelledby="mobile-identity-heading">
                             <p className="eyebrow" id="mobile-identity-heading">{t('common.identity')}</p>
                             <p className="mobile-identity-value"><IdentityStatus identity={identity} identityState={identityState}/></p>
-                            {identityEditAvailable && <button className="text-button" type="button" onClick={editIdentity}>{t('common.identityEdit')}</button>}
+                            <button className="text-button" type="button" onClick={editIdentity}>{t(identityActionKey(identity))}</button>
                         </section>
                     </div>}
+                    {(menuOpen || panelClosing) && createPortal(<div className="mobile-menu-backdrop" data-open={menuOpen} aria-hidden="true" onClick={closeFromBackdrop}/>, document.body)}
                 </div>
             </div>
         </div>
@@ -297,6 +331,22 @@ export function Header({navigation, identity, identityState}: {
 
 // The event target may already be detached by the re-render it triggered (icon swaps),
 // so membership is checked against the path captured when the event was dispatched.
+function wrapTabFocus(event: KeyboardEvent, container: HTMLElement | null) {
+    if (!container) return;
+    const focusable = Array.from(container.querySelectorAll<HTMLElement>('button:not([disabled]), a[href]'));
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (!first || !last) return;
+    if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+    }
+    if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+    }
+}
+
 function isInside(event: Event, element: HTMLElement | null) {
     if (!element) return false;
     return event.composedPath().includes(element);

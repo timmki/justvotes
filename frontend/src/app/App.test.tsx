@@ -1,4 +1,4 @@
-import {act, cleanup, fireEvent, render, screen, within} from '@testing-library/react';
+import {act, cleanup, fireEvent, render, screen, waitFor, within} from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import {MemoryRouter} from 'react-router-dom';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
@@ -71,7 +71,7 @@ describe('app shell', () => {
         renderApp('/polls');
 
         const sidebar = screen.getByRole('complementary', {name: 'JustVotes'});
-        fireEvent.click(within(sidebar).getByRole('button', {name: 'Identität bearbeiten'}));
+        fireEvent.click(await within(sidebar).findByRole('button', {name: 'Identität ändern'}));
         fireEvent.change(screen.getByLabelText('Neue Identität'), {target: {value: 'Bob'}});
         fireEvent.click(screen.getByRole('button', {name: 'Speichern'}));
         fireEvent.click(screen.getByRole('button', {name: 'Änderung bestätigen'}));
@@ -394,7 +394,7 @@ function ToastHarness() {
 }
 
 describe('mobile menu', () => {
-    it('opens the menu, closes it with Escape and returns focus to the menu button', () => {
+    it('opens the menu, closes it with Escape and returns focus to the menu button', async () => {
         renderApp('/polls');
 
         const menuButton = screen.getByRole('button', {name: 'Menü'});
@@ -406,7 +406,7 @@ describe('mobile menu', () => {
         expect(within(panel!).getByRole('navigation', {name: 'Menü'})).toBeVisible();
 
         fireEvent.keyDown(document, {key: 'Escape'});
-        expect(document.getElementById('mobile-menu-panel')).toBeNull();
+        await waitFor(() => expect(document.getElementById('mobile-menu-panel')).toBeNull());
         expect(menuButton).toHaveFocus();
     });
 });
@@ -419,20 +419,21 @@ describe('mobile identity edit', () => {
         fireEvent.click(screen.getByRole('button', {name: 'Menü'}));
         const panel = document.getElementById('mobile-menu-panel');
         expect(panel).not.toBeNull();
-        fireEvent.click(within(panel!).getByRole('button', {name: 'Identität bearbeiten'}));
+        fireEvent.click(await within(panel!).findByRole('button', {name: 'Identität ändern'}));
 
-        expect(document.getElementById('mobile-menu-panel')).toBeNull();
-        const dialog = await screen.findByRole('dialog', {name: 'Identität bearbeiten'});
+        await waitFor(() => expect(document.getElementById('mobile-menu-panel')).toBeNull());
+        const dialog = await screen.findByRole('dialog', {name: 'Identität ändern'});
         expect(within(dialog).getByLabelText('Neue Identität')).toHaveFocus();
     });
 
-    it('hides the edit action in the menu on the start page without identity', async () => {
+    it('offers to set the identity in the menu on the start page without identity', async () => {
         vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: null});
         renderApp('/');
 
         fireEvent.click(await screen.findByRole('button', {name: 'Menü'}));
         const panel = document.getElementById('mobile-menu-panel');
-        expect(within(panel!).queryByRole('button', {name: 'Identität bearbeiten'})).toBeNull();
+        expect(within(panel!).getByRole('button', {name: 'Identität festlegen'})).toBeVisible();
+        expect(within(panel!).queryByRole('button', {name: 'Identität ändern'})).toBeNull();
     });
 });
 
@@ -466,7 +467,7 @@ describe('mobile menu landmarks and media query', () => {
                 listeners.forEach((listener) => listener());
             });
 
-            expect(document.getElementById('mobile-menu-panel')).toBeNull();
+            await waitFor(() => expect(document.getElementById('mobile-menu-panel')).toBeNull());
         } finally {
             window.matchMedia = original;
         }
@@ -479,7 +480,7 @@ describe('mobile menu landmarks and media query', () => {
 
         const menuButton = screen.getByRole('button', {name: 'Menü'});
         fireEvent.click(menuButton);
-        fireEvent.click(within(document.getElementById('mobile-menu-panel')!).getByRole('button', {name: 'Identität bearbeiten'}));
+        fireEvent.click(await within(document.getElementById('mobile-menu-panel')!).findByRole('button', {name: 'Identität ändern'}));
         fireEvent.change(await screen.findByLabelText('Neue Identität'), {target: {value: 'Bob'}});
         fireEvent.click(screen.getByRole('button', {name: 'Speichern'}));
         fireEvent.click(await screen.findByRole('button', {name: 'Änderung bestätigen'}));
@@ -495,5 +496,94 @@ describe('mobile menu landmarks and media query', () => {
 
         await screen.findByRole('region', {name: 'Im Fokus'});
         expect(document.querySelector('.sidebar .identity-shell-editor')).toBeNull();
+    });
+});
+
+describe('mobile menu backdrop and focus', () => {
+    it('closes from the backdrop, locks scrolling and returns focus to the menu button', async () => {
+        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
+        renderApp('/polls');
+
+        const menuButton = screen.getByRole('button', {name: 'Menü'});
+        fireEvent.click(menuButton);
+        expect(document.documentElement).toHaveClass('menu-open');
+        const backdrop = document.querySelector('.mobile-menu-backdrop');
+        expect(backdrop).not.toBeNull();
+
+        fireEvent.click(backdrop!);
+
+        await waitFor(() => expect(document.getElementById('mobile-menu-panel')).toBeNull());
+        expect(document.documentElement).not.toHaveClass('menu-open');
+        expect(menuButton).toHaveFocus();
+    });
+
+    it('keeps Tab focus inside the open menu', async () => {
+        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
+        renderApp('/polls');
+
+        fireEvent.click(screen.getByRole('button', {name: 'Menü'}));
+        const container = document.querySelector('.mobile-menu') as HTMLElement;
+        const toggle = container.querySelector('.mobile-menu-button') as HTMLElement;
+        const focusable = container.querySelectorAll<HTMLElement>('button:not([disabled]), a[href]');
+        const last = focusable[focusable.length - 1];
+        last.focus();
+
+        fireEvent.keyDown(last, {key: 'Tab'});
+
+        expect(toggle).toHaveFocus();
+    });
+});
+
+describe('mobile menu close paths and exit phase', () => {
+    it('closes the menu when a navigation link is chosen and unlocks scrolling', async () => {
+        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
+        renderApp('/');
+
+        fireEvent.click(screen.getByRole('button', {name: 'Menü'}));
+        const panel = document.getElementById('mobile-menu-panel');
+        expect(panel).not.toBeNull();
+        fireEvent.click(within(panel!).getByRole('link', {name: 'Abstimmungen'}));
+
+        await waitFor(() => expect(document.getElementById('mobile-menu-panel')).toBeNull());
+        expect(document.documentElement).not.toHaveClass('menu-open');
+    });
+
+    it('keeps the panel mounted but inert while it fades out, then removes it', async () => {
+        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
+        renderApp('/polls');
+
+        fireEvent.click(screen.getByRole('button', {name: 'Menü'}));
+        fireEvent.keyDown(document, {key: 'Escape'});
+
+        const panel = document.getElementById('mobile-menu-panel');
+        expect(panel).not.toBeNull();
+        expect(panel).toHaveAttribute('data-open', 'false');
+        expect(panel).toHaveAttribute('inert');
+        await waitFor(() => expect(document.getElementById('mobile-menu-panel')).toBeNull());
+    });
+
+    it('removes the panel at once when reduced motion is requested', async () => {
+        const original = window.matchMedia;
+        window.matchMedia = vi.fn((query: string) => ({
+            matches: query.includes('reduce'),
+            media: query,
+            onchange: null,
+            addEventListener: () => undefined,
+            removeEventListener: () => undefined,
+            addListener: () => undefined,
+            removeListener: () => undefined,
+            dispatchEvent: () => false,
+        })) as unknown as typeof window.matchMedia;
+        try {
+            vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
+            renderApp('/polls');
+
+            fireEvent.click(screen.getByRole('button', {name: 'Menü'}));
+            fireEvent.keyDown(document, {key: 'Escape'});
+
+            await waitFor(() => expect(document.getElementById('mobile-menu-panel')).toBeNull(), {timeout: 100});
+        } finally {
+            window.matchMedia = original;
+        }
     });
 });

@@ -85,7 +85,7 @@ function AdminLoginForm() {
         <input id="admin-password" name="password" type="password" autoComplete="current-password" required
                value={password} onChange={(event) => setPassword(event.target.value)}/>
         <button className="primary-button" type="submit"
-                disabled={pending}>{t(submitKey)}</button>
+                aria-busy={pending} disabled={pending}>{pending && <span className="button-spinner" aria-hidden="true"/>}{t(submitKey)}</button>
         {pending && <p role="status">{t('common.signingIn')}</p>}
         {error && <p className="form-error" role="alert">{t(error.messageKey)}</p>}
     </form>;
