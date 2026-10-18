@@ -61,10 +61,14 @@ test('keeps the public navigation reachable on a narrow viewport', async ({ page
   await page.setViewportSize({ width: 320, height: 720 });
   await page.goto('/polls');
 
-  const navigation = page.locator('.mobile-navigation');
+  await page.getByRole('button', { name: 'Menü', exact: true }).click();
+  const navigation = page.locator('.mobile-menu-navigation');
   await expect(navigation).toBeVisible();
   await expect(navigation.getByRole('link', { name: 'Startseite' })).toBeVisible();
   await expect(navigation.getByRole('link', { name: 'Abstimmungen' })).toHaveAttribute('aria-current', 'page');
+  expect(await page.locator('.mobile-menu-navigation .nav-item').first().evaluate((element) => element.getBoundingClientRect().height)).toBeGreaterThanOrEqual(44);
+  await page.keyboard.press('Escape');
+  await expect(navigation).toHaveCount(0);
   await page.goto('/');
   await expect(page.getByRole('link', { name: 'Admin' })).toHaveAttribute('href', '/admin');
   const themeButton = page.getByRole('button', { name: 'Theme auswählen' });
@@ -74,13 +78,12 @@ test('keeps the public navigation reachable on a narrow viewport', async ({ page
   await page.keyboard.press('Escape');
   await expect(page.getByRole('radiogroup', { name: 'Theme auswählen' })).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
-  expect(await page.locator('.mobile-navigation .nav-item').first().evaluate((element) => element.getBoundingClientRect().height)).toBeGreaterThanOrEqual(44);
 });
 
 test('keeps a long configured app name inside a narrow viewport', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 720 });
   await page.goto('/');
-  await page.locator('.brand h2').evaluate((element) => { element.textContent = 'Verylongname Ofacompanyororganization'; });
+  await page.locator('.header-brand-name').evaluate((element) => { element.textContent = 'Verylongname Ofacompanyororganization'; });
 
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
 });
@@ -96,31 +99,35 @@ test('keeps the polls page header separated from its poll list status', async ({
   expect(status!.y - (intro!.y + intro!.height)).toBeGreaterThanOrEqual(40);
 });
 
-test('does not stretch the compact identity bar on a narrow viewport', async ({ page }) => {
-  await page.setViewportSize({ width: 440, height: 956 });
+test('keeps the header to one compact bar on a narrow viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
   await page.goto('/polls');
   await page.evaluate(() => document.fonts.ready);
 
-  const sidebar = await page.locator('.sidebar').boundingBox();
-  expect(sidebar).not.toBeNull();
-  expect(sidebar!.height).toBeLessThan(100);
-  await expect.poll(() => page.evaluate(() => {
-    const sidebar = document.querySelector('.sidebar')?.getBoundingClientRect();
-    const header = document.querySelector('.app-header')?.getBoundingClientRect();
-    if (sidebar && header) return header.y - (sidebar.y + sidebar.height);
-    return null;
-  })).toBe(0);
+  await expect(page.locator('.sidebar')).toBeHidden();
+  const header = await page.locator('.app-header').boundingBox();
+  expect(header).not.toBeNull();
+  expect(header!.height).toBeLessThanOrEqual(80);
+  expect(await page.locator('.header-brand-name').evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
 });
 
-test('keeps the polls intro close to the mobile navigation', async ({ page }) => {
+test('shows the sidebar navigation and hides the menu button on desktop', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/polls');
+
+  await expect(page.getByRole('button', { name: 'Menü', exact: true })).toBeHidden();
+  await expect(page.locator('.sidebar-navigation')).toBeVisible();
+});
+
+test('keeps the polls intro close to the mobile header', async ({ page }) => {
    await page.setViewportSize({ width: 565, height: 456 });
    await page.goto('/polls');
    await page.evaluate(() => document.fonts.ready);
 
    await expect.poll(async () => page.evaluate(() => {
-       const navigation = document.querySelector('.mobile-navigation')?.getBoundingClientRect();
+       const header = document.querySelector('.app-header')?.getBoundingClientRect();
        const intro = document.querySelector('.page-intro')?.getBoundingClientRect();
-       if (navigation && intro) return Math.round(intro.y - (navigation.y + navigation.height));
+       if (header && intro) return Math.round(intro.y - (header.y + header.height));
        return Number.POSITIVE_INFINITY;
    })).toBeLessThanOrEqual(24);
 });
@@ -181,7 +188,7 @@ test('keeps populated public and admin surfaces within supported viewport widths
       if (route === '/') {
         const featured = page.getByRole('region', { name: 'Im Fokus' });
         await expect(featured).toBeVisible();
-        await expect(featured).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+        await expect(featured).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
       }
       expect(await page.evaluate(() => document.documentElement.scrollWidth), `${route} at ${width}px`).toBeLessThanOrEqual(width);
     }
@@ -224,13 +231,13 @@ test('changes the identity once after confirming the warning', async ({ page }) 
   });
 
   await page.goto('/');
-  await page.locator('.identity-card').getByRole('button', { name: 'Identität bearbeiten' }).click();
+  await page.locator('.identity-card').getByRole('button', { name: 'Identität festlegen' }).click();
   await page.getByLabel('Neue Identität').fill('Alice_1');
   await page.getByRole('button', { name: 'Speichern' }).click();
 
   await expect(page.getByRole('dialog')).toContainText('Stimmen der bisherigen Identität');
   await page.getByRole('button', { name: 'Änderung bestätigen' }).click();
-  await expect(page.getByTitle('Alice_1')).toHaveCount(2);
+  await expect(page.getByTitle('Alice_1')).toHaveCount(1);
 
   expect(requests.filter(({ method, url }) => method === 'POST' && url.endsWith('/identity'))).toHaveLength(1);
   expect(requests.filter(({ method, url }) => method === 'DELETE' && url.includes('/votes'))).toHaveLength(0);
@@ -430,7 +437,7 @@ test('disables voting for an expired poll and safely handles private or missing 
   });
 
   await page.goto('/poll/p_expired');
-  await expect(page.getByRole('heading', { name: 'Expired browser poll', level: 3 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Expired browser poll', level: 1 })).toBeVisible();
   await expect(page.getByText(/Diese Abstimmung ist nicht mehr aktiv.*abgelaufen/)).toBeVisible();
   await expect(page.getByRole('radio', { name: 'Yes' })).toBeDisabled();
   await expect(page.getByRole('link', { name: 'Abstimmung - Ergebnisse' })).toBeVisible();
@@ -570,8 +577,8 @@ test('loads a direct option link with the complete current voter list', async ({
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(/\/poll\/results\/p_option_details$/);
   await page.goto('/poll/results/p_option_details/option/7');
-  await page.getByRole('link', { name: 'Audit Log' }).click();
-  await expect(page.getByRole('heading', { name: 'Audit Log', level: 1 })).toBeVisible();
+  await page.getByRole('link', { name: 'Prüfprotokoll' }).click();
+  await expect(page.getByRole('heading', { name: 'Prüfprotokoll', level: 1 })).toBeVisible();
 });
 
 test('zeigt eine lokalisierte, zugaengliche oeffentliche Domaenenereignis-Timeline', async ({ page }) => {
@@ -586,7 +593,7 @@ test('zeigt eine lokalisierte, zugaengliche oeffentliche Domaenenereignis-Timeli
   });
 
   await page.goto('/poll/audit/p_audit_browser');
-  await expect(page.getByRole('complementary', { name: 'Audit-Kontext' })).toContainText('2');
+  await expect(page.getByRole('complementary', { name: 'Prüfprotokoll-Kontext' })).toContainText('2');
   const timeline = page.getByRole('list', { name: 'Domänenereignis-Timeline' });
   await expect(timeline.getByRole('heading', { name: 'Stimme abgegeben', level: 3 })).toBeVisible();
   await expect(timeline.getByRole('heading', { name: 'Abstimmung veröffentlicht', level: 3 })).toBeVisible();
@@ -724,12 +731,15 @@ test('logs in, restores the active admin area after reload, and logs out', async
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Stimmen', level: 3 })).toBeVisible();
   await page.setViewportSize({ width: 320, height: 720 });
-  const mobileNavigation = page.locator('.mobile-navigation');
+  await page.getByRole('button', { name: 'Menü', exact: true }).click();
+  const mobileNavigation = page.locator('.mobile-menu-navigation');
   await expect(mobileNavigation).toBeVisible();
   await expect(mobileNavigation.getByRole('link')).toHaveCount(4);
   await expect(mobileNavigation.getByRole('link', { name: 'Stimmen' })).toHaveAttribute('aria-current', 'page');
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
   for (const [label, path] of [['Stimmen', '/admin/votes'], ['Abstimmungen', '/admin/polls'], ['Vorlagengruppen', '/admin/groups'], ['Optionsvorlagen', '/admin/templates']] as const) {
+    const toggle = page.locator('.mobile-menu-button');
+    if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click();
     const link = mobileNavigation.getByRole('link', { name: label });
     await link.focus();
     await page.keyboard.press('Enter');
@@ -942,4 +952,228 @@ test('keeps the template catalog usable at 320px with long names', async ({ page
   await expect(page.getByText(longTemplateName)).toBeVisible();
   await page.getByLabel(/Vorlagen filtern/).focus();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+});
+
+test('keeps option radio borders at 3:1 contrast and metadata flat in every theme', async ({ page }) => {
+  await page.route('**/api/v1/**', async (route) => {
+    const url = route.request().url();
+    if (url.endsWith('/identity')) return route.fulfill({ json: { userID: 'alice' } });
+    if (url.endsWith('/polls/p_contrast')) return route.fulfill({ json: {
+      id: 'p_contrast',
+      title: 'Contrast poll',
+      visibility: 'public',
+      state: 'active',
+      createdAt: '2026-08-31T12:00:00.000Z',
+      endsAt: null,
+      totalVotes: 0,
+      options: [{ number: 1, text: 'Yes' }, { number: 2, text: 'No' }],
+    } });
+    if (url.endsWith('/polls/p_contrast/results')) return route.fulfill({ json: {
+      id: 'p_contrast',
+      totalVotes: 0,
+      options: [{ number: 1, text: 'Yes', voteCount: 0, votes: [] }, { number: 2, text: 'No', voteCount: 0, votes: [] }],
+    } });
+    return route.fulfill({ json: [] });
+  });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/poll/p_contrast');
+  await expect(page.getByRole('heading', { name: 'Contrast poll', level: 1 })).toBeVisible();
+
+  for (const label of ['Hell', 'Dunkel', 'Sepia', 'Eco']) {
+    await page.getByRole('button', { name: 'Theme auswählen' }).click();
+    await page.locator('label.theme-option', { hasText: label }).click();
+    await page.keyboard.press('Escape');
+
+    const contrast = await page.evaluate(() => {
+      const luminance = (color: string) => {
+        const [r, g, b] = (color.match(/[\d.]+/g) ?? ['0', '0', '0']).slice(0, 3).map((value) => {
+          const channel = Number(value) / 255;
+          if (channel <= 0.03928) return channel / 12.92;
+          return ((channel + 0.055) / 1.055) ** 2.4;
+        });
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      };
+      const input = document.querySelector('.poll-option input') as HTMLElement;
+      let element: HTMLElement | null = input.closest('.poll-option');
+      let background = 'rgba(0, 0, 0, 0)';
+      while (element && (background === 'rgba(0, 0, 0, 0)' || background === 'transparent')) {
+        background = getComputedStyle(element).backgroundColor;
+        element = element.parentElement;
+      }
+      const first = luminance(getComputedStyle(input).borderTopColor);
+      const second = luminance(background);
+      return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
+    });
+    expect(contrast, `radio border contrast in theme ${label}`).toBeGreaterThanOrEqual(3);
+    await expect(page.locator('.poll-metadata')).toHaveCSS('box-shadow', 'none');
+    await expect(page.locator('.poll-metadata')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  }
+});
+
+test('keeps the selected option radio at 3:1 contrast in every theme', async ({ page }) => {
+  await page.route('**/api/v1/**', async (route) => {
+    const url = route.request().url();
+    if (url.endsWith('/identity')) return route.fulfill({ json: { userID: 'alice' } });
+    if (url.endsWith('/polls/p_contrast')) return route.fulfill({ json: {
+      id: 'p_contrast',
+      title: 'Contrast poll',
+      visibility: 'public',
+      state: 'active',
+      createdAt: '2026-08-31T12:00:00.000Z',
+      endsAt: null,
+      totalVotes: 0,
+      options: [{ number: 1, text: 'Yes' }, { number: 2, text: 'No' }],
+    } });
+    if (url.endsWith('/polls/p_contrast/results')) return route.fulfill({ json: {
+      id: 'p_contrast',
+      totalVotes: 0,
+      options: [{ number: 1, text: 'Yes', voteCount: 0, votes: [] }, { number: 2, text: 'No', voteCount: 0, votes: [] }],
+    } });
+    return route.fulfill({ json: [] });
+  });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/poll/p_contrast');
+  await expect(page.getByRole('heading', { name: 'Contrast poll', level: 1 })).toBeVisible();
+
+  for (const label of ['Hell', 'Dunkel', 'Sepia', 'Eco']) {
+    await page.getByRole('button', { name: 'Theme auswählen' }).click();
+    await page.locator('label.theme-option', { hasText: label }).click();
+    await page.keyboard.press('Escape');
+
+    await page.locator('.poll-option').first().evaluate((element) => element.classList.add('selected'));
+    const contrast = await page.evaluate(() => {
+      const luminance = (color: string) => {
+        const [r, g, b] = (color.match(/[\d.]+/g) ?? ['0', '0', '0']).slice(0, 3).map((value) => {
+          const channel = Number(value) / 255;
+          if (channel <= 0.03928) return channel / 12.92;
+          return ((channel + 0.055) / 1.055) ** 2.4;
+        });
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      };
+      const input = document.querySelector('.poll-option input') as HTMLElement;
+      let element: HTMLElement | null = input.closest('.poll-option');
+      let background = 'rgba(0, 0, 0, 0)';
+      while (element && (background === 'rgba(0, 0, 0, 0)' || background === 'transparent')) {
+        background = getComputedStyle(element).backgroundColor;
+        element = element.parentElement;
+      }
+      const first = luminance(getComputedStyle(input).borderTopColor);
+      const second = luminance(background);
+      return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
+    });
+    expect(contrast, `radio border contrast in theme ${label}`).toBeGreaterThanOrEqual(3);
+    await expect(page.locator('.poll-metadata')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  }
+});
+
+test('keeps touch targets, eyebrow text, long titles, and accessibility within mobile bounds', async ({ page }) => {
+  const longTitle = 'Ein sehr langer Abstimmungstitel '.repeat(5).trim();
+  await page.route('**/api/v1/**', async (route) => {
+    const url = route.request().url();
+    if (url.endsWith('/identity')) return route.fulfill({ json: { userID: 'alice' } });
+    if (url.endsWith('/polls/p_long')) return route.fulfill({ json: {
+      id: 'p_long', title: longTitle, visibility: 'public', state: 'active', createdAt: '2026-08-31T12:00:00.000Z',
+      endsAt: null, totalVotes: 0, options: [{ number: 1, text: 'Yes' }, { number: 2, text: 'No' }],
+    } });
+    if (url.endsWith('/polls/p_long/results')) return route.fulfill({ json: {
+      id: 'p_long', totalVotes: 0, options: [{ number: 1, text: 'Yes', voteCount: 0, votes: [] }, { number: 2, text: 'No', voteCount: 0, votes: [] }],
+    } });
+    return route.fulfill({ json: [] });
+  });
+  await page.setViewportSize({ width: 375, height: 812 });
+
+  for (const route of ['/', '/polls', '/poll/p_long']) {
+    await page.goto(route);
+    await page.evaluate(() => document.fonts.ready);
+    const undersized = await page.locator('main a, main button, header a, header button, .poll-option').evaluateAll((elements) => elements
+      .filter((element) => !element.closest('.sr-only') && !element.closest('p') && element.getClientRects().length > 0)
+      .map((element) => ({ text: element.textContent?.trim().slice(0, 40), height: element.getBoundingClientRect().height, width: element.getBoundingClientRect().width }))
+      .filter((target) => target.height < 44 || target.width < 44));
+    expect(undersized, `touch targets on ${route}`).toEqual([]);
+    const eyebrowSizes = await page.locator('.eyebrow').evaluateAll((elements) => elements.map((element) => parseFloat(getComputedStyle(element).fontSize)));
+    expect(eyebrowSizes.every((size) => size >= 12), `eyebrow size on ${route}`).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth), `no horizontal scroll on ${route}`).toBeLessThanOrEqual(375);
+  }
+
+  for (const label of ['Hell', 'Dunkel', 'Sepia', 'Eco']) {
+    await page.goto('/poll/p_long');
+    await expect(page.getByRole('heading', { name: longTitle, level: 1 })).toBeVisible();
+    await page.getByRole('button', { name: 'Theme auswählen' }).click();
+    await page.locator('label.theme-option', { hasText: label }).click();
+    await page.keyboard.press('Escape');
+    for (const route of ['/', '/polls', '/poll/p_long']) {
+      await page.goto(route);
+      await page.evaluate(() => document.fonts.ready);
+      const results = await new AxeBuilder({ page }).analyze();
+      const serious = results.violations.filter((violation) => violation.impact === 'critical' || violation.impact === 'serious');
+      expect(serious.map((violation) => violation.id), `axe in theme ${label} on ${route}`).toEqual([]);
+    }
+  }
+});
+
+test('shows list and poll content above the 812px viewport bottom at 375px', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.route('**/api/v1/**', async (route) => {
+    const url = route.request().url();
+    if (url.endsWith('/identity')) return route.fulfill({ json: { userID: null } });
+    if (url.endsWith('/polls/p_fold')) return route.fulfill({ json: {
+      id: 'p_fold', title: 'Above the fold', visibility: 'public', state: 'active', createdAt: '2026-08-31T12:00:00.000Z',
+      endsAt: null, totalVotes: 0, options: [{ number: 1, text: 'Yes' }, { number: 2, text: 'No' }],
+    } });
+    if (url.endsWith('/polls/p_fold/results')) return route.fulfill({ json: {
+      id: 'p_fold', totalVotes: 0, options: [{ number: 1, text: 'Yes', voteCount: 0, votes: [] }, { number: 2, text: 'No', voteCount: 0, votes: [] }],
+    } });
+    if (url.endsWith('/polls')) return route.fulfill({ json: [{
+      id: 'p_fold', title: 'Above the fold', visibility: 'public', state: 'active', createdAt: '2026-08-31T12:00:00.000Z',
+      endsAt: null, totalVotes: 0, templateGroup: { id: 'g', name: 'G', description: '' }, templateSnapshotOptions: [], options: [],
+    }] });
+    return route.fulfill({ json: [] });
+  });
+
+  await page.goto('/polls?date=all');
+  await expect(page.locator('.poll-card').first()).toBeVisible();
+  expect(await page.locator('.poll-card').first().evaluate((element) => element.getBoundingClientRect().bottom)).toBeLessThanOrEqual(812);
+
+  await page.goto('/poll/p_fold');
+  await expect(page.getByRole('heading', { name: 'Above the fold', level: 1 })).toBeVisible();
+  expect(await page.locator('.poll-option').last().evaluate((element) => element.getBoundingClientRect().bottom)).toBeLessThanOrEqual(812);
+});
+
+test('changes the identity from the mobile menu dialog and shows it in the menu status', async ({ page }) => {
+  let identity: string | null = null;
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request();
+    if (request.url().endsWith('/csrf')) return route.fulfill({ json: { token: 'csrf-token', headerName: 'X-XSRF-TOKEN' } });
+    if (request.url().endsWith('/identity') && request.method() === 'GET') return route.fulfill({ json: { userID: identity } });
+    if (request.url().endsWith('/identity') && request.method() === 'POST') {
+      identity = request.postDataJSON().userID;
+      return route.fulfill({ status: 204 });
+    }
+    return route.fulfill({ json: [] });
+  });
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto('/polls');
+
+  await page.getByRole('button', { name: 'Menü', exact: true }).click();
+  await page.locator('.mobile-identity').getByRole('button', { name: 'Identität bearbeiten' }).click();
+  await page.getByLabel('Neue Identität').fill('Bob');
+  await page.getByRole('button', { name: 'Speichern' }).click();
+  await page.getByRole('button', { name: 'Änderung bestätigen' }).click();
+
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Menü', exact: true }).click();
+  await expect(page.locator('.mobile-identity-value')).toContainText('Bob');
+});
+
+test('closes the mobile menu when the viewport reaches desktop width', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.route('**/api/v1/**', (route) => route.fulfill({ json: [] }));
+  await page.goto('/polls');
+  await page.getByRole('button', { name: 'Menü', exact: true }).click();
+  await expect(page.locator('#mobile-menu-panel')).toBeVisible();
+
+  await page.setViewportSize({ width: 1280, height: 800 });
+
+  await expect(page.locator('#mobile-menu-panel')).toHaveCount(0);
+  await expect(page.locator('.sidebar-navigation')).toBeVisible();
 });

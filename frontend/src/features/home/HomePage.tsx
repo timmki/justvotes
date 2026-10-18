@@ -13,8 +13,11 @@ export function HomePage() {
     const {t} = useI18n();
     const identityQuery = useApiQuery(queryKeys.identity, () => apiClient.getIdentity());
     const pollsQuery = useApiQuery(queryKeys.publicPolls, () => apiClient.getPublicPolls());
-    return <PageFrame title={t('common.home')} description={t('common.homeDescription')}>
-        <QueryState query={identityQuery}>{(identity) => <IdentityEditor identity={identity.userID}/>}</QueryState>
+    return <PageFrame title={t('common.home')} description={t('common.homeDescription')} titleHidden>
+        <QueryState query={identityQuery}>{(identity) => {
+            if (identity.userID) return <IdentityEditor identity={identity.userID} variant="compact"/>;
+            return <IdentityEditor identity={null}/>;
+        }}</QueryState>
         <QueryState query={pollsQuery}>{(polls) => <HomeDiscovery polls={polls}/>}</QueryState>
         <footer className="home-footer"><Link className="text-link" to="/admin">{t('common.admin')}</Link></footer>
     </PageFrame>;
@@ -26,6 +29,8 @@ function HomeDiscovery({polls}: {polls: PublicPoll[]}) {
     const activePolls = publicPolls.filter((poll) => poll.state === 'active');
     const featuredPoll = activePolls[0];
     const totalVotes = publicPolls.reduce((sum, poll) => sum + poll.totalVotes, 0);
+    const latestPolls = publicPolls.filter((poll) => poll.id !== featuredPoll?.id);
+    const showLatestSection = publicPolls.length === 0 || latestPolls.length !== 0;
 
     return <div className="home-discovery">
         <section className="home-featured" aria-label={t('common.featuredPoll')}>
@@ -44,16 +49,16 @@ function HomeDiscovery({polls}: {polls: PublicPoll[]}) {
             <div><dt>{t('common.allPublicPolls')}</dt><dd>{publicPolls.length}</dd></div>
             <div><dt>{t('common.publicVotes')}</dt><dd>{totalVotes}</dd></div>
         </dl>
-        <section className="discovery-preview" aria-labelledby="latest-polls-heading">
+        {showLatestSection && <section className="discovery-preview" aria-labelledby="latest-polls-heading">
             <div className="section-head">
                 <h2 id="latest-polls-heading">{t('common.latestPolls')}</h2>
-                <Link to="/polls">{t('common.viewAllPolls')}</Link>
+                <Link className="text-link" to="/polls">{t('common.viewAllPolls')}</Link>
             </div>
             {publicPolls.length === 0 && <RouteState status="empty"/>}
             {publicPolls.length !== 0 && <ul className="poll-list" aria-label={t('common.latestPolls')}>
-                {publicPolls.slice(0, 4).map((poll) => <li key={poll.id}><PublicPollCard poll={poll}/></li>)}
+                {latestPolls.slice(0, 4).map((poll) => <li key={poll.id}><PublicPollCard poll={poll}/></li>)}
             </ul>}
-        </section>
+        </section>}
     </div>;
 }
 

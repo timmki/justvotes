@@ -7,6 +7,7 @@ import {PublicPollCard} from './PublicPollCard';
 import {DataPage} from './pollPageShared';
 import {hasInvalidPollDateRange, parsePollListState, projectPollListState, serializePollListState, type PollDateFilter, type PollSort} from './pollListState';
 import {projectPollList} from './pollProjections';
+import type {TranslationKey} from '../../shared/i18n/translations';
 import {usePollsQuery} from './pollQueries';
 
 export function PollsPage() {
@@ -52,6 +53,7 @@ export function PollsPage() {
                         <option value="oldest">{t('polls.oldest')}</option>
                     </select></label>
                     <label>{t('polls.dateFilter')}<select aria-label={t('polls.dateFilter')} value={state.dateFilter} onChange={(event) => updateState({dateFilter: event.target.value as PollDateFilter})}>
+                        <option value="all">{t('polls.allDates')}</option>
                         <option value="yesterday">{t('polls.yesterday')}</option>
                         <option value="today">{t('polls.today')}</option>
                         <option value="tomorrow">{t('polls.tomorrow')}</option>
@@ -71,7 +73,10 @@ export function PollsPage() {
                 if (visiblePolls.length === 1) countKey = 'polls.listCountSingular';
                 return <>
                     <p className="poll-list-status" role="status" aria-live="polite">{visiblePolls.length} {t(countKey)}</p>
-                    {visiblePolls.length === 0 && <RouteState status="empty"/>}
+                    {visiblePolls.length === 0 && state.dateFilter === 'all' && <RouteState status="empty"/>}
+                    {visiblePolls.length === 0 && state.dateFilter !== 'all' && <RouteState status="empty"
+                        title={t('polls.emptyForFilter').replace('{filter}', filterLabel(state.dateFilter, t))}
+                        action={<button className="text-button" type="button" onClick={clearState}>{t('polls.resetFilters')}</button>}/>}
                     {visiblePolls.length !== 0 && <ul className="poll-list">
                         {visiblePolls.map((poll) => <li key={poll.id}><PublicPollCard poll={projectPollList(poll)}/></li>)}
                     </ul>}
@@ -79,4 +84,11 @@ export function PollsPage() {
             }}</QueryState>
         </div>
     </DataPage>;
+}
+
+function filterLabel(dateFilter: PollDateFilter, t: (key: TranslationKey) => string) {
+    if (dateFilter === 'yesterday') return t('polls.yesterday');
+    if (dateFilter === 'tomorrow') return t('polls.tomorrow');
+    if (dateFilter === 'date') return t('polls.date');
+    return t('polls.today');
 }

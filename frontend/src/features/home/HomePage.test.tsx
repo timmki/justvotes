@@ -86,7 +86,7 @@ describe('HomePage identity', () => {
         queryClient.setQueryData(queryKeys.pollResults('poll-1'), {});
 
         renderHome();
-        fireEvent.click(await screen.findByRole('button', {name: 'Identität bearbeiten'}));
+        fireEvent.click(await screen.findByRole('button', {name: 'Identität festlegen'}));
         fireEvent.change(screen.getByLabelText('Neue Identität'), {target: {value: 'Älice #1'}});
         fireEvent.click(screen.getByRole('button', {name: 'Speichern'}));
 
@@ -195,9 +195,10 @@ describe('HomePage discovery', () => {
         const featuredSection = await screen.findByRole('region', {name: 'Im Fokus'});
         const featuredCard = await within(featuredSection).findByRole('link', {name: /Same time active poll/});
         expect(featuredCard).toHaveClass('featured-poll-card');
-        expect(screen.getByRole('list', {name: 'Neueste öffentliche Abstimmungen'})).toHaveTextContent('Newest expired poll');
-        expect(screen.getByRole('list', {name: 'Neueste öffentliche Abstimmungen'}).textContent)
-            .toMatch(/Newest expired poll[\s\S]*Same time active poll[\s\S]*Newest active poll/);
+        const latestList = screen.getByRole('list', {name: 'Neueste öffentliche Abstimmungen'});
+        expect(latestList).toHaveTextContent('Newest expired poll');
+        expect(latestList.textContent).toMatch(/Newest expired poll[\s\S]*Newest active poll/);
+        expect(within(latestList).queryByRole('link', {name: /Same time active poll/})).toBeNull();
         expect(screen.getByText('Aktive öffentliche Abstimmungen').parentElement).toHaveTextContent('2');
         expect(screen.getByText('Öffentliche Abstimmungen gesamt').parentElement).toHaveTextContent('3');
         expect(screen.getByText('Öffentliche Stimmen').parentElement).toHaveTextContent('10');
@@ -215,5 +216,40 @@ describe('HomePage discovery', () => {
         expect(screen.getByText('Aktive öffentliche Abstimmungen').parentElement).toHaveTextContent('0');
         expect(screen.getByText('Öffentliche Abstimmungen gesamt').parentElement).toHaveTextContent('1');
         expect(screen.getByText('Öffentliche Stimmen').parentElement).toHaveTextContent('5');
+    });
+});
+
+describe('HomePage identity and hierarchy', () => {
+    it('shows the identity call to action before the featured poll while no identity is set', async () => {
+        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: null});
+        vi.mocked(apiClient.getPublicPolls).mockResolvedValue(discoveryPolls);
+
+        renderHome();
+
+        const action = await screen.findByRole('button', {name: 'Identität festlegen'});
+        expect(action).toHaveClass('primary-button');
+        const featured = await screen.findByRole('region', {name: 'Im Fokus'});
+        expect(action.compareDocumentPosition(featured) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('keeps the start page heading visually hidden and shows no full identity card once identity is set', async () => {
+        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
+        vi.mocked(apiClient.getPublicPolls).mockResolvedValue(discoveryPolls);
+
+        renderHome();
+
+        expect(await screen.findByRole('region', {name: 'Im Fokus'})).toBeVisible();
+        expect(screen.getByRole('heading', {level: 1})).toHaveClass('sr-only');
+        expect(screen.queryByRole('button', {name: 'Identität festlegen'})).toBeNull();
+    });
+
+    it('hides the latest section when the featured poll is the only public poll', async () => {
+        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
+        vi.mocked(apiClient.getPublicPolls).mockResolvedValue([discoveryPolls[1]]);
+
+        renderHome();
+
+        expect(await screen.findByRole('region', {name: 'Im Fokus'})).toBeVisible();
+        expect(screen.queryByRole('list', {name: 'Neueste öffentliche Abstimmungen'})).toBeNull();
     });
 });

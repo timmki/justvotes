@@ -34,7 +34,7 @@ describe('ProfilePage', () => {
         vi.spyOn(apiClient, 'getCurrentIdentityVotes').mockResolvedValue({userID: null, votes: []});
         renderPollTest('/profile', <ProfilePage/>);
         expect(await screen.findByText('Zuerst eine Identität setzen')).toBeVisible();
-        fireEvent.click(screen.getByRole('button', {name: 'Identität bearbeiten'}));
+        fireEvent.click(screen.getByRole('button', {name: 'Identität festlegen'}));
         expect(screen.getByLabelText('Neue Identität')).toBeVisible();
         expect(screen.queryByText('Transport')).not.toBeInTheDocument();
         expect(screen.queryByText('Keine aktuelle Stimme')).not.toBeInTheDocument();

@@ -24,6 +24,10 @@ Ein fachlich bedeutender, bereits eingetretener Vorgang wie eine abgegebene,
 ersetzte oder beim Identitätswechsel entfernte Stimme.
 _Avoid_: Audit-Zeile, Datenbank-Trigger
 
+**Prüfprotokoll**:
+Die chronologische, öffentlich lesbare Ansicht der Domänenereignisse eines Polls.
+_Avoid_: Audit Log, Audit
+
 **Vorlagengruppe**:
 Eine global benannte Gruppe von Optionsvorlagen, aus der beim Anlegen eines
 Polls dessen Optionen übernommen werden.
