@@ -208,7 +208,7 @@ function VoteRemovalDialog({vote, error, pending, onCancel, onConfirm}: {
                 {error && <p className="form-error" role="alert">{t(error.messageKey)}</p>}
                 <div className="identity-actions">
                     <button className="primary-button" type="submit"
-                            disabled={pending || !reason.trim()}>{t('voteAdmin.removeVote')}</button>
+                            aria-busy={pending} disabled={pending || !reason.trim()}>{pending && <span className="button-spinner" aria-hidden="true"/>}{t('voteAdmin.removeVote')}</button>
                     <button className="text-button" type="button" onClick={onCancel}
                             disabled={pending}>{t('forms.cancel')}</button>
                 </div>

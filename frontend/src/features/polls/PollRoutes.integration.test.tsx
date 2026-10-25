@@ -225,7 +225,8 @@ describe('PollsPage', () => {
         vi.spyOn(apiClient, 'getPublicPolls').mockResolvedValue([]);
         renderPolls();
 
-        expect(await screen.findByText('Noch keine Daten vorhanden')).toBeVisible();
+        expect(await screen.findByText('Keine Abstimmungen für „Datum“')).toBeVisible();
+        expect(within(screen.getByRole('region', {name: 'Seitenstatus'})).getByRole('button', {name: 'Filter zurücksetzen'})).toBeVisible();
     });
 
     it('offers retry after a failed list request', async () => {
@@ -267,7 +268,7 @@ describe('PollsPage', () => {
         ]);
     });
 
-    it('defaults to today and supports yesterday, tomorrow, and custom dates', async () => {
+    it('defaults to all polls and supports yesterday, today, tomorrow, and custom dates', async () => {
         vi.spyOn(apiClient, 'getPublicPolls').mockResolvedValue([
             listPoll('yesterday', 'Yesterday poll', relativeLocalIso(-1)),
             listPoll('today', 'Today poll', relativeLocalIso(0)),
@@ -276,10 +277,11 @@ describe('PollsPage', () => {
 
         renderPolls('/polls');
 
-        expect(screen.getByLabelText('Datum')).toHaveValue('today');
+        expect(screen.getByLabelText('Datum')).toHaveValue('all');
         expect(screen.queryByLabelText('Von')).toBeNull();
         expect(await screen.findByRole('link', {name: /Today poll/})).toBeVisible();
-        expect(screen.queryByRole('link', {name: /Yesterday poll/})).toBeNull();
+        expect(screen.getByRole('link', {name: /Yesterday poll/})).toBeVisible();
+        expect(screen.getByRole('link', {name: /Tomorrow poll/})).toBeVisible();
         fireEvent.change(screen.getByLabelText('Datum'), {target: {value: 'yesterday'}});
         expect(await screen.findByRole('link', {name: /Yesterday poll/})).toBeVisible();
         expect(screen.queryByRole('link', {name: /Today poll/})).toBeNull();
@@ -387,7 +389,7 @@ describe('PollsPage', () => {
         await screen.findByRole('link', {name: /Old/});
         fireEvent.click(screen.getByRole('button', {name: 'Filter zurücksetzen'}));
         expect(screen.getByLabelText('Sortierung')).toHaveValue('newest');
-        expect(screen.getByLabelText('Datum')).toHaveValue('today');
+        expect(screen.getByLabelText('Datum')).toHaveValue('all');
         expect(screen.queryByLabelText('Von')).toBeNull();
         expect(screen.queryByLabelText('Bis')).toBeNull();
         expect(screen.getByLabelText('URL-Suche')).toHaveTextContent('');
@@ -408,20 +410,46 @@ describe('PollPage', () => {
 
         renderPollPage();
 
-        expect(await screen.findByRole('heading', {name: 'Team-Ausflug', level: 3})).toBeVisible();
+        expect(await screen.findByRole('heading', {name: 'Team-Ausflug', level: 1})).toBeVisible();
         expect(screen.getByRole('complementary', {name: 'Abstimmungs-Metadaten'})).toHaveTextContent('01.08.2026');
         expect(screen.getByRole('complementary', {name: 'Abstimmungs-Metadaten'})).toHaveTextContent('01.01.2099');
         expect(screen.getByRole('complementary', {name: 'Abstimmungs-Metadaten'})).toHaveTextContent('1');
         expect(await screen.findByText('Nach eigener Stimme')).toBeVisible();
-        expect(screen.getByRole('radio', {name: 'Apfel'}).parentElement).toHaveTextContent('Optionsnummer 7');
-        expect(screen.getByRole('radio', {name: 'Zebra'}).parentElement).toHaveTextContent('Optionsnummer 2');
+        expect(screen.getByRole('radio', {name: 'Apfel'}).parentElement).not.toHaveTextContent('Optionsnummer');
+        expect(screen.getByRole('radio', {name: 'Zebra'}).parentElement).not.toHaveTextContent('Optionsnummer');
         expect(screen.queryByRole('button', {name: /Speichern/})).toBeNull();
+    });
+
+    it('shows status, end date and vote count as a fact line under the title', async () => {
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(resultsFor(null));
+
+        renderPollPage();
+
+        await screen.findByRole('heading', {name: 'Team-Ausflug', level: 1});
+        const factLine = document.querySelector('.poll-fact-line');
+        expect(factLine).toHaveTextContent('aktiv');
+        expect(factLine).toHaveTextContent('Endet am');
+        expect(factLine).toHaveTextContent('01.01.2099');
+        expect(factLine).toHaveTextContent('1 Stimme');
+        expect(screen.queryByText('Abstimmungs-Details und Optionen.')).toBeNull();
+        expect(document.querySelector('.poll-detail-card')).not.toHaveTextContent('01.08.2026');
+    });
+
+    it('omits the end date from the fact line when the poll has none', async () => {
+        vi.spyOn(apiClient, 'getPoll').mockResolvedValue({...poll, endsAt: null, totalVotes: 0});
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(resultsFor(null));
+
+        renderPollPage();
+
+        await screen.findByRole('heading', {name: 'Team-Ausflug', level: 1});
+        const factLine = document.querySelector('.poll-fact-line');
+        expect(factLine).not.toHaveTextContent('Endet am');
+        expect(factLine).toHaveTextContent('0 Stimmen');
     });
 
     it.each([
         ['created', null, 7, 'Stimme abgegeben'],
         ['replaced', 2, 7, 'Stimme geändert'],
-        ['unchanged', 7, 7, 'Stimme unverändert'],
     ] as const)('handles a %s vote result and sends the stable option number', async (status, initialOption, targetOption, feedback) => {
         if (initialOption === null) {
             vi.spyOn(apiClient, 'getPollResults')
@@ -438,8 +466,9 @@ describe('PollPage', () => {
 
         const option = await screen.findByRole('radio', {name: 'Apfel'});
         expect(screen.getAllByRole('radio').map((input) => input.getAttribute('aria-label'))).toEqual(['Apfel', 'Zebra']);
-        if (initialOption === 7) await waitFor(() => expect(option).toBeChecked());
         fireEvent.click(option);
+        expect(castVote).not.toHaveBeenCalled();
+        fireEvent.click(screen.getByRole('button', {name: 'Stimme abgeben: Apfel'}));
 
         await waitFor(() => expect(castVote).toHaveBeenCalledWith(poll.id, targetOption));
         expect(await screen.findByText(new RegExp(feedback))).toBeVisible();
@@ -459,16 +488,19 @@ describe('PollPage', () => {
         await waitFor(() => expect(screen.getByRole('radio', {name: 'Zebra'})).toBeChecked());
         expect(screen.getByRole('radio', {name: 'Zebra'}).parentElement).toHaveTextContent('Eigene Stimme');
         fireEvent.click(apple);
+        fireEvent.click(screen.getByRole('button', {name: 'Stimme abgeben: Apfel'}));
 
         expect(apple).toBeChecked();
         expect(screen.getByRole('group', {name: 'Stimme abgeben'})).toBeDisabled();
+        expect(screen.getByRole('button', {name: 'Stimme abgeben: Apfel'})).toBeDisabled();
+        expect(screen.getByRole('button', {name: 'Stimme abgeben: Apfel'})).toHaveAttribute('aria-busy', 'true');
         expect(screen.getByRole('radio', {name: 'Zebra'}).parentElement).toHaveTextContent('Eigene Stimme');
         await waitFor(() => expect(castVote).toHaveBeenCalledWith(poll.id, 7));
         await act(async () => finishVote?.());
         expect(await screen.findByText('Stimme geändert.')).toBeVisible();
     });
 
-    it('sorts options alphabetically while rolling back a failed selection', async () => {
+    it('sorts options alphabetically and keeps a failed selection for another attempt', async () => {
         vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(resultsFor(2));
         vi.spyOn(apiClient, 'castVote').mockRejectedValue(new Error('offline'));
 
@@ -478,9 +510,24 @@ describe('PollPage', () => {
         expect(options.map((input) => input.getAttribute('aria-label'))).toEqual(['Apfel', 'Zebra']);
         await waitFor(() => expect(screen.getByRole('radio', {name: 'Zebra'})).toBeChecked());
         fireEvent.click(screen.getByRole('radio', {name: 'Apfel'}));
+        fireEvent.click(screen.getByRole('button', {name: 'Stimme abgeben: Apfel'}));
+
+        expect(await screen.findByRole('alert')).toHaveTextContent('Die Anfrage konnte nicht verarbeitet werden');
+        expect(screen.getByRole('radio', {name: 'Apfel'})).toBeChecked();
+        expect(screen.getByRole('button', {name: 'Stimme abgeben: Apfel'})).toBeEnabled();
+    });
+
+    it('shows the confirm button only while the selection differs from the current vote', async () => {
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(resultsFor(2));
+
+        renderPollPage();
 
         await waitFor(() => expect(screen.getByRole('radio', {name: 'Zebra'})).toBeChecked());
-        expect(screen.getByRole('alert')).toHaveTextContent('Die Anfrage konnte nicht verarbeitet werden');
+        expect(screen.queryByRole('button', {name: /^Stimme abgeben/})).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole('radio', {name: 'Apfel'}));
+        expect(screen.getByRole('button', {name: 'Stimme abgeben: Apfel'})).toBeEnabled();
+        fireEvent.click(screen.getByRole('radio', {name: 'Zebra'}));
+        expect(screen.queryByRole('button', {name: /^Stimme abgeben/})).not.toBeInTheDocument();
     });
 
     it('treats an active poll results 403 as not voted instead of a page error', async () => {
@@ -489,7 +536,7 @@ describe('PollPage', () => {
         renderPollPage();
 
         expect(await screen.findByText('Ergebnisse werden nach eigener Stimme freigegeben.')).toBeVisible();
-        expect(screen.getByRole('heading', {name: 'Team-Ausflug', level: 3})).toBeVisible();
+        expect(screen.getByRole('heading', {name: 'Team-Ausflug', level: 1})).toBeVisible();
         expect(screen.queryByText('Daten konnten nicht geladen werden')).toBeNull();
         expect(screen.queryByRole('link', {name: 'Abstimmung - Ergebnisse'})).toBeNull();
     });
@@ -560,6 +607,204 @@ describe('PollPage', () => {
     });
 });
 
+describe('PollPage inline confirm button', () => {
+    beforeEach(() => {
+        queryClient.clear();
+        vi.spyOn(apiClient, 'getPoll').mockResolvedValue(poll);
+        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
+    });
+
+    it('shows one confirm button inside the selected option only', async () => {
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(resultsFor(2));
+
+        renderPollPage();
+
+        await waitFor(() => expect(screen.getByRole('radio', {name: 'Zebra'})).toBeChecked());
+        expect(screen.queryByRole('button', {name: /^Stimme abgeben/})).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole('radio', {name: 'Apfel'}));
+
+        const button = screen.getByRole('button', {name: 'Stimme abgeben: Apfel'});
+        expect(button.closest('.poll-option')).toBe(screen.getByRole('radio', {name: 'Apfel'}).closest('.poll-option'));
+        expect(screen.getAllByRole('button', {name: /^Stimme abgeben/})).toHaveLength(1);
+    });
+
+    it('sends one vote per activation and removes the button once the vote is saved', async () => {
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValueOnce(resultsFor(2)).mockResolvedValue(resultsFor(7));
+        const castVote = vi.spyOn(apiClient, 'castVote').mockResolvedValue({status: 'replaced', optionNumber: 7});
+
+        renderPollPage();
+
+        await waitFor(() => expect(screen.getByRole('radio', {name: 'Zebra'})).toBeChecked());
+        fireEvent.click(screen.getByRole('radio', {name: 'Apfel'}));
+        fireEvent.click(screen.getByRole('button', {name: 'Stimme abgeben: Apfel'}));
+
+        await waitFor(() => expect(castVote).toHaveBeenCalledTimes(1));
+        expect(castVote).toHaveBeenCalledWith(poll.id, 7);
+        await waitFor(() => expect(screen.queryByRole('button', {name: /^Stimme abgeben/})).not.toBeInTheDocument());
+        expect(screen.getByRole('radio', {name: 'Apfel'})).toBeChecked();
+    });
+
+    it('returns focus to the voted option after a keyboard confirmation', async () => {
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValueOnce(resultsFor(2)).mockResolvedValue(resultsFor(7));
+        vi.spyOn(apiClient, 'castVote').mockResolvedValue({status: 'replaced', optionNumber: 7});
+
+        renderPollPage();
+
+        await waitFor(() => expect(screen.getByRole('radio', {name: 'Zebra'})).toBeChecked());
+        fireEvent.click(screen.getByRole('radio', {name: 'Apfel'}));
+        const button = screen.getByRole('button', {name: 'Stimme abgeben: Apfel'});
+        act(() => button.focus());
+        fireEvent.click(button);
+
+        await waitFor(() => expect(screen.getByRole('radio', {name: 'Apfel'})).toHaveFocus());
+    });
+
+    it('shows a failed vote inside the selected row and returns focus to its button', async () => {
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(resultsFor(2));
+        vi.spyOn(apiClient, 'castVote').mockRejectedValue(new Error('offline'));
+
+        renderPollPage();
+
+        await waitFor(() => expect(screen.getByRole('radio', {name: 'Zebra'})).toBeChecked());
+        fireEvent.click(screen.getByRole('radio', {name: 'Apfel'}));
+        const button = screen.getByRole('button', {name: 'Stimme abgeben: Apfel'});
+        act(() => button.focus());
+        fireEvent.click(button);
+
+        const alert = await screen.findByRole('alert');
+        expect(alert).toHaveTextContent('Die Anfrage konnte nicht verarbeitet werden');
+        expect(alert.closest('.poll-option')).toBe(screen.getByRole('radio', {name: 'Apfel'}).closest('.poll-option'));
+        await waitFor(() => expect(screen.getByRole('button', {name: 'Stimme abgeben: Apfel'})).toHaveFocus());
+        expect(screen.getByRole('button', {name: 'Stimme abgeben: Apfel'})).toBeEnabled();
+    });
+
+    it('shows no confirm button without an identity', async () => {
+        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: null});
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(resultsFor(null));
+
+        renderPollPage();
+
+        expect((await screen.findAllByRole('radio')).length).toBeGreaterThan(0);
+        expect(screen.queryByRole('button', {name: /^Stimme abgeben/})).not.toBeInTheDocument();
+    });
+
+    it('moves the confirm button to another option that is not the current vote', async () => {
+        vi.spyOn(apiClient, 'getPoll').mockResolvedValue({
+            ...poll,
+            options: [{number: 2, text: 'Zebra'}, {number: 7, text: 'Apfel'}, {number: 9, text: 'Birne'}],
+        });
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(resultsFor(2));
+
+        renderPollPage();
+
+        await waitFor(() => expect(screen.getByRole('radio', {name: 'Zebra'})).toBeChecked());
+        fireEvent.click(screen.getByRole('radio', {name: 'Apfel'}));
+        expect(screen.getByRole('button', {name: 'Stimme abgeben: Apfel'})).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('radio', {name: 'Birne'}));
+        expect(screen.queryByRole('button', {name: 'Stimme abgeben: Apfel'})).not.toBeInTheDocument();
+        const birneRow = screen.getByRole('radio', {name: 'Birne'}).closest<HTMLElement>('.poll-option');
+        expect(birneRow).not.toBeNull();
+        expect(within(birneRow as HTMLElement).getByRole('button', {name: 'Stimme abgeben: Birne'})).toBeInTheDocument();
+        expect(screen.getAllByRole('button', {name: /^Stimme abgeben/})).toHaveLength(1);
+    });
+
+    it('shows no confirm button on an expired poll', async () => {
+        vi.spyOn(apiClient, 'getPoll').mockResolvedValue({...poll, state: 'expired' as const});
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue({...resultsFor(2), state: 'expired' as const});
+
+        renderPollPage();
+
+        await waitFor(() => expect(screen.getByRole('radio', {name: 'Zebra'})).toBeChecked());
+        expect(screen.getByRole('radio', {name: 'Apfel'})).toBeDisabled();
+        expect(screen.queryByRole('button', {name: /^Stimme abgeben/})).not.toBeInTheDocument();
+    });
+
+    it('places the confirm button right after the checked option in tab order', async () => {
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(resultsFor(2));
+
+        renderPollPage();
+
+        await waitFor(() => expect(screen.getByRole('radio', {name: 'Zebra'})).toBeChecked());
+        fireEvent.click(screen.getByRole('radio', {name: 'Apfel'}));
+        // Tab skips unchecked radios of the group, so the stops are the enabled inputs and buttons without them.
+        const tabStops = Array.from(document.querySelectorAll<HTMLElement>('input, button'))
+            .filter((element) => !element.matches(':disabled') && !element.matches('input[type="radio"]:not(:checked)'));
+        const apfel = screen.getByRole('radio', {name: 'Apfel'});
+        const button = screen.getByRole('button', {name: 'Stimme abgeben: Apfel'});
+        expect(tabStops.indexOf(button)).toBe(tabStops.indexOf(apfel) + 1);
+    });
+
+    it('moves focus to the voted option after a vote even when the button had no focus', async () => {
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValueOnce(resultsFor(2)).mockResolvedValue(resultsFor(7));
+        vi.spyOn(apiClient, 'castVote').mockResolvedValue({status: 'replaced', optionNumber: 7});
+
+        renderPollPage();
+
+        await waitFor(() => expect(screen.getByRole('radio', {name: 'Zebra'})).toBeChecked());
+        fireEvent.click(screen.getByRole('radio', {name: 'Apfel'}));
+        const button = screen.getByRole('button', {name: 'Stimme abgeben: Apfel'});
+        expect(button).not.toHaveFocus();
+        fireEvent.click(button);
+
+        await waitFor(() => expect(screen.getByRole('radio', {name: 'Apfel'})).toHaveFocus());
+    });
+
+    it('keeps a pending selection and its confirm button when a late results update names another current vote', async () => {
+        let currentVote: number | null = null;
+        vi.spyOn(apiClient, 'getPollResults').mockImplementation(async () => resultsFor(currentVote));
+        const castVote = vi.spyOn(apiClient, 'castVote');
+
+        renderPollPage();
+
+        await waitFor(() => expect(screen.getByRole('radio', {name: 'Apfel'})).toBeEnabled());
+        fireEvent.click(screen.getByRole('radio', {name: 'Apfel'}));
+        expect(screen.getByRole('button', {name: 'Stimme abgeben: Apfel'})).toBeInTheDocument();
+
+        currentVote = 2;
+        await act(async () => {
+            await queryClient.invalidateQueries({queryKey: queryKeys.pollResults(poll.id)});
+        });
+
+        expect(screen.getByRole('radio', {name: 'Apfel'})).toBeChecked();
+        expect(screen.getByRole('button', {name: 'Stimme abgeben: Apfel'})).toBeInTheDocument();
+        expect(castVote).not.toHaveBeenCalled();
+    });
+
+    it('announces the saved vote once after a keyboard submit', async () => {
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValueOnce(resultsFor(2)).mockResolvedValue(resultsFor(7));
+        vi.spyOn(apiClient, 'castVote').mockResolvedValue({status: 'replaced', optionNumber: 7});
+        const announcements = () => Array.from(document.querySelectorAll('[role="status"]'))
+            .filter((element) => element.textContent === 'Stimme geändert.');
+
+        renderPollPage();
+
+        await waitFor(() => expect(screen.getByRole('radio', {name: 'Zebra'})).toBeChecked());
+        fireEvent.click(screen.getByRole('radio', {name: 'Apfel'}));
+        const button = screen.getByRole('button', {name: 'Stimme abgeben: Apfel'});
+        act(() => button.focus());
+        fireEvent.click(button);
+
+        await waitFor(() => expect(announcements()).toHaveLength(1));
+        expect(announcements()).toHaveLength(1);
+    });
+
+    it('removes the failed vote alert when another option is selected', async () => {
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(resultsFor(2));
+        vi.spyOn(apiClient, 'castVote').mockRejectedValue(new Error('offline'));
+
+        renderPollPage();
+
+        await waitFor(() => expect(screen.getByRole('radio', {name: 'Zebra'})).toBeChecked());
+        fireEvent.click(screen.getByRole('radio', {name: 'Apfel'}));
+        fireEvent.click(screen.getByRole('button', {name: 'Stimme abgeben: Apfel'}));
+        expect(await screen.findByRole('alert')).toBeVisible();
+
+        fireEvent.click(screen.getByRole('radio', {name: 'Zebra'}));
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+});
+
 describe('ResultsPage', () => {
     afterEach(() => {
         vi.useRealTimers();
@@ -606,7 +851,7 @@ describe('ResultsPage', () => {
         expect(screen.getByRole('region', {name: 'Ergebnisübersicht'})).toHaveTextContent('67 %');
         expect(screen.getByText('33 %')).toBeVisible();
         expect(screen.getAllByText('Gewinner')).toHaveLength(2);
-        expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual(['Apfel', 'Zebra', 'Abstimmungen', 'Audit Log']);
+        expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual(['Apfel', 'Zebra', 'Abstimmungen', 'Prüfprotokoll']);
 
         const zeroResult = {...result, totalVotes: 0, options: result.options.map((option) => ({...option, voteCount: 0, votes: []}))};
         vi.mocked(apiClient.getPollResults).mockResolvedValue(zeroResult);
@@ -710,9 +955,9 @@ describe('ResultsPage', () => {
         expect(screen.getAllByRole('listitem').map((item) => item.textContent)).toEqual([
             expect.stringContaining('first.identity'), expect.stringContaining('second.identity'),
         ]);
-        expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual(['Abstimmung - Ergebnisse', 'Audit Log']);
+        expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual(['Abstimmung - Ergebnisse', 'Prüfprotokoll']);
 
-        fireEvent.click(screen.getByRole('link', {name: 'Audit Log'}));
+        fireEvent.click(screen.getByRole('link', {name: 'Prüfprotokoll'}));
         expect(screen.getByText('Audit log')).toBeVisible();
     });
 
@@ -880,8 +1125,8 @@ describe('AuditPage', () => {
 
         const sheet = await screen.findByRole('region', {name: 'Domänenereignis-Timeline'});
         expect(sheet).toBeVisible();
-        expect(screen.getByRole('complementary', {name: 'Audit-Kontext'})).toHaveTextContent('3');
-        expect(await screen.findByRole('heading', {name: 'Audit Log', level: 1})).toBeVisible();
+        expect(screen.getByRole('complementary', {name: 'Prüfprotokoll-Kontext'})).toHaveTextContent('3');
+        expect(await screen.findByRole('heading', {name: 'Prüfprotokoll', level: 1})).toBeVisible();
         expect(await screen.findByRole('heading', {name: 'Stimme administrativ entfernt', level: 3})).toBeVisible();
         expect(screen.getAllByRole('heading', {level: 3}).map((heading) => heading.textContent)).toEqual([
             'Stimme administrativ entfernt', 'Stimme abgegeben', 'Abstimmung veröffentlicht',
@@ -958,5 +1203,229 @@ describe('AuditPage', () => {
         vi.spyOn(apiClient, 'getPollAudit').mockRejectedValue(problemError({}, 404));
         renderAuditPage();
         expect(await screen.findByRole('heading', {name: 'Seite nicht gefunden', level: 3})).toBeVisible();
+    });
+});
+
+describe('PollPage identity notice', () => {
+    it('offers in-place identity assignment above locked options and restores the notice on cancel', async () => {
+        queryClient.clear();
+        vi.spyOn(apiClient, 'getPoll').mockResolvedValue(poll);
+        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: null});
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(resultsFor(2));
+
+        renderPollPage();
+
+        expect(await screen.findByText('Lege eine Identität fest, um abzustimmen.')).toBeVisible();
+        expect(document.querySelector('fieldset.poll-vote-form')).toHaveAttribute('aria-describedby');
+        const noticeLink = document.querySelector('fieldset.poll-vote-form')?.getAttribute('aria-describedby');
+        expect(document.getElementById(noticeLink!)).toHaveTextContent('Lege eine Identität fest, um abzustimmen.');
+        const radios = await screen.findAllByRole('radio');
+        expect(radios.length).toBeGreaterThan(0);
+        radios.forEach((radio) => expect(radio).toBeDisabled());
+        fireEvent.click(screen.getByRole('button', {name: 'Identität festlegen'}));
+        expect(screen.getByLabelText('Neue Identität')).toHaveFocus();
+        const editorLink = document.querySelector('fieldset.poll-vote-form')?.getAttribute('aria-describedby');
+        expect(document.getElementById(editorLink!)).toHaveTextContent('Identität festlegen');
+        fireEvent.click(screen.getByRole('button', {name: 'Abbrechen'}));
+        expect(await screen.findByText('Lege eine Identität fest, um abzustimmen.')).toBeVisible();
+        expect(screen.getByRole('button', {name: 'Identität festlegen'})).toHaveFocus();
+    });
+
+    it('focuses the first option and announces the saved identity once', async () => {
+        let identity: string | null = null;
+        vi.spyOn(apiClient, 'getPoll').mockResolvedValue(poll);
+        vi.spyOn(apiClient, 'getIdentity').mockImplementation(async () => ({userID: identity}));
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(resultsFor(null));
+        vi.spyOn(apiClient, 'changeIdentity').mockImplementation(async ({userID}) => {
+            identity = userID;
+        });
+
+        renderPollPage();
+
+        fireEvent.click(await screen.findByRole('button', {name: 'Identität festlegen'}));
+        fireEvent.change(screen.getByLabelText('Neue Identität'), {target: {value: 'bob'}});
+        fireEvent.click(screen.getByRole('button', {name: 'Speichern'}));
+        fireEvent.click(await screen.findByRole('button', {name: 'Festlegen'}));
+
+        await waitFor(() => expect(screen.getAllByRole('radio')[0]).toHaveFocus());
+        expect(screen.getAllByText('Identität gesetzt. Du kannst jetzt abstimmen.')).toHaveLength(1);
+        expect(screen.getByText('Identität gesetzt. Du kannst jetzt abstimmen.')).toBeVisible();
+        expect(screen.queryByText('Lege eine Identität fest, um abzustimmen.')).toBeNull();
+        expect(document.querySelector('fieldset.poll-vote-form')).not.toHaveAttribute('aria-describedby');
+    });
+});
+
+describe('PollPage convergence checks', () => {
+    it('omits the identity notice for an expired poll', async () => {
+        vi.spyOn(apiClient, 'getPoll').mockResolvedValue({...poll, state: 'expired' as const});
+        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: null});
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue({...resultsFor(null), state: 'expired' as const});
+
+        renderPollPage();
+
+        expect(await screen.findByRole('heading', {name: 'Team-Ausflug', level: 1})).toBeVisible();
+        expect(screen.queryByText('Lege eine Identität fest, um abzustimmen.')).toBeNull();
+    });
+
+    it('keeps options locked and shows the error in the editor when the identity change fails', async () => {
+        vi.spyOn(apiClient, 'getPoll').mockResolvedValue(poll);
+        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: null});
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(resultsFor(null));
+        vi.spyOn(apiClient, 'changeIdentity').mockRejectedValue(problemError({code: 'identity-invalid'}, 422));
+
+        renderPollPage();
+
+        fireEvent.click(await screen.findByRole('button', {name: 'Identität festlegen'}));
+        fireEvent.change(screen.getByLabelText('Neue Identität'), {target: {value: 'bob'}});
+        fireEvent.click(screen.getByRole('button', {name: 'Speichern'}));
+        fireEvent.click(await screen.findByRole('button', {name: 'Festlegen'}));
+
+        expect(await screen.findByRole('alert')).toBeVisible();
+        expect(screen.getAllByRole('radio')[0]).toBeDisabled();
+    });
+
+    it('marks the vote of the newly set identity after a successful change', async () => {
+        let identity: string | null = null;
+        let voted = false;
+        vi.spyOn(apiClient, 'getPoll').mockResolvedValue(poll);
+        vi.spyOn(apiClient, 'getIdentity').mockImplementation(async () => ({userID: identity}));
+        vi.spyOn(apiClient, 'getPollResults').mockImplementation(async () => ({
+            ...resultsFor(null),
+            totalVotes: Number(voted),
+            options: poll.options.map((option) => {
+                const hasVote = voted && option.number === 2;
+                let voteCount = 0;
+                let votes: Array<{userID: string; votedAt: string}> = [];
+                if (hasVote) {
+                    voteCount = 1;
+                    votes = [{userID: 'bob', votedAt: '2026-08-01T10:01:00Z'}];
+                }
+                return {...option, voteCount, votes};
+            }),
+        }));
+        vi.spyOn(apiClient, 'changeIdentity').mockImplementation(async ({userID}) => {
+            identity = userID;
+            voted = true;
+        });
+
+        renderPollPage();
+
+        fireEvent.click(await screen.findByRole('button', {name: 'Identität festlegen'}));
+        fireEvent.change(screen.getByLabelText('Neue Identität'), {target: {value: 'bob'}});
+        fireEvent.click(screen.getByRole('button', {name: 'Speichern'}));
+        fireEvent.click(await screen.findByRole('button', {name: 'Festlegen'}));
+
+        expect(await screen.findByText('Eigene Stimme')).toBeVisible();
+        expect(screen.getByRole('radio', {name: 'Zebra'})).toBeChecked();
+        expect(screen.queryByText('Lege eine Identität fest, um abzustimmen.')).toBeNull();
+    });
+
+    it('uses the poll title as the only level-1 heading and no generic metadata heading', async () => {
+        vi.spyOn(apiClient, 'getPoll').mockResolvedValue(poll);
+        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(resultsFor(null));
+
+        renderPollPage();
+
+        expect(await screen.findByRole('heading', {name: 'Team-Ausflug', level: 1})).toBeVisible();
+        expect(screen.getAllByRole('heading', {level: 1})).toHaveLength(1);
+        expect(within(screen.getByRole('complementary', {name: 'Abstimmungs-Metadaten'})).queryByRole('heading')).toBeNull();
+    });
+});
+
+describe('poll list card semantics', () => {
+    it('shows a state badge and a text vote count, with the title and state as accessible name', async () => {
+        vi.spyOn(apiClient, 'getPublicPolls').mockResolvedValue([listPoll('badge-poll', 'Badge poll', relativeLocalIso(0))]);
+
+        renderPolls();
+
+        const card = await screen.findByRole('link', {name: /Badge poll/});
+        expect(card.querySelector('.poll-state-badge')).not.toBeNull();
+        expect(card.querySelector('.poll-vote-badge')).toBeNull();
+        expect(card).toHaveTextContent(/\d+ Stimmen?/);
+        expect(card).toHaveAccessibleName(/^Badge poll /);
+        expect(card).not.toHaveAccessibleName(/Erstellt/);
+    });
+});
+
+describe('PollPage identity slot motion', () => {
+    beforeEach(() => {
+        queryClient.clear();
+        vi.spyOn(apiClient, 'getPoll').mockResolvedValue(poll);
+    });
+
+    function mockIdentitySave() {
+        let identity: string | null = null;
+        vi.spyOn(apiClient, 'getIdentity').mockImplementation(async () => ({userID: identity}));
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(resultsFor(null));
+        vi.spyOn(apiClient, 'changeIdentity').mockImplementation(async ({userID}) => {
+            identity = userID;
+        });
+    }
+
+    async function saveIdentity() {
+        fireEvent.click(await screen.findByRole('button', {name: 'Identität festlegen'}));
+        fireEvent.change(screen.getByLabelText('Neue Identität'), {target: {value: 'bob'}});
+        fireEvent.click(screen.getByRole('button', {name: 'Speichern'}));
+        fireEvent.click(await screen.findByRole('button', {name: 'Festlegen'}));
+    }
+
+    it('keeps the identity slot leaving for a short moment after a save', async () => {
+        mockIdentitySave();
+        renderPollPage();
+
+        await saveIdentity();
+
+        await waitFor(() => expect(document.querySelector('.poll-identity-slot.leaving')).not.toBeNull());
+        await waitFor(() => expect(document.querySelector('.poll-identity-slot')).toBeNull(), {timeout: 1000});
+    });
+
+    it('removes the identity slot at once when reduced motion is requested', async () => {
+        const original = window.matchMedia;
+        window.matchMedia = vi.fn((query: string) => ({
+            matches: query.includes('reduce'),
+            media: query,
+            onchange: null,
+            addEventListener: () => undefined,
+            removeEventListener: () => undefined,
+            addListener: () => undefined,
+            removeListener: () => undefined,
+            dispatchEvent: () => false,
+        })) as unknown as typeof window.matchMedia;
+        try {
+            mockIdentitySave();
+            renderPollPage();
+
+            await saveIdentity();
+
+            await waitFor(() => expect(document.querySelector('.poll-identity-slot')).toBeNull());
+            expect(document.querySelector('.leaving')).toBeNull();
+        } finally {
+            window.matchMedia = original;
+        }
+    });
+});
+
+describe('PollPage identity notice motion', () => {
+    beforeEach(() => {
+        queryClient.clear();
+        vi.spyOn(apiClient, 'getPoll').mockResolvedValue(poll);
+    });
+
+    it('fades the identity notice out when the identity is set elsewhere', async () => {
+        let identity: string | null = null;
+        vi.spyOn(apiClient, 'getIdentity').mockImplementation(async () => ({userID: identity}));
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(resultsFor(null));
+
+        renderPollPage();
+
+        expect(await screen.findByText('Lege eine Identität fest, um abzustimmen.')).toBeVisible();
+        identity = 'carol';
+        await act(async () => {
+            await queryClient.invalidateQueries({queryKey: queryKeys.identity});
+        });
+
+        await waitFor(() => expect(document.querySelector('.poll-identity-slot.leaving')).not.toBeNull());
+        await waitFor(() => expect(document.querySelector('.poll-identity-slot')).toBeNull(), {timeout: 1000});
     });
 });

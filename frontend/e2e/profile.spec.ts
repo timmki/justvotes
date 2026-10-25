@@ -16,12 +16,12 @@ test('missing identity supports keyboard setting and becomes a distinct no-vote 
     });
     await page.goto('/profile');
     await expect(page.getByText('Zuerst eine Identität setzen')).toBeVisible();
-    const action = page.locator('.profile-page').getByRole('button', {name: 'Identität bearbeiten'});
+    const action = page.locator('.profile-page').getByRole('button', {name: 'Identität festlegen'});
     await action.focus();
     await page.keyboard.press('Enter');
     await page.locator('.profile-page').getByLabel('Neue Identität').fill('Alice');
     await page.locator('.profile-page').getByRole('button', {name: 'Speichern'}).click();
-    await page.getByRole('button', {name: 'Änderung bestätigen'}).click();
+    await page.getByRole('button', {name: 'Festlegen', exact: true}).click();
     await expect(page.getByText('Keine aktuelle Stimme')).toBeVisible();
     await expect(page.locator('.profile-identity')).toContainText('Alice');
     await expect(page.locator('.profile-votes')).toHaveCount(0);
@@ -73,11 +73,13 @@ test('cast, replacement, withdrawal and identity change refresh the personal rou
     });
     await page.goto('/poll/p_v1_one');
     await page.getByRole('radio', {name: 'Bike'}).click();
+    await page.getByRole('button', {name: 'Stimme abgeben: Bike'}).click();
     await expect(page.getByText('Stimme abgegeben.')).toBeVisible();
     await page.locator('.sidebar-navigation').getByRole('link', {name: 'Persönliches Profil'}).click();
     await expect(page.locator('.profile-vote')).toContainText('Bike');
     await page.goBack();
     await page.getByRole('radio', {name: 'Train'}).click();
+    await page.getByRole('button', {name: 'Stimme abgeben: Train'}).click();
     await expect(page.getByText('Stimme geändert.')).toBeVisible();
     await page.locator('.sidebar-navigation').getByRole('link', {name: 'Persönliches Profil'}).click();
     await expect(page.locator('.profile-vote')).toContainText('Train');
@@ -89,7 +91,7 @@ test('cast, replacement, withdrawal and identity change refresh the personal rou
     await expect(page.getByText('Ergebnisse werden nach eigener Stimme freigegeben.')).toBeVisible();
     await page.locator('.sidebar-navigation').getByRole('link', {name: 'Persönliches Profil'}).click();
     await expect(page.getByText('Keine aktuelle Stimme')).toBeVisible();
-    await page.locator('.identity-shell-editor').getByRole('button', {name: 'Identität bearbeiten'}).click();
+    await page.locator('.identity-shell-editor').getByRole('button', {name: 'Identität ändern'}).click();
     await page.getByLabel('Neue Identität').fill('Bob');
     await page.locator('.identity-shell-editor').getByRole('button', {name: 'Speichern'}).click();
     await page.getByRole('button', {name: 'Änderung bestätigen'}).click();

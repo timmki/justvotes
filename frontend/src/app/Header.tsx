@@ -1,27 +1,37 @@
 import {NavLink, Link, useLocation} from 'react-router-dom';
-import {useEffect, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
+import {useEffect, useRef, useState, useSyncExternalStore, type MouseEvent as ReactMouseEvent, type ReactNode} from 'react';
+import {createPortal} from 'react-dom';
 import {useI18n} from '../shared/i18n/I18nProvider';
 import {queryKeys} from '../shared/api/queryKeys';
 import {useApiQuery} from '../shared/api/useApiQuery';
 import {apiClient, sessionCoordinator} from '../shared/api/client';
-import {ChevronLeftIcon, MoonIcon, SunIcon} from '../shared/ui/Icons';
-import {IdentityEditor} from '../shared/ui/IdentityEditor';
+import {ChevronLeftIcon, CloseIcon, MenuIcon, MoonIcon, SunIcon} from '../shared/ui/Icons';
+import {IdentityDialog} from '../shared/ui/IdentityDialog';
+import {identityActionKey} from '../shared/ui/identityActionKey';
+import {IdentityEditor, IdentityStatus} from '../shared/ui/IdentityEditor';
+import {useMediaQuery} from '../shared/ui/useMediaQuery';
 import {themeOptions, useTheme, type Theme} from './theme';
 import {getAppInitials} from '../shared/config/appConfig';
+
+type ShellNavigationMode = 'public' | 'admin' | null;
+type IdentityState = 'ready' | 'loading' | 'error';
 
 export function AppShell({children}: {children: ReactNode}) {
     const {t} = useI18n();
     const navigation = useShellNavigation();
     const appName = t('common.appName');
     const appInitials = getAppInitials(appName);
+    const {pathname} = useLocation();
     const identityQuery = useApiQuery(queryKeys.identity, () => apiClient.getIdentity());
     const identity = identityQuery.data?.userID ?? null;
-    let identityState: 'error' | 'loading' | 'ready' = 'ready';
+    let identityState: IdentityState = 'ready';
     if (identityQuery.isError) identityState = 'error';
     else if (identityQuery.isPending) identityState = 'loading';
+    let showSidebarIdentity = true;
+    if (pathname === '/') showSidebarIdentity = false;
 
     return <div className="app-shell">
-        <aside className="sidebar" aria-label={t('common.identity')}>
+        <aside className="sidebar" aria-label={t('common.appName')}>
             {navigation === 'public' && <Link className="brand" to="/" aria-label={t('common.appName')}>
                 <span className="brand-mark" aria-hidden="true">{appInitials}</span><h2>{appName}</h2>
             </Link>}
@@ -29,19 +39,18 @@ export function AppShell({children}: {children: ReactNode}) {
                 <span className="brand-mark" aria-hidden="true">{appInitials}</span><h2>{appName}</h2>
             </div>}
             <ShellNavigation className="sidebar-navigation" navigation={navigation} showLabel={navigation === 'admin'}/>
-            <div className="sidebar-bottom">
+            {showSidebarIdentity && <div className="sidebar-bottom">
                 <IdentityEditor identity={identity} identityState={identityState} variant="compact"/>
-            </div>
+            </div>}
         </aside>
         <div className="app-content">
-            <Header/>
-            <ShellNavigation className="mobile-navigation" navigation={navigation}/>
+            <Header navigation={navigation} identity={identity} identityState={identityState}/>
             {children}
         </div>
     </div>;
 }
 
-function useShellNavigation(): 'public' | 'admin' | null {
+function useShellNavigation(): ShellNavigationMode {
     const {pathname} = useLocation();
     const adminRoute = pathname === '/admin' || pathname.startsWith('/admin/');
     const loginRequired = useSyncExternalStore((listener) => sessionCoordinator.subscribe(listener), () => sessionCoordinator.isLoginRequired(), () => false);
@@ -57,23 +66,24 @@ async function verifyShellAdminSession() {
     return true;
 }
 
-function ShellNavigation({className, navigation, showLabel = false}: {
+function ShellNavigation({className, navigation, showLabel = false, label}: {
     className: string;
-    navigation: 'public' | 'admin' | null;
+    navigation: ShellNavigationMode;
     showLabel?: boolean;
+    label?: string;
 }) {
     const {t} = useI18n();
     if (!navigation) return null;
     const admin = navigation === 'admin';
     let navigationLabel: 'common.adminNavigation' | 'common.mainNavigation' = 'common.mainNavigation';
-    let label: 'common.admin' | 'common.appName' = 'common.appName';
+    let title: 'common.admin' | 'common.appName' = 'common.appName';
     if (admin) {
         navigationLabel = 'common.adminNavigation';
-        label = 'common.admin';
+        title = 'common.admin';
     }
 
-    return <nav className={className} aria-label={t(navigationLabel)}>
-        {showLabel && <p className="sidebar-label">{t(label)}</p>}
+    return <nav className={className} aria-label={label ?? t(navigationLabel)}>
+        {showLabel && <p className="sidebar-label">{t(title)}</p>}
         {admin && <AdminNavigationLinks/>}
         {!admin && <NavigationLinks/>}
     </nav>;
@@ -105,23 +115,58 @@ function AdminNavigationLink({to, active, children}: { to: string; active: boole
     return <Link className="nav-item" to={to} aria-current={current}>{children}</Link>;
 }
 
-export function Header() {
+export function Header({navigation, identity, identityState}: {
+    navigation: ShellNavigationMode;
+    identity: string | null;
+    identityState: IdentityState;
+}) {
     const {locale, setLocale, t} = useI18n();
     const {theme, setTheme} = useTheme();
+    const appInitials = getAppInitials(t('common.appName'));
     const [themeMenuOpen, setThemeMenuOpen] = useState(false);
+    const [menuOpen, setMenuOpen] = useState(false);
+    const [identityDialogOpen, setIdentityDialogOpen] = useState(false);
+    const [panelClosing, setPanelClosing] = useState(false);
+    const menuWasOpen = useRef(false);
     const themeMenuRef = useRef<HTMLDivElement>(null);
     const themeButtonRef = useRef<HTMLButtonElement>(null);
     const themeOptionRefs = useRef<Record<Theme, HTMLInputElement | null>>({light: null, dark: null, claude: null, openai: null});
+    const menuRef = useRef<HTMLDivElement>(null);
+    const menuButtonRef = useRef<HTMLButtonElement>(null);
     const location = useLocation();
     const previousPathname = useRef(location.pathname);
     const context = routeContext(location.pathname, t);
+    const isDesktop = useMediaQuery('(min-width: 900px)');
+    const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
+
+    useEffect(() => {
+        if (isDesktop) setMenuOpen(false);
+    }, [isDesktop]);
+
+    useEffect(() => {
+        if (menuOpen) {
+            menuWasOpen.current = true;
+            setPanelClosing(false);
+            return undefined;
+        }
+        if (!menuWasOpen.current) return undefined;
+        menuWasOpen.current = false;
+        setPanelClosing(true);
+        let closeDelay = 140;
+        if (reducedMotion) closeDelay = 0;
+        const timer = window.setTimeout(() => setPanelClosing(false), closeDelay);
+        return () => {
+            window.clearTimeout(timer);
+            setPanelClosing(false);
+        };
+    }, [menuOpen, reducedMotion]);
 
     useEffect(() => {
         if (!themeMenuOpen) return;
 
         themeOptionRefs.current[theme]?.focus();
         function closeOnOutsideClick(event: MouseEvent) {
-            if (!themeMenuRef.current?.contains(event.target as Node)) {
+            if (!isInside(event, themeMenuRef.current)) {
                 setThemeMenuOpen(false);
                 themeButtonRef.current?.focus();
             }
@@ -142,8 +187,37 @@ export function Header() {
     }, [theme, themeMenuOpen]);
 
     useEffect(() => {
+        if (!menuOpen) return;
+        document.documentElement.classList.add('menu-open');
+
+        function closeOnOutsideClick(event: MouseEvent) {
+            if (!isInside(event, menuRef.current)) setMenuOpen(false);
+        }
+        function closeOnEscape(event: KeyboardEvent) {
+            if (event.key === 'Escape') {
+                setMenuOpen(false);
+                menuButtonRef.current?.focus();
+            }
+        }
+        function keepTabInMenu(event: KeyboardEvent) {
+            if (event.key === 'Tab') wrapTabFocus(event, menuRef.current);
+        }
+
+        document.addEventListener('click', closeOnOutsideClick);
+        document.addEventListener('keydown', closeOnEscape);
+        document.addEventListener('keydown', keepTabInMenu);
+        return () => {
+            document.documentElement.classList.remove('menu-open');
+            document.removeEventListener('click', closeOnOutsideClick);
+            document.removeEventListener('keydown', closeOnEscape);
+            document.removeEventListener('keydown', keepTabInMenu);
+        };
+    }, [menuOpen]);
+
+    useEffect(() => {
         if (previousPathname.current === location.pathname) return;
         previousPathname.current = location.pathname;
+        setMenuOpen(false);
         if (!themeMenuOpen) return;
         setThemeMenuOpen(false);
         themeButtonRef.current?.focus();
@@ -155,12 +229,44 @@ export function Header() {
         themeButtonRef.current?.focus();
     }
 
+    function toggleThemeMenu() {
+        setMenuOpen(false);
+        setThemeMenuOpen((open) => !open);
+    }
+
+    function toggleMenu() {
+        setThemeMenuOpen(false);
+        setMenuOpen((open) => !open);
+    }
+
+    function closeFromBackdrop() {
+        setMenuOpen(false);
+        menuButtonRef.current?.focus();
+    }
+
+    function closeOnNavigate(event: ReactMouseEvent<HTMLDivElement>) {
+        if (event.target instanceof Element && event.target.closest('a')) setMenuOpen(false);
+    }
+
+    function editIdentity() {
+        setMenuOpen(false);
+        setIdentityDialogOpen(true);
+    }
+
+    function closeIdentityDialog() {
+        setIdentityDialogOpen(false);
+        menuButtonRef.current?.focus();
+    }
+
     let nextLocale: 'en' | 'de' = 'de';
     let localeLabel: 'common.english' | 'common.german' = 'common.german';
     if (locale === 'de') {
         nextLocale = 'en';
         localeLabel = 'common.english';
     }
+
+    let menuButtonLabel = t('common.menu');
+    if (menuOpen) menuButtonLabel = t('common.closeMenu');
 
     return <header className="app-header">
         <div className="header-inner">
@@ -170,6 +276,14 @@ export function Header() {
                     <ChevronLeftIcon/><span>{context.label}</span></Link>}
                 <p className="header-title">{pageTitle(location.pathname, t)}</p>
             </div>
+            {navigation === 'public' && <Link className="header-brand" to="/" aria-label={t('common.appName')}>
+                <span className="brand-mark" aria-hidden="true">{appInitials}</span>
+                <span className="header-brand-name">{t('common.appName')}</span>
+            </Link>}
+            {navigation !== 'public' && <div className="header-brand" aria-label={t('common.appName')}>
+                <span className="brand-mark" aria-hidden="true">{appInitials}</span>
+                <span className="header-brand-name">{t('common.appName')}</span>
+            </div>}
             <div className="header-actions">
                 <button className="control-button" type="button"
                         aria-label={t(localeLabel)}
@@ -177,7 +291,7 @@ export function Header() {
                 <div className="theme-menu" ref={themeMenuRef}>
                     <button ref={themeButtonRef} className="icon-button" type="button"
                             aria-label={t('common.chooseTheme')} aria-expanded={themeMenuOpen}
-                            aria-controls="theme-menu-panel" onClick={() => setThemeMenuOpen((open) => !open)}>
+                            aria-controls="theme-menu-panel" onClick={toggleThemeMenu}>
                         {theme === 'light' && <MoonIcon/>}
                         {theme !== 'light' && <SunIcon/>}
                     </button>
@@ -192,9 +306,50 @@ export function Header() {
                         </label>)}
                     </div>}
                 </div>
+                <div className="mobile-menu" ref={menuRef}>
+                    <button ref={menuButtonRef} className="icon-button mobile-menu-button" type="button"
+                            aria-label={menuButtonLabel} aria-expanded={menuOpen}
+                            aria-controls="mobile-menu-panel" onClick={toggleMenu}>
+                        {menuOpen && <CloseIcon/>}
+                        {!menuOpen && <MenuIcon/>}
+                    </button>
+                    {(menuOpen || panelClosing) && <div id="mobile-menu-panel" className="mobile-menu-panel" data-open={menuOpen} inert={!menuOpen} onClick={closeOnNavigate}>
+                        <ShellNavigation className="mobile-menu-navigation" navigation={navigation} label={t('common.menu')}/>
+                        <section className="mobile-identity" aria-labelledby="mobile-identity-heading">
+                            <p className="eyebrow" id="mobile-identity-heading">{t('common.identity')}</p>
+                            <p className="mobile-identity-value"><IdentityStatus identity={identity} identityState={identityState}/></p>
+                            <button className="text-button" type="button" onClick={editIdentity}>{t(identityActionKey(identity))}</button>
+                        </section>
+                    </div>}
+                    {(menuOpen || panelClosing) && createPortal(<div className="mobile-menu-backdrop" data-open={menuOpen} aria-hidden="true" onClick={closeFromBackdrop}/>, document.body)}
+                </div>
             </div>
         </div>
+        {identityDialogOpen && <IdentityDialog identity={identity} identityState={identityState} onClose={closeIdentityDialog}/>}
     </header>;
+}
+
+// The event target may already be detached by the re-render it triggered (icon swaps),
+// so membership is checked against the path captured when the event was dispatched.
+function wrapTabFocus(event: KeyboardEvent, container: HTMLElement | null) {
+    if (!container) return;
+    const focusable = Array.from(container.querySelectorAll<HTMLElement>('button:not([disabled]), a[href]'));
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (!first || !last) return;
+    if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+    }
+    if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+    }
+}
+
+function isInside(event: Event, element: HTMLElement | null) {
+    if (!element) return false;
+    return event.composedPath().includes(element);
 }
 
 function routeContext(pathname: string, t: ReturnType<typeof useI18n>['t']) {

@@ -1,7 +1,7 @@
 import type {Poll} from './pollProjections';
 
 export type PollSort = 'newest' | 'oldest';
-export type PollDateFilter = 'yesterday' | 'today' | 'tomorrow' | 'date';
+export type PollDateFilter = 'all' | 'yesterday' | 'today' | 'tomorrow' | 'date';
 
 export type PollListState = {
     sort: PollSort;
@@ -16,7 +16,7 @@ export function parsePollListState(params: URLSearchParams): PollListState {
     const dateParam = params.get('date');
     let from = validDateValue(params.get('from'));
     let to = validDateValue(params.get('to'));
-    let dateFilter: PollDateFilter = 'today';
+    let dateFilter: PollDateFilter = 'all';
     if (isDateFilter(dateParam)) dateFilter = dateParam;
     else if (from !== null || to !== null) dateFilter = 'date';
     let sort: PollSort = 'newest';
@@ -31,7 +31,7 @@ export function parsePollListState(params: URLSearchParams): PollListState {
 export function serializePollListState(state: PollListState) {
     const params = new URLSearchParams();
     if (state.sort === 'oldest') params.set('sort', state.sort);
-    if (state.dateFilter !== 'today') params.set('date', state.dateFilter);
+    if (state.dateFilter !== 'all') params.set('date', state.dateFilter);
     if (state.dateFilter === 'date') {
         if (state.from) params.set('from', state.from);
         if (state.to) params.set('to', state.to);
@@ -45,6 +45,7 @@ export function hasInvalidPollDateRange({from, to}: PollListState) {
 
 export function projectPollListState(polls: Poll[], state: PollListState) {
     const ordered = [...polls].sort((left, right) => comparePolls(left, right, state.sort));
+    if (state.dateFilter === 'all') return ordered;
     if (hasInvalidPollDateRange(state)) return ordered;
 
     const {start, end} = dateRange(state);
@@ -56,7 +57,7 @@ export function projectPollListState(polls: Poll[], state: PollListState) {
 }
 
 function isDateFilter(value: string | null): value is PollDateFilter {
-    return value === 'yesterday' || value === 'today' || value === 'tomorrow' || value === 'date';
+    return value === 'all' || value === 'yesterday' || value === 'today' || value === 'tomorrow' || value === 'date';
 }
 
 function dateRange(state: PollListState) {

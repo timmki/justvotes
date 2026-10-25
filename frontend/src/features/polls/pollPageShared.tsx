@@ -11,11 +11,12 @@ export const notFoundError: FrontendError = {
     messageKey: 'errors.notFound',
 };
 
-export function DataPage({className, title, description, children}: {
+export function DataPage({className, title, description, meta, children}: {
     className?: string;
     title: string;
-    description: string;
+    description?: string;
+    meta?: ReactNode;
     children: ReactNode;
 }) {
-    return <PageFrame className={className} title={title} description={description}>{children}</PageFrame>;
+    return <PageFrame className={className} title={title} description={description} meta={meta}>{children}</PageFrame>;
 }

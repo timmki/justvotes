@@ -1,5 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 const centralRoutes = ['/', '/profile', '/polls', '/poll/example', '/poll/results/example', '/poll/results/example/option/1', '/poll/audit/example', '/404', '/admin', '/admin/votes', '/admin/polls', '/admin/groups', '/admin/templates', '/admin/create'];
 
@@ -61,10 +61,14 @@ test('keeps the public navigation reachable on a narrow viewport', async ({ page
   await page.setViewportSize({ width: 320, height: 720 });
   await page.goto('/polls');
 
-  const navigation = page.locator('.mobile-navigation');
+  await page.getByRole('button', { name: 'Menü', exact: true }).click();
+  const navigation = page.locator('.mobile-menu-navigation');
   await expect(navigation).toBeVisible();
   await expect(navigation.getByRole('link', { name: 'Startseite' })).toBeVisible();
   await expect(navigation.getByRole('link', { name: 'Abstimmungen' })).toHaveAttribute('aria-current', 'page');
+  await expect.poll(() => page.locator('.mobile-menu-navigation .nav-item').first().evaluate((element) => element.getBoundingClientRect().height)).toBeGreaterThanOrEqual(44);
+  await page.keyboard.press('Escape');
+  await expect(navigation).toHaveCount(0);
   await page.goto('/');
   await expect(page.getByRole('link', { name: 'Admin' })).toHaveAttribute('href', '/admin');
   const themeButton = page.getByRole('button', { name: 'Theme auswählen' });
@@ -74,13 +78,12 @@ test('keeps the public navigation reachable on a narrow viewport', async ({ page
   await page.keyboard.press('Escape');
   await expect(page.getByRole('radiogroup', { name: 'Theme auswählen' })).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
-  expect(await page.locator('.mobile-navigation .nav-item').first().evaluate((element) => element.getBoundingClientRect().height)).toBeGreaterThanOrEqual(44);
 });
 
 test('keeps a long configured app name inside a narrow viewport', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 720 });
   await page.goto('/');
-  await page.locator('.brand h2').evaluate((element) => { element.textContent = 'Verylongname Ofacompanyororganization'; });
+  await page.locator('.header-brand-name').evaluate((element) => { element.textContent = 'Verylongname Ofacompanyororganization'; });
 
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
 });
@@ -96,31 +99,35 @@ test('keeps the polls page header separated from its poll list status', async ({
   expect(status!.y - (intro!.y + intro!.height)).toBeGreaterThanOrEqual(40);
 });
 
-test('does not stretch the compact identity bar on a narrow viewport', async ({ page }) => {
-  await page.setViewportSize({ width: 440, height: 956 });
+test('keeps the header to one compact bar on a narrow viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
   await page.goto('/polls');
   await page.evaluate(() => document.fonts.ready);
 
-  const sidebar = await page.locator('.sidebar').boundingBox();
-  expect(sidebar).not.toBeNull();
-  expect(sidebar!.height).toBeLessThan(100);
-  await expect.poll(() => page.evaluate(() => {
-    const sidebar = document.querySelector('.sidebar')?.getBoundingClientRect();
-    const header = document.querySelector('.app-header')?.getBoundingClientRect();
-    if (sidebar && header) return header.y - (sidebar.y + sidebar.height);
-    return null;
-  })).toBe(0);
+  await expect(page.locator('.sidebar')).toBeHidden();
+  const header = await page.locator('.app-header').boundingBox();
+  expect(header).not.toBeNull();
+  expect(header!.height).toBeLessThanOrEqual(80);
+  expect(await page.locator('.header-brand-name').evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
 });
 
-test('keeps the polls intro close to the mobile navigation', async ({ page }) => {
+test('shows the sidebar navigation and hides the menu button on desktop', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/polls');
+
+  await expect(page.getByRole('button', { name: 'Menü', exact: true })).toBeHidden();
+  await expect(page.locator('.sidebar-navigation')).toBeVisible();
+});
+
+test('keeps the polls intro close to the mobile header', async ({ page }) => {
    await page.setViewportSize({ width: 565, height: 456 });
    await page.goto('/polls');
    await page.evaluate(() => document.fonts.ready);
 
    await expect.poll(async () => page.evaluate(() => {
-       const navigation = document.querySelector('.mobile-navigation')?.getBoundingClientRect();
+       const header = document.querySelector('.app-header')?.getBoundingClientRect();
        const intro = document.querySelector('.page-intro')?.getBoundingClientRect();
-       if (navigation && intro) return Math.round(intro.y - (navigation.y + navigation.height));
+       if (header && intro) return Math.round(intro.y - (header.y + header.height));
        return Number.POSITIVE_INFINITY;
    })).toBeLessThanOrEqual(24);
 });
@@ -181,7 +188,7 @@ test('keeps populated public and admin surfaces within supported viewport widths
       if (route === '/') {
         const featured = page.getByRole('region', { name: 'Im Fokus' });
         await expect(featured).toBeVisible();
-        await expect(featured).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+        await expect(featured).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
       }
       expect(await page.evaluate(() => document.documentElement.scrollWidth), `${route} at ${width}px`).toBeLessThanOrEqual(width);
     }
@@ -208,7 +215,7 @@ test('uses only same-origin runtime resources', async ({ page }) => {
   }
 });
 
-test('changes the identity once after confirming the warning', async ({ page }) => {
+test('sets the identity once after confirming without a removal warning', async ({ page }) => {
   let identity: string | null = null;
   const requests: { method: string; url: string }[] = [];
   await page.route('**/api/v1/**', async (route) => {
@@ -224,13 +231,14 @@ test('changes the identity once after confirming the warning', async ({ page }) 
   });
 
   await page.goto('/');
-  await page.locator('.identity-card').getByRole('button', { name: 'Identität bearbeiten' }).click();
+  await page.locator('.identity-card').getByRole('button', { name: 'Identität festlegen' }).click();
   await page.getByLabel('Neue Identität').fill('Alice_1');
   await page.getByRole('button', { name: 'Speichern' }).click();
 
-  await expect(page.getByRole('dialog')).toContainText('Stimmen der bisherigen Identität');
-  await page.getByRole('button', { name: 'Änderung bestätigen' }).click();
-  await expect(page.getByTitle('Alice_1')).toHaveCount(2);
+  await expect(page.getByRole('dialog')).toContainText('Identität festlegen?');
+  await expect(page.getByRole('dialog')).not.toContainText('Stimmen der bisherigen Identität');
+  await page.getByRole('button', { name: 'Festlegen', exact: true }).click();
+  await expect(page.getByTitle('Alice_1')).toHaveCount(1);
 
   expect(requests.filter(({ method, url }) => method === 'POST' && url.endsWith('/identity'))).toHaveLength(1);
   expect(requests.filter(({ method, url }) => method === 'DELETE' && url.includes('/votes'))).toHaveLength(0);
@@ -262,7 +270,7 @@ test('keeps the identity confirmation above poll content', async ({ page }) => {
   await page.goto('/poll/poll-z-index');
   await expect(page.getByText('Poll behind identity dialog')).toBeVisible();
   await page.evaluate(() => window.scrollTo(0, 450));
-  await page.locator('.identity-shell-editor').getByRole('button', { name: 'Identität bearbeiten' }).click();
+  await page.locator('.identity-shell-editor').getByRole('button', { name: 'Identität ändern' }).click();
   await page.getByLabel('Neue Identität').fill('bob');
   await page.locator('.identity-shell-editor').getByRole('button', { name: 'Speichern' }).click();
 
@@ -310,7 +318,7 @@ test('renders public poll cards from one list request without N+1 detail request
   expect(requests.some((url) => /\/polls\/[^/]+$/.test(url))).toBe(false);
 });
 
-test('casts, replaces, repeats and restores a public poll vote', async ({ page }) => {
+test('casts and replaces a public poll vote only after submitting', async ({ page }) => {
   let selectedOption: number | null = null;
   const voteRequests: number[] = [];
   const requestMethods: string[] = [];
@@ -371,17 +379,22 @@ test('casts, replaces, repeats and restores a public poll vote', async ({ page }
   await expect(page.getByRole('radio', { name: 'Apfel' })).toBeVisible();
   await page.getByRole('radio', { name: 'Apfel' }).focus();
   await page.keyboard.press('Space');
+  expect(voteRequests).toEqual([]);
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowUp');
+  expect(voteRequests).toEqual([]);
+  await page.getByRole('button', { name: 'Stimme abgeben: Apfel' }).click();
   await expect(page.getByText('Stimme abgegeben.')).toBeVisible();
   await page.getByRole('radio', { name: 'Zebra' }).click();
+  expect(voteRequests).toEqual([7]);
+  await page.getByRole('button', { name: 'Stimme abgeben: Zebra' }).click();
   await expect(page.getByText('Stimme geändert.')).toBeVisible();
-  await page.getByRole('radio', { name: 'Zebra' }).click();
-  await expect(page.getByText('Stimme unverändert.')).toBeVisible();
   await expect(page.getByRole('link', { name: 'Abstimmung - Ergebnisse' })).toBeVisible();
 
   await page.reload();
   await expect(page.getByRole('radio', { name: 'Zebra' })).toBeChecked();
   await expect(page.getByText('Eigene Stimme')).toBeVisible();
-  expect(voteRequests).toEqual([7, 2, 2]);
+  expect(voteRequests).toEqual([7, 2]);
   expect(requestMethods).not.toContain('DELETE');
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
 });
@@ -430,7 +443,7 @@ test('disables voting for an expired poll and safely handles private or missing 
   });
 
   await page.goto('/poll/p_expired');
-  await expect(page.getByRole('heading', { name: 'Expired browser poll', level: 3 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Expired browser poll', level: 1 })).toBeVisible();
   await expect(page.getByText(/Diese Abstimmung ist nicht mehr aktiv.*abgelaufen/)).toBeVisible();
   await expect(page.getByRole('radio', { name: 'Yes' })).toBeDisabled();
   await expect(page.getByRole('link', { name: 'Abstimmung - Ergebnisse' })).toBeVisible();
@@ -474,7 +487,7 @@ test('schützt Poll-Ergebnisse vor Stimmabgabe und gibt sie nach Stimmabgabe ode
   await expect(page.getByText('Abgelaufen')).toBeVisible();
 });
 
-test('rolls back the selected option after a failed vote mutation', async ({ page }) => {
+test('keeps a failed vote selection so it can be submitted again', async ({ page }) => {
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const url = request.url();
@@ -498,10 +511,11 @@ test('rolls back the selected option after a failed vote mutation', async ({ pag
   await page.goto('/poll/p_failed_vote');
   await expect(page.getByRole('radio', { name: 'Zebra' })).toBeChecked();
   await page.getByRole('radio', { name: 'Apfel' }).click();
+  await page.getByRole('button', { name: 'Stimme abgeben: Apfel' }).click();
 
   await expect(page.getByRole('alert')).toHaveText('Die Anfrage konnte nicht verarbeitet werden.');
-  await expect(page.getByRole('radio', { name: 'Zebra' })).toBeChecked();
-  await expect(page.getByRole('radio', { name: 'Apfel' })).not.toBeChecked();
+  await expect(page.getByRole('radio', { name: 'Apfel' })).toBeChecked();
+  await expect(page.getByRole('button', { name: 'Stimme abgeben: Apfel' })).toBeEnabled();
 });
 
 test('refreshes active results on schedule and stops after the poll expires', async ({ page }) => {
@@ -570,8 +584,8 @@ test('loads a direct option link with the complete current voter list', async ({
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(/\/poll\/results\/p_option_details$/);
   await page.goto('/poll/results/p_option_details/option/7');
-  await page.getByRole('link', { name: 'Audit Log' }).click();
-  await expect(page.getByRole('heading', { name: 'Audit Log', level: 1 })).toBeVisible();
+  await page.getByRole('link', { name: 'Prüfprotokoll' }).click();
+  await expect(page.getByRole('heading', { name: 'Prüfprotokoll', level: 1 })).toBeVisible();
 });
 
 test('zeigt eine lokalisierte, zugaengliche oeffentliche Domaenenereignis-Timeline', async ({ page }) => {
@@ -586,7 +600,7 @@ test('zeigt eine lokalisierte, zugaengliche oeffentliche Domaenenereignis-Timeli
   });
 
   await page.goto('/poll/audit/p_audit_browser');
-  await expect(page.getByRole('complementary', { name: 'Audit-Kontext' })).toContainText('2');
+  await expect(page.getByRole('complementary', { name: 'Prüfprotokoll-Kontext' })).toContainText('2');
   const timeline = page.getByRole('list', { name: 'Domänenereignis-Timeline' });
   await expect(timeline.getByRole('heading', { name: 'Stimme abgegeben', level: 3 })).toBeVisible();
   await expect(timeline.getByRole('heading', { name: 'Abstimmung veröffentlicht', level: 3 })).toBeVisible();
@@ -724,12 +738,15 @@ test('logs in, restores the active admin area after reload, and logs out', async
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Stimmen', level: 3 })).toBeVisible();
   await page.setViewportSize({ width: 320, height: 720 });
-  const mobileNavigation = page.locator('.mobile-navigation');
+  await page.getByRole('button', { name: 'Menü', exact: true }).click();
+  const mobileNavigation = page.locator('.mobile-menu-navigation');
   await expect(mobileNavigation).toBeVisible();
   await expect(mobileNavigation.getByRole('link')).toHaveCount(4);
   await expect(mobileNavigation.getByRole('link', { name: 'Stimmen' })).toHaveAttribute('aria-current', 'page');
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
   for (const [label, path] of [['Stimmen', '/admin/votes'], ['Abstimmungen', '/admin/polls'], ['Vorlagengruppen', '/admin/groups'], ['Optionsvorlagen', '/admin/templates']] as const) {
+    const toggle = page.locator('.mobile-menu-button');
+    if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click();
     const link = mobileNavigation.getByRole('link', { name: label });
     await link.focus();
     await page.keyboard.press('Enter');
@@ -942,4 +959,828 @@ test('keeps the template catalog usable at 320px with long names', async ({ page
   await expect(page.getByText(longTemplateName)).toBeVisible();
   await page.getByLabel(/Vorlagen filtern/).focus();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+});
+
+test('keeps option radio borders at 3:1 contrast and metadata flat in every theme', async ({ page }) => {
+  await page.route('**/api/v1/**', async (route) => {
+    const url = route.request().url();
+    if (url.endsWith('/identity')) return route.fulfill({ json: { userID: 'alice' } });
+    if (url.endsWith('/polls/p_contrast')) return route.fulfill({ json: {
+      id: 'p_contrast',
+      title: 'Contrast poll',
+      visibility: 'public',
+      state: 'active',
+      createdAt: '2026-08-31T12:00:00.000Z',
+      endsAt: null,
+      totalVotes: 0,
+      options: [{ number: 1, text: 'Yes' }, { number: 2, text: 'No' }],
+    } });
+    if (url.endsWith('/polls/p_contrast/results')) return route.fulfill({ json: {
+      id: 'p_contrast',
+      totalVotes: 0,
+      options: [{ number: 1, text: 'Yes', voteCount: 0, votes: [] }, { number: 2, text: 'No', voteCount: 0, votes: [] }],
+    } });
+    return route.fulfill({ json: [] });
+  });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/poll/p_contrast');
+  await expect(page.getByRole('heading', { name: 'Contrast poll', level: 1 })).toBeVisible();
+
+  for (const label of ['Hell', 'Dunkel', 'Sepia', 'Eco']) {
+    await page.getByRole('button', { name: 'Theme auswählen' }).click();
+    await page.locator('label.theme-option', { hasText: label }).click();
+    await page.keyboard.press('Escape');
+
+    const contrast = await page.evaluate(() => {
+      const luminance = (color: string) => {
+        const [r, g, b] = (color.match(/[\d.]+/g) ?? ['0', '0', '0']).slice(0, 3).map((value) => {
+          const channel = Number(value) / 255;
+          if (channel <= 0.03928) return channel / 12.92;
+          return ((channel + 0.055) / 1.055) ** 2.4;
+        });
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      };
+      const input = document.querySelector('.poll-option input') as HTMLElement;
+      let element: HTMLElement | null = input.closest('.poll-option');
+      let background = 'rgba(0, 0, 0, 0)';
+      while (element && (background === 'rgba(0, 0, 0, 0)' || background === 'transparent')) {
+        background = getComputedStyle(element).backgroundColor;
+        element = element.parentElement;
+      }
+      const first = luminance(getComputedStyle(input).borderTopColor);
+      const second = luminance(background);
+      return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
+    });
+    expect(contrast, `radio border contrast in theme ${label}`).toBeGreaterThanOrEqual(3);
+    await expect(page.locator('.poll-metadata')).toHaveCSS('box-shadow', 'none');
+    await expect(page.locator('.poll-metadata')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  }
+});
+
+test('keeps the selected option radio at 3:1 contrast in every theme', async ({ page }) => {
+  await page.route('**/api/v1/**', async (route) => {
+    const url = route.request().url();
+    if (url.endsWith('/identity')) return route.fulfill({ json: { userID: 'alice' } });
+    if (url.endsWith('/polls/p_contrast')) return route.fulfill({ json: {
+      id: 'p_contrast',
+      title: 'Contrast poll',
+      visibility: 'public',
+      state: 'active',
+      createdAt: '2026-08-31T12:00:00.000Z',
+      endsAt: null,
+      totalVotes: 0,
+      options: [{ number: 1, text: 'Yes' }, { number: 2, text: 'No' }],
+    } });
+    if (url.endsWith('/polls/p_contrast/results')) return route.fulfill({ json: {
+      id: 'p_contrast',
+      totalVotes: 0,
+      options: [{ number: 1, text: 'Yes', voteCount: 0, votes: [] }, { number: 2, text: 'No', voteCount: 0, votes: [] }],
+    } });
+    return route.fulfill({ json: [] });
+  });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/poll/p_contrast');
+  await expect(page.getByRole('heading', { name: 'Contrast poll', level: 1 })).toBeVisible();
+
+  for (const label of ['Hell', 'Dunkel', 'Sepia', 'Eco']) {
+    await page.getByRole('button', { name: 'Theme auswählen' }).click();
+    await page.locator('label.theme-option', { hasText: label }).click();
+    await page.keyboard.press('Escape');
+
+    await page.locator('.poll-option').first().evaluate((element) => element.classList.add('selected'));
+    const contrast = await page.evaluate(() => {
+      const luminance = (color: string) => {
+        const [r, g, b] = (color.match(/[\d.]+/g) ?? ['0', '0', '0']).slice(0, 3).map((value) => {
+          const channel = Number(value) / 255;
+          if (channel <= 0.03928) return channel / 12.92;
+          return ((channel + 0.055) / 1.055) ** 2.4;
+        });
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      };
+      const input = document.querySelector('.poll-option input') as HTMLElement;
+      let element: HTMLElement | null = input.closest('.poll-option');
+      let background = 'rgba(0, 0, 0, 0)';
+      while (element && (background === 'rgba(0, 0, 0, 0)' || background === 'transparent')) {
+        background = getComputedStyle(element).backgroundColor;
+        element = element.parentElement;
+      }
+      const first = luminance(getComputedStyle(input).borderTopColor);
+      const second = luminance(background);
+      return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
+    });
+    expect(contrast, `radio border contrast in theme ${label}`).toBeGreaterThanOrEqual(3);
+    await expect(page.locator('.poll-metadata')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  }
+});
+
+test('keeps touch targets, eyebrow text, long titles, and accessibility within mobile bounds', async ({ page }) => {
+  const longTitle = 'Ein sehr langer Abstimmungstitel '.repeat(5).trim();
+  await page.route('**/api/v1/**', async (route) => {
+    const url = route.request().url();
+    if (url.endsWith('/identity')) return route.fulfill({ json: { userID: 'alice' } });
+    if (url.endsWith('/polls/p_long')) return route.fulfill({ json: {
+      id: 'p_long', title: longTitle, visibility: 'public', state: 'active', createdAt: '2026-08-31T12:00:00.000Z',
+      endsAt: null, totalVotes: 0, options: [{ number: 1, text: 'Yes' }, { number: 2, text: 'No' }],
+    } });
+    if (url.endsWith('/polls/p_long/results')) return route.fulfill({ json: {
+      id: 'p_long', totalVotes: 0, options: [{ number: 1, text: 'Yes', voteCount: 0, votes: [] }, { number: 2, text: 'No', voteCount: 0, votes: [] }],
+    } });
+    return route.fulfill({ json: [] });
+  });
+  await page.setViewportSize({ width: 375, height: 812 });
+
+  for (const route of ['/', '/polls', '/poll/p_long']) {
+    await page.goto(route);
+    await page.evaluate(() => document.fonts.ready);
+    const undersized = await page.locator('main a, main button, header a, header button, .poll-option').evaluateAll((elements) => elements
+      .filter((element) => !element.closest('.sr-only') && !element.closest('p') && element.getClientRects().length > 0)
+      .map((element) => ({ text: element.textContent?.trim().slice(0, 40), height: element.getBoundingClientRect().height, width: element.getBoundingClientRect().width }))
+      .filter((target) => target.height < 44 || target.width < 44));
+    expect(undersized, `touch targets on ${route}`).toEqual([]);
+    const eyebrowSizes = await page.locator('.eyebrow').evaluateAll((elements) => elements.map((element) => parseFloat(getComputedStyle(element).fontSize)));
+    expect(eyebrowSizes.every((size) => size >= 12), `eyebrow size on ${route}`).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth), `no horizontal scroll on ${route}`).toBeLessThanOrEqual(375);
+  }
+
+  for (const label of ['Hell', 'Dunkel', 'Sepia', 'Eco']) {
+    await page.goto('/poll/p_long');
+    await expect(page.getByRole('heading', { name: longTitle, level: 1 })).toBeVisible();
+    await page.getByRole('button', { name: 'Theme auswählen' }).click();
+    await page.locator('label.theme-option', { hasText: label }).click();
+    await page.keyboard.press('Escape');
+    for (const route of ['/', '/polls', '/poll/p_long']) {
+      await page.goto(route);
+      await page.evaluate(() => document.fonts.ready);
+      const results = await new AxeBuilder({ page }).analyze();
+      const serious = results.violations.filter((violation) => violation.impact === 'critical' || violation.impact === 'serious');
+      expect(serious.map((violation) => violation.id), `axe in theme ${label} on ${route}`).toEqual([]);
+    }
+  }
+});
+
+test('shows list and poll content above the 812px viewport bottom at 375px', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.route('**/api/v1/**', async (route) => {
+    const url = route.request().url();
+    if (url.endsWith('/identity')) return route.fulfill({ json: { userID: null } });
+    if (url.endsWith('/polls/p_fold')) return route.fulfill({ json: {
+      id: 'p_fold', title: 'Above the fold', visibility: 'public', state: 'active', createdAt: '2026-08-31T12:00:00.000Z',
+      endsAt: null, totalVotes: 0, options: [{ number: 1, text: 'Yes' }, { number: 2, text: 'No' }],
+    } });
+    if (url.endsWith('/polls/p_fold/results')) return route.fulfill({ json: {
+      id: 'p_fold', totalVotes: 0, options: [{ number: 1, text: 'Yes', voteCount: 0, votes: [] }, { number: 2, text: 'No', voteCount: 0, votes: [] }],
+    } });
+    if (url.endsWith('/polls')) return route.fulfill({ json: [{
+      id: 'p_fold', title: 'Above the fold', visibility: 'public', state: 'active', createdAt: '2026-08-31T12:00:00.000Z',
+      endsAt: null, totalVotes: 0, templateGroup: { id: 'g', name: 'G', description: '' }, templateSnapshotOptions: [], options: [],
+    }] });
+    return route.fulfill({ json: [] });
+  });
+
+  await page.goto('/polls?date=all');
+  await expect(page.locator('.poll-card').first()).toBeVisible();
+  expect(await page.locator('.poll-card').first().evaluate((element) => element.getBoundingClientRect().bottom)).toBeLessThanOrEqual(812);
+
+  await page.goto('/poll/p_fold');
+  await expect(page.getByRole('heading', { name: 'Above the fold', level: 1 })).toBeVisible();
+  expect(await page.locator('.poll-option').last().evaluate((element) => element.getBoundingClientRect().bottom)).toBeLessThanOrEqual(812);
+});
+
+test('changes the identity from the mobile menu dialog and shows it in the menu status', async ({ page }) => {
+  let identity: string | null = null;
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request();
+    if (request.url().endsWith('/csrf')) return route.fulfill({ json: { token: 'csrf-token', headerName: 'X-XSRF-TOKEN' } });
+    if (request.url().endsWith('/identity') && request.method() === 'GET') return route.fulfill({ json: { userID: identity } });
+    if (request.url().endsWith('/identity') && request.method() === 'POST') {
+      identity = request.postDataJSON().userID;
+      return route.fulfill({ status: 204 });
+    }
+    return route.fulfill({ json: [] });
+  });
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto('/polls');
+
+  await page.getByRole('button', { name: 'Menü', exact: true }).click();
+  await page.locator('.mobile-identity').getByRole('button', { name: 'Identität festlegen' }).click();
+  await page.getByLabel('Neue Identität').fill('Bob');
+  await page.getByRole('button', { name: 'Speichern' }).click();
+  await page.getByRole('button', { name: 'Festlegen', exact: true }).click();
+
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Menü', exact: true }).click();
+  await expect(page.locator('.mobile-identity-value')).toContainText('Bob');
+});
+
+test('closes the mobile menu when the viewport reaches desktop width', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.route('**/api/v1/**', (route) => route.fulfill({ json: [] }));
+  await page.goto('/polls');
+  await page.getByRole('button', { name: 'Menü', exact: true }).click();
+  await expect(page.locator('#mobile-menu-panel')).toBeVisible();
+
+  await page.setViewportSize({ width: 1280, height: 800 });
+
+  await expect(page.locator('#mobile-menu-panel')).toHaveCount(0);
+  await expect(page.locator('.sidebar-navigation')).toBeVisible();
+});
+
+test('keeps primary button text and focus rings readable in every theme', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 800 });
+  let signedIn = false;
+  await page.route('**/api/v1/**', (route) => {
+    if (route.request().url().endsWith('/admin/session')) {
+      if (signedIn) return route.fulfill({ status: 204 });
+      return route.fulfill({ status: 401, json: { status: 401, code: 'unauthorized' } });
+    }
+    return route.fulfill({ json: [] });
+  });
+
+  for (const path of ['/', '/admin', '/admin/polls']) {
+    signedIn = path === '/admin/polls';
+    await page.goto(path);
+    for (const label of ['Hell', 'Dunkel', 'Sepia', 'Eco']) {
+      await page.getByRole('button', { name: 'Theme auswählen' }).click();
+      await page.locator('label.theme-option', { hasText: label }).click();
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(250); // let the 150ms colour transition of the primary button finish
+
+      await page.locator('button:not([disabled])').first().focus();
+      await page.keyboard.press('Shift+Tab');
+      await page.keyboard.press('Tab');
+
+      const contrast = await page.evaluate(() => {
+        const toRgb = (value: string) => {
+          const context = document.createElement('canvas').getContext('2d');
+          if (!context) return [0, 0, 0];
+          context.fillStyle = value;
+          context.fillRect(0, 0, 1, 1);
+          const [r, g, b] = context.getImageData(0, 0, 1, 1).data;
+          return [r, g, b];
+        };
+        const luminance = (rgb: number[]) => {
+          const [r, g, b] = rgb.map((channel) => {
+            const value = channel / 255;
+            if (value <= 0.03928) return value / 12.92;
+            return ((value + 0.055) / 1.055) ** 2.4;
+          });
+          return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        };
+        const ratio = (first: number[], second: number[]) => {
+          const lighter = Math.max(luminance(first), luminance(second));
+          const darker = Math.min(luminance(first), luminance(second));
+          return (lighter + 0.05) / (darker + 0.05);
+        };
+        const button = document.querySelector('.primary-button') as HTMLElement;
+        const buttonStyle = getComputedStyle(button);
+        const surface = getComputedStyle(document.querySelector('.app-shell') as HTMLElement).backgroundColor;
+        const focused = document.activeElement as HTMLElement;
+        return {
+          text: ratio(toRgb(buttonStyle.color), toRgb(buttonStyle.backgroundColor)),
+          ring: ratio(toRgb(getComputedStyle(focused).outlineColor), toRgb(surface)),
+          focusedIsInteractive: focused !== document.body,
+        };
+      });
+      expect(contrast.focusedIsInteractive, `focus moved to an element in theme ${label} on ${path}`).toBe(true);
+      expect(contrast.text, `primary button text contrast in theme ${label} on ${path}`).toBeGreaterThanOrEqual(4.5);
+      expect(contrast.ring, `focus ring contrast in theme ${label} on ${path}`).toBeGreaterThanOrEqual(3);
+    }
+  }
+});
+
+test('keeps poll list filter controls equally tall with matching corners', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 800 });
+  await page.route('**/api/v1/**', (route) => route.fulfill({ json: [] }));
+  await page.goto('/polls');
+
+  const controls = page.locator('.filter-control');
+  await expect(controls).toHaveCount(3);
+  const sizes = await controls.evaluateAll((elements) => elements.map((element) => ({
+    height: element.getBoundingClientRect().height,
+    radius: getComputedStyle(element).borderTopLeftRadius,
+  })));
+  for (const size of sizes) {
+    expect(size.height).toBeGreaterThanOrEqual(44);
+    expect(size.radius).toBe(sizes[0].radius);
+  }
+});
+
+test('locks page scrolling behind the open mobile menu and closes it from the backdrop', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.route('**/api/v1/**', (route) => route.fulfill({ json: [] }));
+  await page.goto('/polls');
+
+  await page.getByRole('button', { name: 'Menü', exact: true }).click();
+  await expect(page.locator('html')).toHaveClass(/menu-open/);
+  await expect(page.locator('html')).toHaveCSS('overflow', 'hidden');
+  await page.locator('.mobile-menu-backdrop').click({ position: { x: 10, y: 700 } });
+
+  await expect(page.locator('html')).not.toHaveClass(/menu-open/);
+  await expect(page.getByRole('button', { name: 'Menü', exact: true })).toBeFocused();
+});
+
+test('stacks the start page statistics one per row and keeps the intro out of the layout at 375px', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.route('**/api/v1/**', (route) => route.fulfill({ json: [] }));
+  await page.goto('/');
+
+  await expect(page.locator('.discovery-stats > div')).toHaveCount(3);
+  const columns = await page.locator('.discovery-stats').evaluate((element) => getComputedStyle(element).gridTemplateColumns.trim().split(/\s+/).length);
+  expect(columns).toBe(1);
+  await expect(page.locator('.page-intro')).toHaveClass(/sr-only/);
+});
+
+test('removes button and menu motion when reduced motion is requested', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.route('**/api/v1/**', (route) => route.fulfill({ json: [] }));
+  await page.goto('/polls');
+
+  await page.getByRole('button', { name: 'Menü', exact: true }).click();
+  const panel = page.locator('#mobile-menu-panel');
+  await expect(panel).toBeVisible();
+  const duration = await panel.evaluate((element) => parseFloat(getComputedStyle(element).animationDuration));
+  expect(duration).toBeLessThanOrEqual(0.001);
+});
+
+test('shows the poll title, fact line and identity action without scrolling at 375px', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.route('**/api/v1/**', async (route) => {
+    const url = route.request().url();
+    if (url.endsWith('/identity')) return route.fulfill({ json: { userID: null } });
+    if (url.endsWith('/polls/p_fact_line')) return route.fulfill({ json: {
+      id: 'p_fact_line', title: 'Fact line poll', visibility: 'public', state: 'active',
+      createdAt: '2026-08-31T12:00:00.000Z', endsAt: '2099-01-01T00:00:00.000Z', totalVotes: 2,
+      options: [{ number: 1, text: 'Yes' }],
+    } });
+    if (url.endsWith('/polls/p_fact_line/results')) return route.fulfill({ json: {
+      id: 'p_fact_line', totalVotes: 2, options: [{ number: 1, text: 'Yes', voteCount: 2, votes: [] }],
+    } });
+    return route.fulfill({ json: [] });
+  });
+
+  await page.goto('/poll/p_fact_line');
+  const title = page.getByRole('heading', { name: 'Fact line poll', level: 1 });
+  const fact = page.locator('.poll-fact-line');
+  const action = page.getByRole('button', { name: 'Identität festlegen' });
+  await expect(fact).toContainText('2 Stimmen');
+  for (const locator of [title, fact, action]) {
+    const box = await locator.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.y + box!.height).toBeLessThanOrEqual(812);
+  }
+});
+
+async function tabUntilFocused(page: Page, target: Locator) {
+  for (let step = 0; step < 25; step += 1) {
+    if (await target.evaluate((element) => element === document.activeElement)) return;
+    await page.keyboard.press('Tab');
+  }
+  await expect(target).toBeFocused();
+}
+
+test('sets the identity and casts a vote using only the keyboard', async ({ page }) => {
+  let identity: string | null = null;
+  let selectedOption: number | null = null;
+  const voteRequests: number[] = [];
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request();
+    const url = request.url();
+    if (url.endsWith('/csrf')) return route.fulfill({ json: { token: 'csrf-token', headerName: 'X-XSRF-TOKEN' } });
+    if (url.endsWith('/identity') && request.method() === 'GET') return route.fulfill({ json: { userID: identity } });
+    if (url.endsWith('/identity') && request.method() === 'POST') {
+      identity = request.postDataJSON().userID;
+      return route.fulfill({ status: 204 });
+    }
+    if (url.endsWith('/polls/p_keyboard') && request.method() === 'GET') return route.fulfill({ json: {
+      id: 'p_keyboard', title: 'Keyboard poll', visibility: 'public', state: 'active',
+      createdAt: '2026-08-31T12:00:00.000Z', endsAt: '2099-01-01T00:00:00.000Z', totalVotes: Number(selectedOption !== null),
+      options: [{ number: 2, text: 'Zebra' }, { number: 7, text: 'Apfel' }],
+    } });
+    if (url.endsWith('/polls/p_keyboard/results')) {
+      if (selectedOption === null) return route.fulfill({ status: 403, json: { status: 403, code: 'results-not-available' } });
+      const zebraVotes: { userID: string; votedAt: string }[] = [];
+      if (selectedOption === 2) zebraVotes.push({ userID: 'bob', votedAt: '2026-08-31T12:00:00.000Z' });
+      const apfelVotes: { userID: string; votedAt: string }[] = [];
+      if (selectedOption === 7) apfelVotes.push({ userID: 'bob', votedAt: '2026-08-31T12:00:00.000Z' });
+      return route.fulfill({ json: {
+        id: 'p_keyboard', totalVotes: 1,
+        options: [{ number: 2, text: 'Zebra', voteCount: zebraVotes.length, votes: zebraVotes }, { number: 7, text: 'Apfel', voteCount: apfelVotes.length, votes: apfelVotes }],
+      } });
+    }
+    if (url.endsWith('/polls/p_keyboard/votes') && request.method() === 'POST') {
+      const optionNumber = request.postDataJSON().optionNumber;
+      voteRequests.push(optionNumber);
+      selectedOption = optionNumber;
+      return route.fulfill({ json: { status: 'created', optionNumber } });
+    }
+    return route.fulfill({ json: [] });
+  });
+
+  await page.setViewportSize({ width: 1024, height: 800 });
+  await page.goto('/poll/p_keyboard');
+  const notice = page.locator('.poll-identity-notice');
+  await expect(notice).toBeVisible();
+  await tabUntilFocused(page, notice.getByRole('button', { name: 'Identität festlegen' }));
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('bob');
+  await tabUntilFocused(page, page.getByRole('button', { name: 'Speichern' }));
+  await page.keyboard.press('Enter');
+  await tabUntilFocused(page, page.getByRole('dialog').getByRole('button', { name: 'Festlegen', exact: true }));
+  await page.keyboard.press('Enter');
+
+  await expect(page.getByRole('radio', { name: 'Apfel' })).toBeFocused();
+  await expect(page.getByText('Identität gesetzt. Du kannst jetzt abstimmen.')).toBeVisible();
+  await page.keyboard.press('ArrowDown');
+  await expect(page.getByRole('radio', { name: 'Zebra' })).toBeChecked();
+  expect(voteRequests).toEqual([]);
+  await page.keyboard.press('Tab');
+  const confirm = page.getByRole('button', { name: 'Stimme abgeben: Zebra' });
+  await expect(confirm).toBeFocused();
+  // The button fades in over 150ms; axe would measure blended colours until the fade has finished.
+  await expect.poll(() => confirm.evaluate((element) => getComputedStyle(element).opacity)).toBe('1');
+  const accessibility = await new AxeBuilder({ page }).analyze();
+  expect(accessibility.violations.filter(({ impact }) => impact === 'critical' || impact === 'serious')).toEqual([]);
+  await page.keyboard.press('Enter');
+  await expect(page.getByText('Stimme abgegeben.')).toBeVisible();
+  await expect(page.getByRole('radio', { name: 'Zebra' })).toBeFocused();
+  expect(voteRequests).toEqual([2]);
+});
+
+const rowPollOption = 'Ein sehr langer Vorschlag, der über mehrere Zeilen geht und im Auswahlfeld abgeschnitten werden muss';
+
+async function routeRowPoll(page: Page) {
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request();
+    const url = request.url();
+    if (url.endsWith('/csrf')) return route.fulfill({ json: { token: 'csrf-token', headerName: 'X-XSRF-TOKEN' } });
+    if (url.endsWith('/identity') && request.method() === 'GET') return route.fulfill({ json: { userID: 'alice' } });
+    if (url.endsWith('/polls/p_row') && request.method() === 'GET') return route.fulfill({ json: {
+      id: 'p_row', title: 'Row poll', visibility: 'public', state: 'active',
+      createdAt: '2026-08-31T12:00:00.000Z', endsAt: '2099-01-01T00:00:00.000Z', totalVotes: 0,
+      options: [{ number: 2, text: 'Zebra' }, { number: 7, text: rowPollOption }],
+    } });
+    if (url.endsWith('/polls/p_row/results')) return route.fulfill({ status: 403, json: { status: 403, code: 'results-not-available' } });
+    if (url.endsWith('/polls/p_row/votes') && request.method() === 'POST') {
+      const optionNumber = request.postDataJSON().optionNumber;
+      return route.fulfill({ json: { status: 'created', optionNumber } });
+    }
+    return route.fulfill({ json: [] });
+  });
+}
+
+test('places the confirm button at the end of the selected row without changing its height', async ({ page }) => {
+  await routeRowPoll(page);
+  await page.setViewportSize({ width: 375, height: 800 });
+  await page.goto('/poll/p_row');
+
+  const longRow = page.locator('.poll-option', { hasText: 'Ein sehr langer' });
+  await expect(longRow).toBeVisible();
+  const rowBefore = await longRow.boundingBox();
+  await page.getByRole('radio', { name: rowPollOption }).click();
+  const button = longRow.getByRole('button', { name: `Stimme abgeben: ${rowPollOption}` });
+  await expect(button).toBeVisible();
+  const rowAfter = await longRow.boundingBox();
+  const buttonBox = await button.boundingBox();
+  if (!rowBefore || !rowAfter || !buttonBox) throw new Error('row or button has no layout box');
+
+  expect(Math.abs(rowAfter.height - rowBefore.height)).toBeLessThanOrEqual(1);
+  expect(buttonBox.width).toBeGreaterThanOrEqual(44);
+  expect(buttonBox.height).toBeGreaterThanOrEqual(44);
+  expect(buttonBox.x + buttonBox.width).toBeLessThanOrEqual(rowAfter.x + rowAfter.width);
+  await expect(button.locator('.poll-option-submit-text')).toBeHidden();
+  await expect(button.locator('.poll-option-submit-icon')).toBeVisible();
+  expect(await longRow.locator('.poll-option-text strong').evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+
+  await page.setViewportSize({ width: 1024, height: 800 });
+  await expect(button.locator('.poll-option-submit-text')).toBeVisible();
+  await expect(button.locator('.poll-option-submit-icon')).toBeHidden();
+  const contentEnd = await longRow.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return element.getBoundingClientRect().right - parseFloat(style.paddingRight) - parseFloat(style.borderRightWidth);
+  });
+  const buttonAt1024 = await button.boundingBox();
+  if (!buttonAt1024) throw new Error('button has no layout box at 1024px');
+  expect(buttonAt1024.x + buttonAt1024.width).toBeLessThanOrEqual(contentEnd + 1);
+  // The button fades in over 150ms; axe would measure blended, lighter colours until the fade has finished.
+  await expect.poll(() => button.evaluate((element) => getComputedStyle(element).opacity)).toBe('1');
+  const accessibility = await new AxeBuilder({ page }).analyze();
+  expect(accessibility.violations.filter(({ impact }) => impact === 'critical' || impact === 'serious')).toEqual([]);
+});
+
+test('removes the confirm button fade when reduced motion is requested', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await routeRowPoll(page);
+  await page.setViewportSize({ width: 1024, height: 800 });
+  await page.goto('/poll/p_row');
+
+  await page.getByRole('radio', { name: rowPollOption }).click();
+  const button = page.getByRole('button', { name: `Stimme abgeben: ${rowPollOption}` });
+  await expect(button).toBeVisible();
+  expect(await button.evaluate((element) => parseFloat(getComputedStyle(element).animationDuration))).toBeLessThanOrEqual(0.01);
+});
+
+test('keeps the confirm button readable and inside its row at 320px and 768px in all four themes', async ({ page }) => {
+  test.setTimeout(300000);
+  await routeRowPoll(page);
+  for (const width of [320, 375, 768, 1024]) {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto('/poll/p_row');
+    for (const label of ['Hell', 'Dunkel', 'Sepia', 'Eco']) {
+      await page.getByRole('button', { name: 'Theme auswählen' }).click();
+      await page.locator('label.theme-option', { hasText: label }).click();
+      await page.keyboard.press('Escape');
+      await page.getByRole('radio', { name: rowPollOption }).click();
+      const button = page.getByRole('button', { name: `Stimme abgeben: ${rowPollOption}` });
+      await expect(button).toBeVisible();
+      await expect.poll(() => button.evaluate((element) => getComputedStyle(element).opacity)).toBe('1');
+
+      const rowBox = await page.locator('.poll-option.selected').boundingBox();
+      const buttonBox = await button.boundingBox();
+      if (!rowBox || !buttonBox) throw new Error('row or button has no layout box');
+      expect(buttonBox.x + buttonBox.width, `button inside row at ${width}px in ${label}`).toBeLessThanOrEqual(rowBox.x + rowBox.width);
+      const textVisible = await button.locator('.poll-option-submit-text').isVisible();
+      if (width >= 640) expect(textVisible, `text visible at ${width}px in ${label}`).toBe(true);
+      if (width < 640) expect(textVisible, `text hidden at ${width}px in ${label}`).toBe(false);
+      const textBox = await page.locator('.poll-option.selected .poll-option-text strong').boundingBox();
+      if (!textBox) throw new Error('option text has no layout box');
+      expect(textBox.x + textBox.width, `text does not overlap button at ${width}px in ${label}`).toBeLessThanOrEqual(buttonBox.x + 1);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth), `overflow at ${width}px in ${label}`).toBeLessThanOrEqual(width);
+
+      const contrast = await new AxeBuilder({ page }).include('.poll-option.selected').analyze();
+      expect(contrast.violations.filter(({ id }) => id === 'color-contrast'), `contrast at ${width}px in ${label}`).toEqual([]);
+    }
+  }
+});
+
+test('keeps every option row at its height and restores the full text when deselected', async ({ page }) => {
+  test.setTimeout(120000);
+  await routeRowPoll(page);
+  const rowHeights = () => page.locator('.poll-option').evaluateAll((rows) => rows.map((row) => row.getBoundingClientRect().height));
+  const longStrong = page.locator('.poll-option', { hasText: 'Ein sehr langer' }).locator('.poll-option-text strong');
+  for (const width of [320, 375, 768, 1024]) {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto('/poll/p_row');
+    await expect(page.locator('.poll-option')).toHaveCount(2);
+    const before = await rowHeights();
+
+    await page.getByRole('radio', { name: rowPollOption }).click();
+    const button = page.getByRole('button', { name: `Stimme abgeben: ${rowPollOption}` });
+    await expect(button).toBeVisible();
+    const selected = await rowHeights();
+    selected.forEach((height, index) => expect(Math.abs(height - before[index]), `row ${index} on selection at ${width}px`).toBeLessThanOrEqual(1));
+
+    const buttonBox = await button.boundingBox();
+    const firstLine = await longStrong.evaluate((element) => {
+      const top = element.getBoundingClientRect().top;
+      return { top, bottom: top + parseFloat(getComputedStyle(element).lineHeight) };
+    });
+    if (!buttonBox) throw new Error('button has no layout box');
+    expect(buttonBox.y, `button top above first text line at ${width}px`).toBeLessThan(firstLine.bottom);
+    expect(buttonBox.y + buttonBox.height, `button bottom below first text line top at ${width}px`).toBeGreaterThan(firstLine.top);
+
+    await page.getByRole('radio', { name: 'Zebra' }).click();
+    await expect(button).toHaveCount(0);
+    expect(await longStrong.evaluate((element) => element.scrollHeight <= element.clientHeight), `full text after deselecting at ${width}px`).toBe(true);
+    const deselected = await rowHeights();
+    deselected.forEach((height, index) => expect(Math.abs(height - before[index]), `row ${index} after deselecting at ${width}px`).toBeLessThanOrEqual(1));
+  }
+});
+
+async function routeTenOptionPoll(page: Page) {
+  const options = Array.from({ length: 10 }, (_, index) => ({ number: index + 1, text: `Option ${index + 1}` }));
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request();
+    const url = request.url();
+    if (url.endsWith('/csrf')) return route.fulfill({ json: { token: 'csrf-token', headerName: 'X-XSRF-TOKEN' } });
+    if (url.endsWith('/identity') && request.method() === 'GET') return route.fulfill({ json: { userID: 'alice' } });
+    if (url.endsWith('/polls/p_ten') && request.method() === 'GET') return route.fulfill({ json: {
+      id: 'p_ten', title: 'Zehn Optionen', visibility: 'public', state: 'active',
+      createdAt: '2026-08-31T12:00:00.000Z', endsAt: '2099-01-01T00:00:00.000Z', totalVotes: 0, options,
+    } });
+    if (url.endsWith('/polls/p_ten/results')) return route.fulfill({ status: 403, json: { status: 403, code: 'results-not-available' } });
+    if (url.endsWith('/polls/p_ten/votes') && request.method() === 'POST') {
+      const optionNumber = request.postDataJSON().optionNumber;
+      return route.fulfill({ json: { status: 'created', optionNumber } });
+    }
+    return route.fulfill({ json: [] });
+  });
+}
+
+test('keeps the confirm button of any option of a ten-option poll inside the viewport at 375px', async ({ page }) => {
+  await routeTenOptionPoll(page);
+  await page.setViewportSize({ width: 375, height: 800 });
+  await page.goto('/poll/p_ten');
+  for (const option of ['Option 1', 'Option 10']) {
+    await page.getByRole('radio', { name: option, exact: true }).click();
+    const button = page.getByRole('button', { name: `Stimme abgeben: ${option}`, exact: true });
+    await button.scrollIntoViewIfNeeded();
+    await expect(button).toBeVisible();
+    const box = await button.boundingBox();
+    if (!box) throw new Error(`button for ${option} has no layout box`);
+    expect(box.x, `${option} button left edge`).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width, `${option} button right edge`).toBeLessThanOrEqual(375);
+    expect(box.y, `${option} button top edge`).toBeGreaterThanOrEqual(0);
+    expect(box.y + box.height, `${option} button bottom edge`).toBeLessThanOrEqual(800);
+  }
+});
+
+test('keeps the confirm button distinguishable from the selected row at 3:1 in every theme', async ({ page }) => {
+  await routeRowPoll(page);
+  await page.setViewportSize({ width: 1024, height: 800 });
+  await page.goto('/poll/p_row');
+  await page.getByRole('radio', { name: rowPollOption }).click();
+  const button = page.getByRole('button', { name: `Stimme abgeben: ${rowPollOption}` });
+  await expect(button).toBeVisible();
+  await expect.poll(() => button.evaluate((element) => getComputedStyle(element).opacity)).toBe('1');
+
+  const ratios: Record<string, number> = {};
+  const colours: Record<string, string> = {};
+  for (const label of ['Hell', 'Dunkel', 'Sepia', 'Eco']) {
+    await page.getByRole('button', { name: 'Theme auswählen' }).click();
+    await page.locator('label.theme-option', { hasText: label }).click();
+    await page.keyboard.press('Escape');
+    // The button transitions its background for 150ms after a theme switch; measure only once that has settled.
+    await page.evaluate(() => Promise.allSettled(document.getAnimations().map((animation) => animation.finished)));
+
+    const measured = await page.evaluate(() => {
+      const luminance = (color: string) => {
+        const [r, g, b] = (color.match(/[\d.]+/g) ?? ['0', '0', '0']).slice(0, 3).map((value) => {
+          const channel = Number(value) / 255;
+          if (channel <= 0.03928) return channel / 12.92;
+          return ((channel + 0.055) / 1.055) ** 2.4;
+        });
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      };
+      const confirm = document.querySelector('.poll-option-submit') as HTMLElement;
+      const row = document.querySelector('.poll-option.selected') as HTMLElement;
+      const first = luminance(getComputedStyle(confirm).backgroundColor);
+      const second = luminance(getComputedStyle(row).backgroundColor);
+      const ratio = (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
+      return {
+        ratio,
+        detail: `button ${getComputedStyle(confirm).backgroundColor} / row ${getComputedStyle(row).backgroundColor}`,
+      };
+    });
+    ratios[label] = measured.ratio;
+    colours[label] = measured.detail;
+  }
+  const belowThreeToOne = Object.entries(ratios).filter(([, ratio]) => ratio < 3).map(([label, ratio]) => `${label}: ${ratio.toFixed(2)}:1 (${colours[label]})`);
+  expect(belowThreeToOne, 'confirm button against selected row, themes below 3:1').toEqual([]);
+});
+
+test('keeps start page statistic labels within two lines and clips no text at 375px', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.route('**/api/v1/**', (route) => {
+    const url = route.request().url();
+    if (url.endsWith('/polls/p_clip')) return route.fulfill({ json: {
+      id: 'p_clip', title: 'Ein langer Titel für die Klippprüfung auf dem Handy', visibility: 'public', state: 'active',
+      createdAt: '2026-08-31T12:00:00.000Z', endsAt: '2099-01-01T00:00:00.000Z', totalVotes: 2,
+      options: [{ number: 1, text: 'Ja mit einer ziemlich langen Optionsbezeichnung für den Test' }, { number: 2, text: 'Nein' }],
+    } });
+    if (url.endsWith('/polls/p_clip/results')) return route.fulfill({ status: 403, json: { status: 403, code: 'results-not-available' } });
+    return route.fulfill({ json: [] });
+  });
+
+  for (const path of ['/', '/polls', '/poll/p_clip']) {
+    await page.goto(path);
+    await expect(page.locator('main')).toBeVisible();
+    const clipped = await page.locator('main').evaluate((main) => Array.from(main.querySelectorAll<HTMLElement>('*'))
+      .filter((element) => {
+        if (element.classList.contains('sr-only')) return false;
+        const style = getComputedStyle(element);
+        const clipsHorizontally = style.overflowX === 'hidden' || style.overflowX === 'clip';
+        return clipsHorizontally && element.scrollWidth > element.clientWidth + 1;
+      })
+      .map((element) => element.className || element.tagName));
+    expect(clipped, `clipped elements on ${path}`).toEqual([]);
+  }
+
+  await page.goto('/');
+  await expect(page.locator('.discovery-stats dt')).toHaveCount(3);
+  const lineCounts = await page.locator('.discovery-stats dt').evaluateAll((elements) => elements.map((element) => {
+    const lineHeight = parseFloat(getComputedStyle(element).lineHeight);
+    return Math.round(element.getBoundingClientRect().height / lineHeight);
+  }));
+  expect(lineCounts.length).toBeGreaterThan(0);
+  for (const lines of lineCounts) expect(lines).toBeLessThanOrEqual(2);
+});
+
+test('aligns the sidebar identity action and the mobile menu identity text with their neighbours', async ({ page }) => {
+  await page.route('**/api/v1/**', (route) => route.fulfill({ json: [] }));
+  await page.setViewportSize({ width: 1024, height: 800 });
+  await page.goto('/polls');
+  const sidebarStatus = await page.locator('.identity-mini h2 span').evaluate((element) => element.getBoundingClientRect().left);
+  const sidebarAction = await page.locator('.identity-mini .identity-edit-button').evaluate((element) => element.getBoundingClientRect().left);
+  expect(Math.abs(sidebarAction - sidebarStatus)).toBeLessThanOrEqual(1);
+
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.getByRole('button', { name: 'Menü', exact: true }).click();
+  const navigationText = await page.locator('.mobile-menu-navigation .nav-item').first().evaluate((element) => element.getBoundingClientRect().left + parseFloat(getComputedStyle(element).paddingLeft));
+  const identityText = await page.locator('.mobile-identity .eyebrow').evaluate((element) => element.getBoundingClientRect().left);
+  expect(Math.abs(identityText - navigationText)).toBeLessThanOrEqual(1);
+});
+
+test('starts the start page at the regular main padding and keeps button transitions short', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 800 });
+  await page.route('**/api/v1/**', (route) => route.fulfill({ json: [] }));
+  await page.goto('/');
+  await expect(page.locator('.identity-card')).toBeVisible();
+
+  const offset = await page.evaluate(() => {
+    const main = document.querySelector('main') as HTMLElement;
+    const card = document.querySelector('.identity-card') as HTMLElement;
+    return card.getBoundingClientRect().top - main.getBoundingClientRect().top - parseFloat(getComputedStyle(main).paddingTop);
+  });
+  expect(Math.abs(offset)).toBeLessThanOrEqual(2);
+
+  const transition = await page.locator('.primary-button').first().evaluate((element) => parseFloat(getComputedStyle(element).transitionDuration));
+  expect(transition).toBeGreaterThan(0);
+  expect(transition).toBeLessThanOrEqual(0.2);
+});
+
+test('removes primary button transitions when reduced motion is requested', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.setViewportSize({ width: 1024, height: 800 });
+  await page.route('**/api/v1/**', (route) => route.fulfill({ json: [] }));
+  await page.goto('/');
+  await expect(page.locator('.primary-button').first()).toBeVisible();
+
+  const transition = await page.locator('.primary-button').first().evaluate((element) => parseFloat(getComputedStyle(element).transitionDuration));
+  expect(transition).toBeLessThanOrEqual(0.001);
+});
+
+test('keeps the tablet band free of horizontal overflow and opens the mobile menu at 768px', async ({ page }) => {
+  await page.setViewportSize({ width: 768, height: 1024 });
+  await page.route('**/api/v1/**', (route) => {
+    const url = route.request().url();
+    if (url.endsWith('/admin/session')) return route.fulfill({ status: 401, json: { status: 401, code: 'unauthorized' } });
+    if (url.endsWith('/polls/p_tablet')) return route.fulfill({ json: {
+      id: 'p_tablet', title: 'Ein Abstimmungstitel für das Tablet mit mehreren Wörtern', visibility: 'public', state: 'active',
+      createdAt: '2026-08-31T12:00:00.000Z', endsAt: '2099-01-01T00:00:00.000Z', totalVotes: 1,
+      options: [{ number: 1, text: 'Ja' }, { number: 2, text: 'Nein' }],
+    } });
+    if (url.endsWith('/polls/p_tablet/results')) return route.fulfill({ status: 403, json: { status: 403, code: 'results-not-available' } });
+    return route.fulfill({ json: [] });
+  });
+
+  for (const path of ['/', '/polls', '/poll/p_tablet', '/admin']) {
+    await page.goto(path);
+    await expect(page.locator('main')).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth), `horizontal overflow on ${path}`).toBeLessThanOrEqual(768);
+  }
+
+  await page.goto('/polls');
+  await page.getByRole('button', { name: 'Menü', exact: true }).click();
+  await expect(page.locator('#mobile-menu-panel')).toBeVisible();
+  await page.getByRole('button', { name: 'Menü schließen', exact: true }).click();
+  await expect(page.locator('#mobile-menu-panel')).toHaveCount(0);
+});
+
+test('keeps the page still while the mobile menu is open', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.route('**/api/v1/**', (route) => route.fulfill({ json: [] }));
+  await page.goto('/polls');
+  await page.evaluate(() => { document.body.style.minHeight = '3000px'; });
+
+  await page.mouse.wheel(0, 300);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.getByRole('button', { name: 'Menü', exact: true }).click();
+  await page.mouse.wheel(0, 300);
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+});
+
+test('keeps every supported width free of horizontal overflow in all four themes', async ({ page }) => {
+  test.setTimeout(300000);
+  await page.route('**/api/v1/**', (route) => {
+    const url = route.request().url();
+    if (url.endsWith('/admin/session')) return route.fulfill({ status: 401, json: { status: 401, code: 'unauthorized' } });
+    if (url.endsWith('/polls/p_theme_overflow')) return route.fulfill({ json: {
+      id: 'p_theme_overflow', title: 'Ein Abstimmungstitel über mehrere Wörter für die Breitenprüfung', visibility: 'public', state: 'active',
+      createdAt: '2026-08-31T12:00:00.000Z', endsAt: '2099-01-01T00:00:00.000Z', totalVotes: 1,
+      options: [{ number: 1, text: 'Ja' }, { number: 2, text: 'Nein' }],
+    } });
+    if (url.endsWith('/polls/p_theme_overflow/results')) return route.fulfill({ status: 403, json: { status: 403, code: 'results-not-available' } });
+    return route.fulfill({ json: [] });
+  });
+
+  const pages = ['/', '/polls', '/poll/p_theme_overflow', '/admin'];
+  for (const width of [320, 375, 768, 1024]) {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto('/');
+    for (const label of ['Hell', 'Dunkel', 'Sepia', 'Eco']) {
+      await page.getByRole('button', { name: 'Theme auswählen' }).click();
+      await page.locator('label.theme-option', { hasText: label }).click();
+      await page.keyboard.press('Escape');
+      for (const path of pages) {
+        await page.goto(path);
+        await expect(page.locator('main')).toBeVisible();
+        const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+        expect(scrollWidth, `overflow at ${width}px in theme ${label} on ${path}`).toBeLessThanOrEqual(width);
+      }
+    }
+  }
 });

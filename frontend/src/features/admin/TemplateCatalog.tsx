@@ -165,7 +165,7 @@ function TemplateManager({templates}: { templates: CatalogTemplate[] }) {
             <label htmlFor="template-name">{t('admin.newTemplate')}</label>
             <div className="catalog-form-row"><input id="template-name" value={newName}
                                                      onChange={(event) => setNewName(event.target.value)} required/>
-                <button className="primary-button" type="submit" disabled={busy}>{t('admin.createTemplate')}</button>
+                <button className="primary-button" type="submit" aria-busy={busy} disabled={busy}>{busy && <span className="button-spinner" aria-hidden="true"/>}{t('admin.createTemplate')}</button>
             </div>
         </form>
         <form className="catalog-form" onSubmit={importTemplates}>
@@ -407,7 +407,7 @@ function GroupManager({groups, templates, activeGroup, groupTemplatesQuery, onSe
                                                                       value={newDescription}
                                                                       onChange={(event) => setNewDescription(event.target.value)}
                                                                       placeholder={t('admin.groupDescription')}/>
-                <button className="primary-button" type="submit" disabled={busy}>{t('admin.createGroup')}</button>
+                <button className="primary-button" type="submit" aria-busy={busy} disabled={busy}>{busy && <span className="button-spinner" aria-hidden="true"/>}{t('admin.createGroup')}</button>
             </div>
         </form>
         {error && <p className="form-error" role="alert">{t(error.messageKey)}</p>}
