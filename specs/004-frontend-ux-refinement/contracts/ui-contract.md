@@ -18,6 +18,8 @@ No visible text may contain "Identität bearbeiten" / "Edit identity".
 
 ## Poll page (`/poll/:id`)
 
+Superseded by [spec 005](../../005-inline-vote-button/contracts/ui-contract.md) for the submit button (now inside the selected option row) and the vote error (now inside that row, not below the list).
+
 - `h1` = poll title; directly followed by the fact line (`.poll-fact-line`): status badge,
   optional "Endet am …", vote count. Separators are `aria-hidden`.
 - No subtitle; the voting card contains no creation date and no status badge.

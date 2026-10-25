@@ -18,6 +18,7 @@ import {currentOptionNumberFromResults, isResultsUnavailable, classifyResultsRel
 import {usePollQuery, usePollResultsQuery} from './pollQueries';
 import {formatTimestamp, formatVoteCount} from './pollFormatters';
 import {PollFactLine} from './PollFactLine';
+import {PollOptionRow} from './PollOptionRow';
 
 export function PollPage() {
     const {t} = useI18n();
@@ -62,10 +63,14 @@ function PollDetail({poll}: { poll: Poll }) {
     const identitySavedRef = useRef(false);
     const noticeTextId = useId();
     const editorHeadingId = useId();
+    const [voteSettled, setVoteSettled] = useState<'saved' | 'failed' | null>(null);
+    const focusInFormOnSubmit = useRef(false);
     const mutation = useCastVoteMutation(poll.id, {
         onMutate: () => {
             setFeedback(null);
             setMutationError(null);
+            setVoteSettled(null);
+            focusInFormOnSubmit.current = Boolean(fieldsetRef.current?.contains(document.activeElement));
             return confirmedOptionNumber;
         },
         onSuccess: (vote) => {
@@ -73,11 +78,30 @@ function PollDetail({poll}: { poll: Poll }) {
             setConfirmedOptionNumber(vote.optionNumber);
             setSelectedOptionNumber(vote.optionNumber);
             setFeedback(voteFeedback(vote.status, t));
+            setVoteSettled('saved');
         },
         onError: (cause) => {
             setMutationError(frontendError(cause));
+            setVoteSettled('failed');
         },
     });
+
+    useEffect(() => {
+        if (voteSettled === null) return;
+        // A saved vote always moves focus to the voted option (FR-008); a failed vote only returns focus that was in the form.
+        if (voteSettled === 'failed' && !focusInFormOnSubmit.current) {
+            setVoteSettled(null);
+            return;
+        }
+        // The fieldset is disabled while the mutation is pending, so focus can only move once it is enabled again.
+        if (mutation.isPending) return;
+        focusInFormOnSubmit.current = false;
+        let target: HTMLElement | null | undefined;
+        if (voteSettled === 'saved') target = fieldsetRef.current?.querySelector<HTMLInputElement>('input:checked');
+        if (voteSettled === 'failed') target = fieldsetRef.current?.querySelector<HTMLButtonElement>('.poll-option-submit');
+        target?.focus();
+        setVoteSettled(null);
+    }, [voteSettled, mutation.isPending]);
 
     useEffect(() => {
         const previousConfirmed = confirmedRef.current;
@@ -143,6 +167,11 @@ function PollDetail({poll}: { poll: Poll }) {
         setVotesFocusPending(false);
     }, [votesFocusPending, canVote, identityLeaveDelay, t]);
 
+    function selectOption(optionNumber: number) {
+        if (optionNumber !== selectedOptionNumber) setMutationError(null);
+        setSelectedOptionNumber(optionNumber);
+    }
+
     function submitVote(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         if (submitEnabled && selectedOptionNumber !== null) mutation.mutate(selectedOptionNumber);
@@ -178,27 +207,21 @@ function PollDetail({poll}: { poll: Poll }) {
             <fieldset ref={fieldsetRef} className="poll-vote-form" disabled={!canVote || mutation.isPending} aria-describedby={describedBy}>
                 <legend>{t('polls.vote')}</legend>
                 <div className="poll-option-list">{sortedOptions.map((option) => {
-                    const isCurrent = currentOptionNumber === option.number;
-                    let className = 'poll-option';
-                    if (selectedOptionNumber === option.number) className += ' selected';
-                    if (isCurrent) className += ' current';
-                    return <label className={className}
-                                  key={option.number}>
-                        <input type="radio" name={`poll-${poll.id}`} value={option.number}
-                               aria-label={option.text} checked={selectedOptionNumber === option.number}
-                               onChange={() => setSelectedOptionNumber(option.number)}/>
-                        <span><strong>{option.text}</strong>{isCurrent && <small>{t('polls.yourVote')}</small>}</span>
-                    </label>;
+                    const selected = selectedOptionNumber === option.number;
+                    let rowError: FrontendError | null = null;
+                    if (selected) rowError = mutationError;
+                    return <PollOptionRow key={option.number} option={option} name={`poll-${poll.id}`}
+                                          selected={selected} current={currentOptionNumber === option.number}
+                                          showSubmit={selected && (submitEnabled || mutation.isPending)}
+                                          pending={selected && mutation.isPending}
+                                          disabled={!canVote || mutation.isPending}
+                                          error={rowError}
+                                          onSelect={() => selectOption(option.number)}/>;
                 })}</div>
             </fieldset>
-            {poll.state === 'active' && <button className="primary-button" type="submit" disabled={!submitEnabled} aria-busy={mutation.isPending}>
-                {mutation.isPending && <span className="button-spinner" aria-hidden="true"/>}
-                {t('polls.submitVote')}
-            </button>}
             </form>
             {identityQuery.isError && <p className="form-error" role="alert">{t('errors.generic')}</p>}
             {poll.state !== 'active' && <p className="poll-notice">{t('polls.voteUnavailable')} ({t(pollStateTranslationKey(poll.state))}{poll.endsAt && `, ${formatTimestamp(poll.endsAt, locale)}`})</p>}
-            {mutationError && <p className="form-error" role="alert">{t(mutationError.messageKey)}</p>}
             <p className="poll-feedback" role="status">{feedback}</p>
             <ResultsState poll={poll} query={resultsQuery} forbiddenBeforeVote={resultForbiddenBeforeVote}/>
             <p className="poll-detail-links"><>{resultsLinkAvailable && <Link className="text-link"

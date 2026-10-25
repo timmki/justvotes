@@ -383,11 +383,11 @@ test('casts and replaces a public poll vote only after submitting', async ({ pag
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('ArrowUp');
   expect(voteRequests).toEqual([]);
-  await page.getByRole('button', { name: 'Stimme abgeben' }).click();
+  await page.getByRole('button', { name: 'Stimme abgeben: Apfel' }).click();
   await expect(page.getByText('Stimme abgegeben.')).toBeVisible();
   await page.getByRole('radio', { name: 'Zebra' }).click();
   expect(voteRequests).toEqual([7]);
-  await page.getByRole('button', { name: 'Stimme abgeben' }).click();
+  await page.getByRole('button', { name: 'Stimme abgeben: Zebra' }).click();
   await expect(page.getByText('Stimme geändert.')).toBeVisible();
   await expect(page.getByRole('link', { name: 'Abstimmung - Ergebnisse' })).toBeVisible();
 
@@ -511,11 +511,11 @@ test('keeps a failed vote selection so it can be submitted again', async ({ page
   await page.goto('/poll/p_failed_vote');
   await expect(page.getByRole('radio', { name: 'Zebra' })).toBeChecked();
   await page.getByRole('radio', { name: 'Apfel' }).click();
-  await page.getByRole('button', { name: 'Stimme abgeben' }).click();
+  await page.getByRole('button', { name: 'Stimme abgeben: Apfel' }).click();
 
   await expect(page.getByRole('alert')).toHaveText('Die Anfrage konnte nicht verarbeitet werden.');
   await expect(page.getByRole('radio', { name: 'Apfel' })).toBeChecked();
-  await expect(page.getByRole('button', { name: 'Stimme abgeben' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Stimme abgeben: Apfel' })).toBeEnabled();
 });
 
 test('refreshes active results on schedule and stops after the poll expires', async ({ page }) => {
@@ -1359,9 +1359,13 @@ test('sets the identity and casts a vote using only the keyboard', async ({ page
     } });
     if (url.endsWith('/polls/p_keyboard/results')) {
       if (selectedOption === null) return route.fulfill({ status: 403, json: { status: 403, code: 'results-not-available' } });
+      const zebraVotes: { userID: string; votedAt: string }[] = [];
+      if (selectedOption === 2) zebraVotes.push({ userID: 'bob', votedAt: '2026-08-31T12:00:00.000Z' });
+      const apfelVotes: { userID: string; votedAt: string }[] = [];
+      if (selectedOption === 7) apfelVotes.push({ userID: 'bob', votedAt: '2026-08-31T12:00:00.000Z' });
       return route.fulfill({ json: {
         id: 'p_keyboard', totalVotes: 1,
-        options: [{ number: 2, text: 'Zebra', voteCount: 0, votes: [] }, { number: 7, text: 'Apfel', voteCount: 1, votes: [{ userID: 'bob', votedAt: '2026-08-31T12:00:00.000Z' }] }],
+        options: [{ number: 2, text: 'Zebra', voteCount: zebraVotes.length, votes: zebraVotes }, { number: 7, text: 'Apfel', voteCount: apfelVotes.length, votes: apfelVotes }],
       } });
     }
     if (url.endsWith('/polls/p_keyboard/votes') && request.method() === 'POST') {
@@ -1387,12 +1391,243 @@ test('sets the identity and casts a vote using only the keyboard', async ({ page
 
   await expect(page.getByRole('radio', { name: 'Apfel' })).toBeFocused();
   await expect(page.getByText('Identität gesetzt. Du kannst jetzt abstimmen.')).toBeVisible();
-  await page.keyboard.press('Space');
+  await page.keyboard.press('ArrowDown');
+  await expect(page.getByRole('radio', { name: 'Zebra' })).toBeChecked();
   expect(voteRequests).toEqual([]);
-  await tabUntilFocused(page, page.getByRole('button', { name: 'Stimme abgeben' }));
+  await page.keyboard.press('Tab');
+  const confirm = page.getByRole('button', { name: 'Stimme abgeben: Zebra' });
+  await expect(confirm).toBeFocused();
+  // The button fades in over 150ms; axe would measure blended colours until the fade has finished.
+  await expect.poll(() => confirm.evaluate((element) => getComputedStyle(element).opacity)).toBe('1');
+  const accessibility = await new AxeBuilder({ page }).analyze();
+  expect(accessibility.violations.filter(({ impact }) => impact === 'critical' || impact === 'serious')).toEqual([]);
   await page.keyboard.press('Enter');
   await expect(page.getByText('Stimme abgegeben.')).toBeVisible();
-  expect(voteRequests).toEqual([7]);
+  await expect(page.getByRole('radio', { name: 'Zebra' })).toBeFocused();
+  expect(voteRequests).toEqual([2]);
+});
+
+const rowPollOption = 'Ein sehr langer Vorschlag, der über mehrere Zeilen geht und im Auswahlfeld abgeschnitten werden muss';
+
+async function routeRowPoll(page: Page) {
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request();
+    const url = request.url();
+    if (url.endsWith('/csrf')) return route.fulfill({ json: { token: 'csrf-token', headerName: 'X-XSRF-TOKEN' } });
+    if (url.endsWith('/identity') && request.method() === 'GET') return route.fulfill({ json: { userID: 'alice' } });
+    if (url.endsWith('/polls/p_row') && request.method() === 'GET') return route.fulfill({ json: {
+      id: 'p_row', title: 'Row poll', visibility: 'public', state: 'active',
+      createdAt: '2026-08-31T12:00:00.000Z', endsAt: '2099-01-01T00:00:00.000Z', totalVotes: 0,
+      options: [{ number: 2, text: 'Zebra' }, { number: 7, text: rowPollOption }],
+    } });
+    if (url.endsWith('/polls/p_row/results')) return route.fulfill({ status: 403, json: { status: 403, code: 'results-not-available' } });
+    if (url.endsWith('/polls/p_row/votes') && request.method() === 'POST') {
+      const optionNumber = request.postDataJSON().optionNumber;
+      return route.fulfill({ json: { status: 'created', optionNumber } });
+    }
+    return route.fulfill({ json: [] });
+  });
+}
+
+test('places the confirm button at the end of the selected row without changing its height', async ({ page }) => {
+  await routeRowPoll(page);
+  await page.setViewportSize({ width: 375, height: 800 });
+  await page.goto('/poll/p_row');
+
+  const longRow = page.locator('.poll-option', { hasText: 'Ein sehr langer' });
+  await expect(longRow).toBeVisible();
+  const rowBefore = await longRow.boundingBox();
+  await page.getByRole('radio', { name: rowPollOption }).click();
+  const button = longRow.getByRole('button', { name: `Stimme abgeben: ${rowPollOption}` });
+  await expect(button).toBeVisible();
+  const rowAfter = await longRow.boundingBox();
+  const buttonBox = await button.boundingBox();
+  if (!rowBefore || !rowAfter || !buttonBox) throw new Error('row or button has no layout box');
+
+  expect(Math.abs(rowAfter.height - rowBefore.height)).toBeLessThanOrEqual(1);
+  expect(buttonBox.width).toBeGreaterThanOrEqual(44);
+  expect(buttonBox.height).toBeGreaterThanOrEqual(44);
+  expect(buttonBox.x + buttonBox.width).toBeLessThanOrEqual(rowAfter.x + rowAfter.width);
+  await expect(button.locator('.poll-option-submit-text')).toBeHidden();
+  await expect(button.locator('.poll-option-submit-icon')).toBeVisible();
+  expect(await longRow.locator('.poll-option-text strong').evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+
+  await page.setViewportSize({ width: 1024, height: 800 });
+  await expect(button.locator('.poll-option-submit-text')).toBeVisible();
+  await expect(button.locator('.poll-option-submit-icon')).toBeHidden();
+  const contentEnd = await longRow.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return element.getBoundingClientRect().right - parseFloat(style.paddingRight) - parseFloat(style.borderRightWidth);
+  });
+  const buttonAt1024 = await button.boundingBox();
+  if (!buttonAt1024) throw new Error('button has no layout box at 1024px');
+  expect(buttonAt1024.x + buttonAt1024.width).toBeLessThanOrEqual(contentEnd + 1);
+  // The button fades in over 150ms; axe would measure blended, lighter colours until the fade has finished.
+  await expect.poll(() => button.evaluate((element) => getComputedStyle(element).opacity)).toBe('1');
+  const accessibility = await new AxeBuilder({ page }).analyze();
+  expect(accessibility.violations.filter(({ impact }) => impact === 'critical' || impact === 'serious')).toEqual([]);
+});
+
+test('removes the confirm button fade when reduced motion is requested', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await routeRowPoll(page);
+  await page.setViewportSize({ width: 1024, height: 800 });
+  await page.goto('/poll/p_row');
+
+  await page.getByRole('radio', { name: rowPollOption }).click();
+  const button = page.getByRole('button', { name: `Stimme abgeben: ${rowPollOption}` });
+  await expect(button).toBeVisible();
+  expect(await button.evaluate((element) => parseFloat(getComputedStyle(element).animationDuration))).toBeLessThanOrEqual(0.01);
+});
+
+test('keeps the confirm button readable and inside its row at 320px and 768px in all four themes', async ({ page }) => {
+  test.setTimeout(300000);
+  await routeRowPoll(page);
+  for (const width of [320, 375, 768, 1024]) {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto('/poll/p_row');
+    for (const label of ['Hell', 'Dunkel', 'Sepia', 'Eco']) {
+      await page.getByRole('button', { name: 'Theme auswählen' }).click();
+      await page.locator('label.theme-option', { hasText: label }).click();
+      await page.keyboard.press('Escape');
+      await page.getByRole('radio', { name: rowPollOption }).click();
+      const button = page.getByRole('button', { name: `Stimme abgeben: ${rowPollOption}` });
+      await expect(button).toBeVisible();
+      await expect.poll(() => button.evaluate((element) => getComputedStyle(element).opacity)).toBe('1');
+
+      const rowBox = await page.locator('.poll-option.selected').boundingBox();
+      const buttonBox = await button.boundingBox();
+      if (!rowBox || !buttonBox) throw new Error('row or button has no layout box');
+      expect(buttonBox.x + buttonBox.width, `button inside row at ${width}px in ${label}`).toBeLessThanOrEqual(rowBox.x + rowBox.width);
+      const textVisible = await button.locator('.poll-option-submit-text').isVisible();
+      if (width >= 640) expect(textVisible, `text visible at ${width}px in ${label}`).toBe(true);
+      if (width < 640) expect(textVisible, `text hidden at ${width}px in ${label}`).toBe(false);
+      const textBox = await page.locator('.poll-option.selected .poll-option-text strong').boundingBox();
+      if (!textBox) throw new Error('option text has no layout box');
+      expect(textBox.x + textBox.width, `text does not overlap button at ${width}px in ${label}`).toBeLessThanOrEqual(buttonBox.x + 1);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth), `overflow at ${width}px in ${label}`).toBeLessThanOrEqual(width);
+
+      const contrast = await new AxeBuilder({ page }).include('.poll-option.selected').analyze();
+      expect(contrast.violations.filter(({ id }) => id === 'color-contrast'), `contrast at ${width}px in ${label}`).toEqual([]);
+    }
+  }
+});
+
+test('keeps every option row at its height and restores the full text when deselected', async ({ page }) => {
+  test.setTimeout(120000);
+  await routeRowPoll(page);
+  const rowHeights = () => page.locator('.poll-option').evaluateAll((rows) => rows.map((row) => row.getBoundingClientRect().height));
+  const longStrong = page.locator('.poll-option', { hasText: 'Ein sehr langer' }).locator('.poll-option-text strong');
+  for (const width of [320, 375, 768, 1024]) {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto('/poll/p_row');
+    await expect(page.locator('.poll-option')).toHaveCount(2);
+    const before = await rowHeights();
+
+    await page.getByRole('radio', { name: rowPollOption }).click();
+    const button = page.getByRole('button', { name: `Stimme abgeben: ${rowPollOption}` });
+    await expect(button).toBeVisible();
+    const selected = await rowHeights();
+    selected.forEach((height, index) => expect(Math.abs(height - before[index]), `row ${index} on selection at ${width}px`).toBeLessThanOrEqual(1));
+
+    const buttonBox = await button.boundingBox();
+    const firstLine = await longStrong.evaluate((element) => {
+      const top = element.getBoundingClientRect().top;
+      return { top, bottom: top + parseFloat(getComputedStyle(element).lineHeight) };
+    });
+    if (!buttonBox) throw new Error('button has no layout box');
+    expect(buttonBox.y, `button top above first text line at ${width}px`).toBeLessThan(firstLine.bottom);
+    expect(buttonBox.y + buttonBox.height, `button bottom below first text line top at ${width}px`).toBeGreaterThan(firstLine.top);
+
+    await page.getByRole('radio', { name: 'Zebra' }).click();
+    await expect(button).toHaveCount(0);
+    expect(await longStrong.evaluate((element) => element.scrollHeight <= element.clientHeight), `full text after deselecting at ${width}px`).toBe(true);
+    const deselected = await rowHeights();
+    deselected.forEach((height, index) => expect(Math.abs(height - before[index]), `row ${index} after deselecting at ${width}px`).toBeLessThanOrEqual(1));
+  }
+});
+
+async function routeTenOptionPoll(page: Page) {
+  const options = Array.from({ length: 10 }, (_, index) => ({ number: index + 1, text: `Option ${index + 1}` }));
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request();
+    const url = request.url();
+    if (url.endsWith('/csrf')) return route.fulfill({ json: { token: 'csrf-token', headerName: 'X-XSRF-TOKEN' } });
+    if (url.endsWith('/identity') && request.method() === 'GET') return route.fulfill({ json: { userID: 'alice' } });
+    if (url.endsWith('/polls/p_ten') && request.method() === 'GET') return route.fulfill({ json: {
+      id: 'p_ten', title: 'Zehn Optionen', visibility: 'public', state: 'active',
+      createdAt: '2026-08-31T12:00:00.000Z', endsAt: '2099-01-01T00:00:00.000Z', totalVotes: 0, options,
+    } });
+    if (url.endsWith('/polls/p_ten/results')) return route.fulfill({ status: 403, json: { status: 403, code: 'results-not-available' } });
+    if (url.endsWith('/polls/p_ten/votes') && request.method() === 'POST') {
+      const optionNumber = request.postDataJSON().optionNumber;
+      return route.fulfill({ json: { status: 'created', optionNumber } });
+    }
+    return route.fulfill({ json: [] });
+  });
+}
+
+test('keeps the confirm button of any option of a ten-option poll inside the viewport at 375px', async ({ page }) => {
+  await routeTenOptionPoll(page);
+  await page.setViewportSize({ width: 375, height: 800 });
+  await page.goto('/poll/p_ten');
+  for (const option of ['Option 1', 'Option 10']) {
+    await page.getByRole('radio', { name: option, exact: true }).click();
+    const button = page.getByRole('button', { name: `Stimme abgeben: ${option}`, exact: true });
+    await button.scrollIntoViewIfNeeded();
+    await expect(button).toBeVisible();
+    const box = await button.boundingBox();
+    if (!box) throw new Error(`button for ${option} has no layout box`);
+    expect(box.x, `${option} button left edge`).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width, `${option} button right edge`).toBeLessThanOrEqual(375);
+    expect(box.y, `${option} button top edge`).toBeGreaterThanOrEqual(0);
+    expect(box.y + box.height, `${option} button bottom edge`).toBeLessThanOrEqual(800);
+  }
+});
+
+test('keeps the confirm button distinguishable from the selected row at 3:1 in every theme', async ({ page }) => {
+  await routeRowPoll(page);
+  await page.setViewportSize({ width: 1024, height: 800 });
+  await page.goto('/poll/p_row');
+  await page.getByRole('radio', { name: rowPollOption }).click();
+  const button = page.getByRole('button', { name: `Stimme abgeben: ${rowPollOption}` });
+  await expect(button).toBeVisible();
+  await expect.poll(() => button.evaluate((element) => getComputedStyle(element).opacity)).toBe('1');
+
+  const ratios: Record<string, number> = {};
+  const colours: Record<string, string> = {};
+  for (const label of ['Hell', 'Dunkel', 'Sepia', 'Eco']) {
+    await page.getByRole('button', { name: 'Theme auswählen' }).click();
+    await page.locator('label.theme-option', { hasText: label }).click();
+    await page.keyboard.press('Escape');
+    // The button transitions its background for 150ms after a theme switch; measure only once that has settled.
+    await page.evaluate(() => Promise.allSettled(document.getAnimations().map((animation) => animation.finished)));
+
+    const measured = await page.evaluate(() => {
+      const luminance = (color: string) => {
+        const [r, g, b] = (color.match(/[\d.]+/g) ?? ['0', '0', '0']).slice(0, 3).map((value) => {
+          const channel = Number(value) / 255;
+          if (channel <= 0.03928) return channel / 12.92;
+          return ((channel + 0.055) / 1.055) ** 2.4;
+        });
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      };
+      const confirm = document.querySelector('.poll-option-submit') as HTMLElement;
+      const row = document.querySelector('.poll-option.selected') as HTMLElement;
+      const first = luminance(getComputedStyle(confirm).backgroundColor);
+      const second = luminance(getComputedStyle(row).backgroundColor);
+      const ratio = (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
+      return {
+        ratio,
+        detail: `button ${getComputedStyle(confirm).backgroundColor} / row ${getComputedStyle(row).backgroundColor}`,
+      };
+    });
+    ratios[label] = measured.ratio;
+    colours[label] = measured.detail;
+  }
+  const belowThreeToOne = Object.entries(ratios).filter(([, ratio]) => ratio < 3).map(([label, ratio]) => `${label}: ${ratio.toFixed(2)}:1 (${colours[label]})`);
+  expect(belowThreeToOne, 'confirm button against selected row, themes below 3:1').toEqual([]);
 });
 
 test('keeps start page statistic labels within two lines and clips no text at 375px', async ({ page }) => {

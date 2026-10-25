@@ -468,7 +468,7 @@ describe('PollPage', () => {
         expect(screen.getAllByRole('radio').map((input) => input.getAttribute('aria-label'))).toEqual(['Apfel', 'Zebra']);
         fireEvent.click(option);
         expect(castVote).not.toHaveBeenCalled();
-        fireEvent.click(screen.getByRole('button', {name: 'Stimme abgeben'}));
+        fireEvent.click(screen.getByRole('button', {name: 'Stimme abgeben: Apfel'}));
 
         await waitFor(() => expect(castVote).toHaveBeenCalledWith(poll.id, targetOption));
         expect(await screen.findByText(new RegExp(feedback))).toBeVisible();
@@ -488,11 +488,12 @@ describe('PollPage', () => {
         await waitFor(() => expect(screen.getByRole('radio', {name: 'Zebra'})).toBeChecked());
         expect(screen.getByRole('radio', {name: 'Zebra'}).parentElement).toHaveTextContent('Eigene Stimme');
         fireEvent.click(apple);
-        fireEvent.click(screen.getByRole('button', {name: 'Stimme abgeben'}));
+        fireEvent.click(screen.getByRole('button', {name: 'Stimme abgeben: Apfel'}));
 
         expect(apple).toBeChecked();
         expect(screen.getByRole('group', {name: 'Stimme abgeben'})).toBeDisabled();
-        expect(screen.getByRole('button', {name: 'Stimme abgeben'})).toBeDisabled();
+        expect(screen.getByRole('button', {name: 'Stimme abgeben: Apfel'})).toBeDisabled();
+        expect(screen.getByRole('button', {name: 'Stimme abgeben: Apfel'})).toHaveAttribute('aria-busy', 'true');
         expect(screen.getByRole('radio', {name: 'Zebra'}).parentElement).toHaveTextContent('Eigene Stimme');
         await waitFor(() => expect(castVote).toHaveBeenCalledWith(poll.id, 7));
         await act(async () => finishVote?.());
@@ -509,24 +510,24 @@ describe('PollPage', () => {
         expect(options.map((input) => input.getAttribute('aria-label'))).toEqual(['Apfel', 'Zebra']);
         await waitFor(() => expect(screen.getByRole('radio', {name: 'Zebra'})).toBeChecked());
         fireEvent.click(screen.getByRole('radio', {name: 'Apfel'}));
-        fireEvent.click(screen.getByRole('button', {name: 'Stimme abgeben'}));
+        fireEvent.click(screen.getByRole('button', {name: 'Stimme abgeben: Apfel'}));
 
         expect(await screen.findByRole('alert')).toHaveTextContent('Die Anfrage konnte nicht verarbeitet werden');
         expect(screen.getByRole('radio', {name: 'Apfel'})).toBeChecked();
-        expect(screen.getByRole('button', {name: 'Stimme abgeben'})).toBeEnabled();
+        expect(screen.getByRole('button', {name: 'Stimme abgeben: Apfel'})).toBeEnabled();
     });
 
-    it('keeps the vote button disabled until an option differs from the current vote', async () => {
+    it('shows the confirm button only while the selection differs from the current vote', async () => {
         vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(resultsFor(2));
 
         renderPollPage();
 
         await waitFor(() => expect(screen.getByRole('radio', {name: 'Zebra'})).toBeChecked());
-        expect(screen.getByRole('button', {name: 'Stimme abgeben'})).toBeDisabled();
+        expect(screen.queryByRole('button', {name: /^Stimme abgeben/})).not.toBeInTheDocument();
         fireEvent.click(screen.getByRole('radio', {name: 'Apfel'}));
-        expect(screen.getByRole('button', {name: 'Stimme abgeben'})).toBeEnabled();
+        expect(screen.getByRole('button', {name: 'Stimme abgeben: Apfel'})).toBeEnabled();
         fireEvent.click(screen.getByRole('radio', {name: 'Zebra'}));
-        expect(screen.getByRole('button', {name: 'Stimme abgeben'})).toBeDisabled();
+        expect(screen.queryByRole('button', {name: /^Stimme abgeben/})).not.toBeInTheDocument();
     });
 
     it('treats an active poll results 403 as not voted instead of a page error', async () => {
@@ -603,6 +604,204 @@ describe('PollPage', () => {
 
         expect(await screen.findByRole('heading', {name: 'Seite nicht gefunden', level: 3})).toBeVisible();
         expect(screen.queryByRole('radio')).toBeNull();
+    });
+});
+
+describe('PollPage inline confirm button', () => {
+    beforeEach(() => {
+        queryClient.clear();
+        vi.spyOn(apiClient, 'getPoll').mockResolvedValue(poll);
+        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
+    });
+
+    it('shows one confirm button inside the selected option only', async () => {
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(resultsFor(2));
+
+        renderPollPage();
+
+        await waitFor(() => expect(screen.getByRole('radio', {name: 'Zebra'})).toBeChecked());
+        expect(screen.queryByRole('button', {name: /^Stimme abgeben/})).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole('radio', {name: 'Apfel'}));
+
+        const button = screen.getByRole('button', {name: 'Stimme abgeben: Apfel'});
+        expect(button.closest('.poll-option')).toBe(screen.getByRole('radio', {name: 'Apfel'}).closest('.poll-option'));
+        expect(screen.getAllByRole('button', {name: /^Stimme abgeben/})).toHaveLength(1);
+    });
+
+    it('sends one vote per activation and removes the button once the vote is saved', async () => {
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValueOnce(resultsFor(2)).mockResolvedValue(resultsFor(7));
+        const castVote = vi.spyOn(apiClient, 'castVote').mockResolvedValue({status: 'replaced', optionNumber: 7});
+
+        renderPollPage();
+
+        await waitFor(() => expect(screen.getByRole('radio', {name: 'Zebra'})).toBeChecked());
+        fireEvent.click(screen.getByRole('radio', {name: 'Apfel'}));
+        fireEvent.click(screen.getByRole('button', {name: 'Stimme abgeben: Apfel'}));
+
+        await waitFor(() => expect(castVote).toHaveBeenCalledTimes(1));
+        expect(castVote).toHaveBeenCalledWith(poll.id, 7);
+        await waitFor(() => expect(screen.queryByRole('button', {name: /^Stimme abgeben/})).not.toBeInTheDocument());
+        expect(screen.getByRole('radio', {name: 'Apfel'})).toBeChecked();
+    });
+
+    it('returns focus to the voted option after a keyboard confirmation', async () => {
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValueOnce(resultsFor(2)).mockResolvedValue(resultsFor(7));
+        vi.spyOn(apiClient, 'castVote').mockResolvedValue({status: 'replaced', optionNumber: 7});
+
+        renderPollPage();
+
+        await waitFor(() => expect(screen.getByRole('radio', {name: 'Zebra'})).toBeChecked());
+        fireEvent.click(screen.getByRole('radio', {name: 'Apfel'}));
+        const button = screen.getByRole('button', {name: 'Stimme abgeben: Apfel'});
+        act(() => button.focus());
+        fireEvent.click(button);
+
+        await waitFor(() => expect(screen.getByRole('radio', {name: 'Apfel'})).toHaveFocus());
+    });
+
+    it('shows a failed vote inside the selected row and returns focus to its button', async () => {
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(resultsFor(2));
+        vi.spyOn(apiClient, 'castVote').mockRejectedValue(new Error('offline'));
+
+        renderPollPage();
+
+        await waitFor(() => expect(screen.getByRole('radio', {name: 'Zebra'})).toBeChecked());
+        fireEvent.click(screen.getByRole('radio', {name: 'Apfel'}));
+        const button = screen.getByRole('button', {name: 'Stimme abgeben: Apfel'});
+        act(() => button.focus());
+        fireEvent.click(button);
+
+        const alert = await screen.findByRole('alert');
+        expect(alert).toHaveTextContent('Die Anfrage konnte nicht verarbeitet werden');
+        expect(alert.closest('.poll-option')).toBe(screen.getByRole('radio', {name: 'Apfel'}).closest('.poll-option'));
+        await waitFor(() => expect(screen.getByRole('button', {name: 'Stimme abgeben: Apfel'})).toHaveFocus());
+        expect(screen.getByRole('button', {name: 'Stimme abgeben: Apfel'})).toBeEnabled();
+    });
+
+    it('shows no confirm button without an identity', async () => {
+        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: null});
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(resultsFor(null));
+
+        renderPollPage();
+
+        expect((await screen.findAllByRole('radio')).length).toBeGreaterThan(0);
+        expect(screen.queryByRole('button', {name: /^Stimme abgeben/})).not.toBeInTheDocument();
+    });
+
+    it('moves the confirm button to another option that is not the current vote', async () => {
+        vi.spyOn(apiClient, 'getPoll').mockResolvedValue({
+            ...poll,
+            options: [{number: 2, text: 'Zebra'}, {number: 7, text: 'Apfel'}, {number: 9, text: 'Birne'}],
+        });
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(resultsFor(2));
+
+        renderPollPage();
+
+        await waitFor(() => expect(screen.getByRole('radio', {name: 'Zebra'})).toBeChecked());
+        fireEvent.click(screen.getByRole('radio', {name: 'Apfel'}));
+        expect(screen.getByRole('button', {name: 'Stimme abgeben: Apfel'})).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('radio', {name: 'Birne'}));
+        expect(screen.queryByRole('button', {name: 'Stimme abgeben: Apfel'})).not.toBeInTheDocument();
+        const birneRow = screen.getByRole('radio', {name: 'Birne'}).closest<HTMLElement>('.poll-option');
+        expect(birneRow).not.toBeNull();
+        expect(within(birneRow as HTMLElement).getByRole('button', {name: 'Stimme abgeben: Birne'})).toBeInTheDocument();
+        expect(screen.getAllByRole('button', {name: /^Stimme abgeben/})).toHaveLength(1);
+    });
+
+    it('shows no confirm button on an expired poll', async () => {
+        vi.spyOn(apiClient, 'getPoll').mockResolvedValue({...poll, state: 'expired' as const});
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue({...resultsFor(2), state: 'expired' as const});
+
+        renderPollPage();
+
+        await waitFor(() => expect(screen.getByRole('radio', {name: 'Zebra'})).toBeChecked());
+        expect(screen.getByRole('radio', {name: 'Apfel'})).toBeDisabled();
+        expect(screen.queryByRole('button', {name: /^Stimme abgeben/})).not.toBeInTheDocument();
+    });
+
+    it('places the confirm button right after the checked option in tab order', async () => {
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(resultsFor(2));
+
+        renderPollPage();
+
+        await waitFor(() => expect(screen.getByRole('radio', {name: 'Zebra'})).toBeChecked());
+        fireEvent.click(screen.getByRole('radio', {name: 'Apfel'}));
+        // Tab skips unchecked radios of the group, so the stops are the enabled inputs and buttons without them.
+        const tabStops = Array.from(document.querySelectorAll<HTMLElement>('input, button'))
+            .filter((element) => !element.matches(':disabled') && !element.matches('input[type="radio"]:not(:checked)'));
+        const apfel = screen.getByRole('radio', {name: 'Apfel'});
+        const button = screen.getByRole('button', {name: 'Stimme abgeben: Apfel'});
+        expect(tabStops.indexOf(button)).toBe(tabStops.indexOf(apfel) + 1);
+    });
+
+    it('moves focus to the voted option after a vote even when the button had no focus', async () => {
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValueOnce(resultsFor(2)).mockResolvedValue(resultsFor(7));
+        vi.spyOn(apiClient, 'castVote').mockResolvedValue({status: 'replaced', optionNumber: 7});
+
+        renderPollPage();
+
+        await waitFor(() => expect(screen.getByRole('radio', {name: 'Zebra'})).toBeChecked());
+        fireEvent.click(screen.getByRole('radio', {name: 'Apfel'}));
+        const button = screen.getByRole('button', {name: 'Stimme abgeben: Apfel'});
+        expect(button).not.toHaveFocus();
+        fireEvent.click(button);
+
+        await waitFor(() => expect(screen.getByRole('radio', {name: 'Apfel'})).toHaveFocus());
+    });
+
+    it('keeps a pending selection and its confirm button when a late results update names another current vote', async () => {
+        let currentVote: number | null = null;
+        vi.spyOn(apiClient, 'getPollResults').mockImplementation(async () => resultsFor(currentVote));
+        const castVote = vi.spyOn(apiClient, 'castVote');
+
+        renderPollPage();
+
+        await waitFor(() => expect(screen.getByRole('radio', {name: 'Apfel'})).toBeEnabled());
+        fireEvent.click(screen.getByRole('radio', {name: 'Apfel'}));
+        expect(screen.getByRole('button', {name: 'Stimme abgeben: Apfel'})).toBeInTheDocument();
+
+        currentVote = 2;
+        await act(async () => {
+            await queryClient.invalidateQueries({queryKey: queryKeys.pollResults(poll.id)});
+        });
+
+        expect(screen.getByRole('radio', {name: 'Apfel'})).toBeChecked();
+        expect(screen.getByRole('button', {name: 'Stimme abgeben: Apfel'})).toBeInTheDocument();
+        expect(castVote).not.toHaveBeenCalled();
+    });
+
+    it('announces the saved vote once after a keyboard submit', async () => {
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValueOnce(resultsFor(2)).mockResolvedValue(resultsFor(7));
+        vi.spyOn(apiClient, 'castVote').mockResolvedValue({status: 'replaced', optionNumber: 7});
+        const announcements = () => Array.from(document.querySelectorAll('[role="status"]'))
+            .filter((element) => element.textContent === 'Stimme geändert.');
+
+        renderPollPage();
+
+        await waitFor(() => expect(screen.getByRole('radio', {name: 'Zebra'})).toBeChecked());
+        fireEvent.click(screen.getByRole('radio', {name: 'Apfel'}));
+        const button = screen.getByRole('button', {name: 'Stimme abgeben: Apfel'});
+        act(() => button.focus());
+        fireEvent.click(button);
+
+        await waitFor(() => expect(announcements()).toHaveLength(1));
+        expect(announcements()).toHaveLength(1);
+    });
+
+    it('removes the failed vote alert when another option is selected', async () => {
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(resultsFor(2));
+        vi.spyOn(apiClient, 'castVote').mockRejectedValue(new Error('offline'));
+
+        renderPollPage();
+
+        await waitFor(() => expect(screen.getByRole('radio', {name: 'Zebra'})).toBeChecked());
+        fireEvent.click(screen.getByRole('radio', {name: 'Apfel'}));
+        fireEvent.click(screen.getByRole('button', {name: 'Stimme abgeben: Apfel'}));
+        expect(await screen.findByRole('alert')).toBeVisible();
+
+        fireEvent.click(screen.getByRole('radio', {name: 'Zebra'}));
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     });
 });
 

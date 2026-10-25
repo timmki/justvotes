@@ -73,13 +73,13 @@ test('cast, replacement, withdrawal and identity change refresh the personal rou
     });
     await page.goto('/poll/p_v1_one');
     await page.getByRole('radio', {name: 'Bike'}).click();
-    await page.getByRole('button', {name: 'Stimme abgeben'}).click();
+    await page.getByRole('button', {name: 'Stimme abgeben: Bike'}).click();
     await expect(page.getByText('Stimme abgegeben.')).toBeVisible();
     await page.locator('.sidebar-navigation').getByRole('link', {name: 'Persönliches Profil'}).click();
     await expect(page.locator('.profile-vote')).toContainText('Bike');
     await page.goBack();
     await page.getByRole('radio', {name: 'Train'}).click();
-    await page.getByRole('button', {name: 'Stimme abgeben'}).click();
+    await page.getByRole('button', {name: 'Stimme abgeben: Train'}).click();
     await expect(page.getByText('Stimme geändert.')).toBeVisible();
     await page.locator('.sidebar-navigation').getByRole('link', {name: 'Persönliches Profil'}).click();
     await expect(page.locator('.profile-vote')).toContainText('Train');

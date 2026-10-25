@@ -1732,10 +1732,13 @@ main {
     gap: var(--space-0-55);
 }
 
+/* Option row (spec 005): radio and text in row 1, confirm button at the end of row 1 while selected, error in row 2.
+   Every child is placed explicitly; the grid has no column-gap so the hidden ghost copy is as wide as the text
+   without the button. Button margins make its own box no taller than one text line, so the row height stays put. */
 .poll-option {
-    display: flex;
-    align-items: flex-start;
-    gap: var(--space-0-7);
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: start;
     min-width: 0;
     padding: var(--space-0-8) var(--space-0-9);
     border: 1px solid var(--separator);
@@ -1752,16 +1755,22 @@ main {
     box-shadow: inset .25rem 0 var(--accent-text);
 }
 
+.poll-option-label {
+    display: contents;
+}
+
 .poll-option input {
-    flex: 0 0 auto;
-    margin-top: .15rem;
+    grid-area: 1 / 1;
+    margin: .15rem var(--space-0-7) 0 0;
     accent-color: var(--control-accent);
 }
 
-.poll-option > span {
+.poll-option-text {
+    grid-area: 1 / 2;
     display: grid;
     gap: var(--space-0-1);
     min-width: 0;
+    align-self: start;
 }
 
 .poll-option strong {
@@ -1771,6 +1780,107 @@ main {
 .poll-option small {
     color: var(--accent-text);
     font-weight: 700;
+}
+
+.poll-option-ghost {
+    grid-area: 1 / 2 / 2 / 4;
+    display: block;
+    min-width: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.poll-option:has(.poll-option-submit) .poll-option-text {
+    align-self: stretch;
+    contain: block-size;
+    overflow: hidden;
+}
+
+.poll-option:has(.poll-option-submit) .poll-option-text strong {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: var(--option-lines);
+    overflow: hidden;
+}
+
+.poll-option-submit {
+    grid-area: 1 / 3;
+    justify-self: end;
+    align-self: start;
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    width: 2.75rem;
+    height: 2.75rem;
+    min-width: 2.75rem;
+    margin-block: calc((2.75rem - 1.5rem) / -2);
+    margin-inline-start: var(--space-0-7);
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-control);
+    font: inherit;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--button-primary-fg);
+    background: var(--button-primary-bg);
+    cursor: pointer;
+    transition: background-color 150ms ease;
+    animation: poll-option-submit-in 150ms ease-out;
+}
+
+.poll-option-submit:not(:disabled):hover {
+    background: color-mix(in oklab, var(--button-primary-bg), black 8%);
+}
+
+:root[data-theme='dark'] .poll-option-submit:not(:disabled):hover {
+    background: color-mix(in oklab, var(--button-primary-bg), white 10%);
+}
+
+.poll-option-submit[aria-busy='true'] {
+    cursor: progress;
+}
+
+.poll-option-submit-icon {
+    flex: 0 0 auto;
+    width: 1.25rem;
+    height: 1.25rem;
+}
+
+.poll-option-submit-text {
+    display: none;
+}
+
+.poll-option-error {
+    grid-row: 2;
+    grid-column: 1 / -1;
+    margin: var(--space-0-45) 0 0;
+}
+
+@keyframes poll-option-submit-in {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@media (min-width: 40rem) {
+    .poll-option-submit {
+        width: auto;
+        padding-inline: var(--space-4);
+    }
+
+    .poll-option-submit-icon {
+        display: none;
+    }
+
+    .poll-option-submit-text {
+        display: inline;
+        white-space: nowrap;
+    }
 }
 
 .poll-vote-form:disabled {
