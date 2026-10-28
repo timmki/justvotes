@@ -7,10 +7,12 @@ import {apiClient, sessionCoordinator} from '../shared/api/client';
 import {problemError} from '../shared/api/errors';
 import {queryClient} from '../shared/api/queryClient';
 import {App, AppErrorBoundary, RouteState, ToastProvider, useToast} from './App';
+import {adminSession, signIn, userSession} from '../test/sessions';
 
 afterEach(() => {
     cleanup();
-    if (sessionCoordinator.isLoginRequired()) sessionCoordinator.consumeReturnRoute();
+    sessionCoordinator.consumeReturnRoute();
+    sessionCoordinator.consumeLoggedOut();
     window.localStorage.clear();
     document.documentElement.removeAttribute('data-theme');
     document.documentElement.removeAttribute('lang');
@@ -20,9 +22,7 @@ afterEach(() => {
 });
 
 beforeEach(() => {
-    vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: null});
     vi.spyOn(apiClient, 'getPublicPolls').mockResolvedValue([]);
-    vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
     const values = new Map<string, string>();
     Object.defineProperty(window, 'localStorage', {
         configurable: true,
@@ -32,6 +32,7 @@ beforeEach(() => {
             setItem: (key: string, value: string) => values.set(key, value),
         },
     });
+    signIn(userSession('alice'));
 });
 
 function renderApp(initialEntry = '/') {
@@ -64,21 +65,6 @@ describe('app shell', () => {
         expect(screen.getByRole('heading', {name: 'Öffentliche Abstimmungen', level: 1})).toBeVisible();
     });
 
-    it('öffnet den gemeinsamen Identitätseditor über die Shell-Identität', async () => {
-        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
-        const changeIdentity = vi.spyOn(apiClient, 'changeIdentity').mockResolvedValue(undefined);
-
-        renderApp('/polls');
-
-        const sidebar = screen.getByRole('complementary', {name: 'JustVotes'});
-        fireEvent.click(await within(sidebar).findByRole('button', {name: 'Identität ändern'}));
-        fireEvent.change(screen.getByLabelText('Neue Identität'), {target: {value: 'Bob'}});
-        fireEvent.click(screen.getByRole('button', {name: 'Speichern'}));
-        fireEvent.click(screen.getByRole('button', {name: 'Änderung bestätigen'}));
-
-        await vi.waitFor(() => expect(changeIdentity).toHaveBeenCalledWith({userID: 'Bob'}));
-    });
-
     it('renders the home navigation in German by default', () => {
         renderApp();
 
@@ -86,7 +72,7 @@ describe('app shell', () => {
         const navigation = screen.getAllByRole('navigation', {name: 'Hauptnavigation'})[0];
         expect(within(navigation).getByRole('link', {name: 'Abstimmungen'})).toBeVisible();
         expect(within(navigation).queryByRole('link', {name: 'Admin'})).toBeNull();
-        expect(within(screen.getByRole('contentinfo')).getByRole('link', {name: 'Admin'})).toHaveAttribute('href', '/admin');
+        expect(screen.queryByRole('link', {name: 'Admin'})).toBeNull();
         expect(screen.getByRole('button', {name: 'English anzeigen'})).toBeVisible();
     });
 
@@ -98,7 +84,8 @@ describe('app shell', () => {
             '/poll/results/example',
             '/poll/results/example/option/1',
             '/poll/audit/example',
-            '/admin',
+            '/profile',
+            '/password',
             '/404',
         ];
 
@@ -290,22 +277,28 @@ describe('app shell', () => {
         expect(screen.queryByRole('status')).toBeNull();
     });
 
-    it('shows a localized login notice after a protected session expires', () => {
+    it('shows only the login page with an expiry notice after a session ended', async () => {
+        signIn(null);
         sessionCoordinator.requireLogin('/admin/polls');
         renderApp('/admin');
 
-        expect(screen.getByRole('alert')).toHaveTextContent('Anmeldung erforderlich');
-        expect(screen.getByRole('alert')).toHaveTextContent('Geschützte Daten wurden entfernt');
+        expect(await screen.findByRole('heading', {name: 'Anmelden', level: 1})).toBeVisible();
+        expect(screen.getByRole('status', {name: ''})).toHaveTextContent('Deine Sitzung ist abgelaufen');
     });
 
-    it('navigates to login when a protected route expires', async () => {
-        sessionCoordinator.requireLogin('/admin/polls');
-        renderApp('/polls');
-
-        expect(await screen.findByRole('heading', {name: 'Administration', level: 1})).toBeVisible();
+    it('shows the login page for every protected route without a session', async () => {
+        signIn(null);
+        for (const route of ['/', '/polls', '/poll/example', '/profile', '/admin/polls', '/password']) {
+            const {unmount} = renderApp(route);
+            expect(await screen.findByLabelText('Kontoname')).toBeVisible();
+            expect(screen.queryAllByRole('navigation', {name: 'Hauptnavigation'})).toHaveLength(0);
+            expect(screen.queryAllByRole('navigation', {name: 'Admin-Navigation'})).toHaveLength(0);
+            unmount();
+        }
     });
 
     it('shows only authenticated admin areas in desktop and mobile shell navigation', async () => {
+        signIn(adminSession());
         vi.spyOn(apiClient, 'getAdminPolls').mockResolvedValue([]);
         renderApp('/admin/polls');
 
@@ -314,27 +307,18 @@ describe('app shell', () => {
         expect(navigations).toHaveLength(1);
         expect(navigations[0]).toHaveClass('sidebar-navigation');
         for (const navigation of navigations) {
-            expect(within(navigation).getAllByRole('link')).toHaveLength(4);
+            expect(within(navigation).getAllByRole('link')).toHaveLength(6);
             expect(within(navigation).getByRole('link', {name: 'Abstimmungen'})).toHaveAttribute('aria-current', 'page');
+            expect(within(navigation).getByRole('link', {name: 'Konten'})).toHaveAttribute('href', '/admin/accounts');
+            expect(within(navigation).getByRole('link', {name: 'Einladungen'})).toHaveAttribute('href', '/admin/invitations');
             expect(within(navigation).queryByRole('link', {name: 'Startseite'})).toBeNull();
         }
         expect(screen.queryAllByRole('navigation', {name: 'Hauptnavigation'})).toHaveLength(0);
-        expect(screen.getByRole('link', {name: 'Startseite'})).toHaveAttribute('href', '/');
         expect(screen.queryByRole('link', {name: 'JustVotes'})).toBeNull();
     });
 
-    it('returns from the admin login screen to the home page', async () => {
-        sessionCoordinator.requireLogin('/admin');
-        renderApp('/admin');
-
-        await screen.findByLabelText('Benutzername');
-        fireEvent.click(screen.getByRole('link', {name: 'Startseite'}));
-
-        expect(await screen.findByRole('heading', {name: 'Startseite', level: 1})).toBeVisible();
-        expect(sessionCoordinator.isLoginRequired()).toBe(false);
-    });
-
     it('marks votes as current for the admin root route', async () => {
+        signIn(adminSession());
         vi.spyOn(apiClient, 'getAdminVotes').mockResolvedValue({votes: [], page: 0, size: 50, totalElements: 0});
         renderApp('/admin');
 
@@ -346,6 +330,7 @@ describe('app shell', () => {
     });
 
     it('localizes the authenticated admin shell and supports dark mode', async () => {
+        signIn(adminSession());
         vi.spyOn(apiClient, 'getAdminPolls').mockResolvedValue([]);
         renderApp('/admin/polls');
 
@@ -361,26 +346,79 @@ describe('app shell', () => {
         expect(document.documentElement).toHaveAttribute('data-theme', 'dark');
     });
 
-    it('does not expose protected shell navigation on the login screen', async () => {
-        vi.spyOn(apiClient, 'getAdminSession').mockRejectedValue(problemError({status: 401, code: 'unauthorized'}, 401));
-        renderApp('/admin/polls');
+    it('keeps each role in its own area', async () => {
+        signIn(adminSession());
+        vi.spyOn(apiClient, 'getAdminVotes').mockResolvedValue({votes: [], page: 0, size: 50, totalElements: 0});
+        const admin = renderApp('/polls');
+        expect(await screen.findByRole('heading', {name: 'Stimmen', level: 3})).toBeVisible();
+        admin.unmount();
 
-        expect(await screen.findByLabelText('Benutzername')).toBeVisible();
+        signIn(userSession('alice'));
+        renderApp('/admin/accounts');
+        expect(await screen.findByRole('heading', {name: 'Öffentliche Abstimmungen', level: 1})).toBeVisible();
         expect(screen.queryAllByRole('navigation', {name: 'Admin-Navigation'})).toHaveLength(0);
-        expect(screen.queryAllByRole('navigation', {name: 'Hauptnavigation'})).toHaveLength(0);
-        expect(screen.queryByRole('link', {name: 'JustVotes'})).toBeNull();
     });
 
-    it('returns to the in-memory target route after login', async () => {
-        sessionCoordinator.requireLogin('/polls');
-        vi.spyOn(apiClient, 'login').mockResolvedValue(undefined);
-        renderApp('/admin');
+    it('forces the password page while a one-time password is active', async () => {
+        signIn(userSession('alice', {passwordChangeRequired: true}));
+        renderApp('/polls');
 
-        fireEvent.change(screen.getByLabelText('Benutzername'), {target: {value: 'admin'}});
-        fireEvent.change(screen.getByLabelText('Passwort'), {target: {value: 'secret'}});
+        expect(await screen.findByRole('heading', {name: 'Passwort ändern', level: 1})).toBeVisible();
+        expect(screen.getByText(/Einmalpasswort erhalten/)).toBeVisible();
+        expect(screen.queryAllByRole('navigation', {name: 'Hauptnavigation'})).toHaveLength(0);
+    });
+
+    it('returns to the remembered route after login', async () => {
+        signIn(null);
+        vi.spyOn(apiClient, 'getPoll').mockResolvedValue({
+            id: 'example', title: 'Erinnerte Abstimmung', visibility: 'public', state: 'active',
+            createdAt: '2026-08-01T10:00:00Z', endsAt: null, totalVotes: 0,
+            templateGroup: {id: 'group-1', name: 'Gruppe', description: ''},
+            templateSnapshotOptions: [{number: 1, text: 'Ja'}], options: [{number: 1, text: 'Ja'}],
+        });
+        vi.spyOn(apiClient, 'getPollResults').mockRejectedValue(problemError({code: 'results-not-available'}, 403));
+        const login = vi.spyOn(apiClient, 'login').mockImplementation(async () => {
+            signIn(userSession('alice'));
+            return userSession('alice');
+        });
+        renderApp('/poll/example');
+
+        fireEvent.change(await screen.findByLabelText('Kontoname'), {target: {value: 'alice'}});
+        fireEvent.change(screen.getByLabelText('Passwort'), {target: {value: 'secret-password'}});
         fireEvent.click(screen.getByRole('button', {name: 'Anmelden'}));
 
-        expect(await screen.findByRole('heading', {name: 'Öffentliche Abstimmungen', level: 1})).toBeVisible();
+        expect(await screen.findByRole('heading', {name: 'Erinnerte Abstimmung', level: 1})).toBeVisible();
+        expect(login).toHaveBeenCalledWith({username: 'alice', password: 'secret-password'});
+    });
+
+    it('shows the uniform error for rejected credentials', async () => {
+        signIn(null);
+        vi.spyOn(apiClient, 'login').mockRejectedValue(problemError({code: 'invalid-credentials'}, 401));
+        renderApp('/login');
+
+        fireEvent.change(await screen.findByLabelText('Kontoname'), {target: {value: 'alice'}});
+        fireEvent.change(screen.getByLabelText('Passwort'), {target: {value: 'wrong'}});
+        fireEvent.click(screen.getByRole('button', {name: 'Anmelden'}));
+
+        expect(await screen.findByRole('alert')).toHaveTextContent('Kontoname oder Passwort ist falsch.');
+        expect(screen.getByLabelText('Kontoname')).toHaveFocus();
+    });
+
+    it('signs out from the account panel and shows the login page', async () => {
+        const logout = vi.spyOn(apiClient, 'logout').mockImplementation(async () => {
+            signIn(null);
+        });
+        renderApp('/polls');
+
+        const sidebar = screen.getByRole('complementary', {name: 'JustVotes'});
+        expect(within(sidebar).getByText('account-alice')).toBeVisible();
+        // Let the background session probe of the first render settle before signing out.
+        await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+        fireEvent.click(within(sidebar).getByRole('button', {name: 'Abmelden'}));
+        await waitFor(() => expect(logout).toHaveBeenCalled());
+
+        expect(await screen.findByLabelText('Kontoname')).toBeVisible();
+        expect(logout).toHaveBeenCalledTimes(1);
     });
 });
 
@@ -411,35 +449,9 @@ describe('mobile menu', () => {
     });
 });
 
-describe('mobile identity edit', () => {
-    it('closes the menu and opens the identity dialog from the menu status', async () => {
-        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
-        renderApp('/polls');
-
-        fireEvent.click(screen.getByRole('button', {name: 'Menü'}));
-        const panel = document.getElementById('mobile-menu-panel');
-        expect(panel).not.toBeNull();
-        fireEvent.click(await within(panel!).findByRole('button', {name: 'Identität ändern'}));
-
-        await waitFor(() => expect(document.getElementById('mobile-menu-panel')).toBeNull());
-        const dialog = await screen.findByRole('dialog', {name: 'Identität ändern'});
-        expect(within(dialog).getByLabelText('Neue Identität')).toHaveFocus();
-    });
-
-    it('offers to set the identity in the menu on the start page without identity', async () => {
-        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: null});
-        renderApp('/');
-
-        fireEvent.click(await screen.findByRole('button', {name: 'Menü'}));
-        const panel = document.getElementById('mobile-menu-panel');
-        expect(within(panel!).getByRole('button', {name: 'Identität festlegen'})).toBeVisible();
-        expect(within(panel!).queryByRole('button', {name: 'Identität ändern'})).toBeNull();
-    });
-});
-
 describe('mobile menu landmarks and media query', () => {
     it('exposes one Hauptnavigation landmark before and after the menu opens', async () => {
-        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
+        signIn(userSession('alice'));
         renderApp('/polls');
 
         expect(screen.getAllByRole('navigation', {name: 'Hauptnavigation'})).toHaveLength(1);
@@ -457,7 +469,7 @@ describe('mobile menu landmarks and media query', () => {
         };
         window.matchMedia = vi.fn(() => query) as unknown as typeof window.matchMedia;
         try {
-            vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
+            signIn(userSession('alice'));
             renderApp('/polls');
             fireEvent.click(screen.getByRole('button', {name: 'Menü'}));
             expect(document.getElementById('mobile-menu-panel')).not.toBeNull();
@@ -473,35 +485,20 @@ describe('mobile menu landmarks and media query', () => {
         }
     });
 
-    it('saves an identity change from the menu dialog once and returns focus to the menu button', async () => {
-        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
-        const changeIdentity = vi.spyOn(apiClient, 'changeIdentity').mockResolvedValue(undefined);
-        renderApp('/polls');
-
-        const menuButton = screen.getByRole('button', {name: 'Menü'});
-        fireEvent.click(menuButton);
-        fireEvent.click(await within(document.getElementById('mobile-menu-panel')!).findByRole('button', {name: 'Identität ändern'}));
-        fireEvent.change(await screen.findByLabelText('Neue Identität'), {target: {value: 'Bob'}});
-        fireEvent.click(screen.getByRole('button', {name: 'Speichern'}));
-        fireEvent.click(await screen.findByRole('button', {name: 'Änderung bestätigen'}));
-
-        await vi.waitFor(() => expect(changeIdentity).toHaveBeenCalledTimes(1));
-        await vi.waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-        expect(menuButton).toHaveFocus();
-    });
-
-    it('hides the sidebar identity editor on the start page', async () => {
-        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
+    it('shows the read-only account identity instead of an identity editor', async () => {
+        signIn(userSession('Älice #1'));
         renderApp('/');
 
         await screen.findByRole('region', {name: 'Im Fokus'});
-        expect(document.querySelector('.sidebar .identity-shell-editor')).toBeNull();
+        expect(document.querySelector('.identity-shell-editor')).toBeNull();
+        expect(screen.queryByRole('button', {name: 'Identität ändern'})).toBeNull();
+        expect(within(screen.getByRole('complementary', {name: 'JustVotes'})).getByText('Älice #1')).toBeVisible();
     });
 });
 
 describe('mobile menu backdrop and focus', () => {
     it('closes from the backdrop, locks scrolling and returns focus to the menu button', async () => {
-        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
+        signIn(userSession('alice'));
         renderApp('/polls');
 
         const menuButton = screen.getByRole('button', {name: 'Menü'});
@@ -518,7 +515,7 @@ describe('mobile menu backdrop and focus', () => {
     });
 
     it('keeps Tab focus inside the open menu', async () => {
-        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
+        signIn(userSession('alice'));
         renderApp('/polls');
 
         fireEvent.click(screen.getByRole('button', {name: 'Menü'}));
@@ -536,7 +533,7 @@ describe('mobile menu backdrop and focus', () => {
 
 describe('mobile menu close paths and exit phase', () => {
     it('closes the menu when a navigation link is chosen and unlocks scrolling', async () => {
-        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
+        signIn(userSession('alice'));
         renderApp('/');
 
         fireEvent.click(screen.getByRole('button', {name: 'Menü'}));
@@ -549,7 +546,7 @@ describe('mobile menu close paths and exit phase', () => {
     });
 
     it('keeps the panel mounted but inert while it fades out, then removes it', async () => {
-        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
+        signIn(userSession('alice'));
         renderApp('/polls');
 
         fireEvent.click(screen.getByRole('button', {name: 'Menü'}));
@@ -575,7 +572,7 @@ describe('mobile menu close paths and exit phase', () => {
             dispatchEvent: () => false,
         })) as unknown as typeof window.matchMedia;
         try {
-            vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
+            signIn(userSession('alice'));
             renderApp('/polls');
 
             fireEvent.click(screen.getByRole('button', {name: 'Menü'}));

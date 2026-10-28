@@ -1,26 +1,24 @@
 package de.justvotes.bootstrap.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import de.justvotes.accountmanagement.core.model.Role;
+import de.justvotes.accountmanagement.core.ports.in.ViewAccounts;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication.Type;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.crypto.bcrypt.BCrypt;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
@@ -28,29 +26,16 @@ import org.springframework.security.web.csrf.CsrfTokenRepository;
 
 import java.io.IOException;
 import java.net.URI;
+import java.time.Clock;
+import java.time.Duration;
 
 @Configuration
 @ConditionalOnWebApplication(type = Type.SERVLET)
 class SecurityConfiguration {
-    private static void validateAdminConfiguration(String username, String passwordHash) {
-        if (username.isBlank()) {
-            throw new IllegalStateException("ADMIN_USERNAME must not be blank.");
-        }
-        try {
-            BCrypt.checkpw("configuration-validation", passwordHash);
-        } catch (IllegalArgumentException exception) {
-            throw new IllegalStateException("ADMIN_PASSWORD_HASH must be a BCrypt hash.", exception);
-        }
-    }
-
     static void writeProblemDetail(HttpServletRequest request, HttpServletResponse response, ObjectMapper objectMapper,
-                                   HttpStatus status, String detail) throws IOException {
+                                   HttpStatus status, String code, String detail) throws IOException {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);
         problem.setInstance(URI.create(request.getRequestURI()));
-        String code = "access-denied";
-        if (status == HttpStatus.UNAUTHORIZED) {
-            code = "authentication-required";
-        }
         problem.setType(URI.create("https://justvotes.de/problems/" + code));
         problem.setProperty("code", code);
         response.setStatus(status.value());
@@ -59,21 +44,38 @@ class SecurityConfiguration {
         objectMapper.writeValue(response.getOutputStream(), problem);
     }
 
+    /**
+     * Every API requires a signed-in account except the CSRF bootstrap, the login and the invitation
+     * endpoints. Anything under {@code /api/v1} that is not listed is denied.
+     */
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http, CsrfTokenRepository csrfTokenRepository,
                                             SecurityContextRepository securityContextRepository,
                                             AccessDeniedHandler problemDetailsAccessDeniedHandler,
+                                            @Qualifier("accountQueries") ViewAccounts accounts, Clock clock,
+                                            @Value("${justvotes.session.max-lifetime:PT12H}") Duration maxLifetime,
                                             ObjectMapper objectMapper) throws Exception {
+        // Not a bean on purpose: as a bean the servlet container would also run it outside the security chain.
+        SessionValidationFilter sessionValidationFilter = new SessionValidationFilter(accounts, clock, maxLifetime, objectMapper);
+        String user = Role.USER.name();
+        String admin = Role.ADMIN.name();
         return http
                 .csrf(csrf -> csrf.csrfTokenRepository(csrfTokenRepository))
                 .securityContext(context -> context.securityContextRepository(securityContextRepository))
+                .addFilterBefore(sessionValidationFilter, AuthorizationFilter.class)
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/api/v1/csrf", "/api/v1/admin/login").permitAll()
-                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/csrf").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/session/login").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/invitations/inspection", "/api/v1/invitations/acceptance").permitAll()
+                        .requestMatchers("/api/v1/session", "/api/v1/session/**").authenticated()
+                        .requestMatchers("/api/v1/polls", "/api/v1/polls/**", "/api/v1/identity/**").hasRole(user)
+                        .requestMatchers("/api/v1/admin/**").hasRole(admin)
+                        .requestMatchers("/api-docs/**", "/swagger-ui/**").hasRole(admin)
+                        .requestMatchers("/api/**").denyAll()
                         .anyRequest().permitAll())
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint((request, response, exception) -> writeProblemDetail(request, response,
-                                objectMapper, HttpStatus.UNAUTHORIZED, "Authentication is required."))
+                                objectMapper, HttpStatus.UNAUTHORIZED, "authentication-required", "Authentication is required."))
                         .accessDeniedHandler(problemDetailsAccessDeniedHandler))
                 .build();
     }
@@ -94,29 +96,11 @@ class SecurityConfiguration {
     @Bean
     AccessDeniedHandler problemDetailsAccessDeniedHandler(ObjectMapper objectMapper) {
         return (request, response, exception) -> writeProblemDetail(request, response, objectMapper,
-                HttpStatus.FORBIDDEN, "The request is not allowed.");
+                HttpStatus.FORBIDDEN, "access-denied", "The request is not allowed.");
     }
 
     @Bean
-    UserDetailsService systemAdmin(@Value("${ADMIN_USERNAME}") String username,
-                                   @Value("${ADMIN_PASSWORD_HASH}") String passwordHash) {
-        validateAdminConfiguration(username, passwordHash);
-        return ignored -> User.withUsername(username)
-                .password(passwordHash)
-                .roles("ADMIN")
-                .build();
-    }
-
-    @Bean
-    PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
-
-    @Bean
-    AuthenticationManager authenticationManager(UserDetailsService systemAdmin, PasswordEncoder passwordEncoder) {
-        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
-        provider.setUserDetailsService(systemAdmin);
-        provider.setPasswordEncoder(passwordEncoder);
-        return provider::authenticate;
+    AccountSessions accountSessions(SecurityContextRepository contexts, Clock clock) {
+        return new AccountSessions(contexts, clock);
     }
 }

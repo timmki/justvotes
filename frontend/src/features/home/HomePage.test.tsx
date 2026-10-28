@@ -9,10 +9,11 @@ import {queryClient} from '../../shared/api/queryClient';
 import {queryKeys} from '../../shared/api/queryKeys';
 import {I18nProvider} from '../../shared/i18n/I18nProvider';
 import {HomePage} from './HomePage';
+import {mockSession, userSession} from '../../test/sessions';
 
 beforeEach(() => {
     queryClient.clear();
-    vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: null});
+    mockSession(userSession('alice'));
     vi.spyOn(apiClient, 'getPublicPolls').mockResolvedValue([]);
 });
 afterEach(() => {
@@ -65,126 +66,6 @@ const discoveryPolls = [
     },
 ];
 
-describe('HomePage identity', () => {
-    it('shows the first eight characters while keeping the complete identity accessible', async () => {
-        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'Älice #42'});
-
-        renderHome();
-
-        expect(await screen.findByText('Älice #4…')).toBeTruthy();
-        expect(screen.getByLabelText('Älice #42')).toBeTruthy();
-    });
-
-    it('supports first assignment, confirmation, and refetches the exact server value', async () => {
-        const getIdentity = vi.spyOn(apiClient, 'getIdentity')
-            .mockResolvedValueOnce({userID: null})
-            .mockResolvedValueOnce({userID: 'Älice #1'});
-        const changeIdentity = vi.spyOn(apiClient, 'changeIdentity').mockResolvedValue(undefined);
-        const getPublicPolls = vi.mocked(apiClient.getPublicPolls);
-        const withdrawVote = vi.spyOn(apiClient, 'withdrawVote');
-        queryClient.setQueryData(queryKeys.publicPolls, []);
-        queryClient.setQueryData(queryKeys.pollResults('poll-1'), {});
-
-        renderHome();
-        fireEvent.click(await screen.findByRole('button', {name: 'Identität festlegen'}));
-        fireEvent.change(screen.getByLabelText('Neue Identität'), {target: {value: 'Älice #1'}});
-        fireEvent.click(screen.getByRole('button', {name: 'Speichern'}));
-
-        expect(screen.getByRole('dialog')).toBeTruthy();
-        expect(screen.getByRole('heading', {name: 'Identität festlegen?'})).toBeVisible();
-        expect(changeIdentity).not.toHaveBeenCalled();
-        fireEvent.click(screen.getByRole('button', {name: 'Festlegen'}));
-
-        await waitFor(() => expect(changeIdentity).toHaveBeenCalledWith({userID: 'Älice #1'}));
-        expect(withdrawVote).not.toHaveBeenCalled();
-        expect(await screen.findByTitle('Älice #1')).toBeTruthy();
-        expect(getIdentity).toHaveBeenCalledTimes(2);
-        await waitFor(() => expect(getPublicPolls).toHaveBeenCalledTimes(2));
-        expect(queryClient.getQueryState(queryKeys.pollResults('poll-1'))?.isInvalidated).toBe(true);
-    });
-
-    it('treats the exact same identity as a no-op', async () => {
-        const getIdentity = vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
-        const changeIdentity = vi.spyOn(apiClient, 'changeIdentity').mockResolvedValue(undefined);
-
-        renderHome();
-        fireEvent.click(await screen.findByRole('button', {name: 'Identität ändern'}));
-        fireEvent.change(screen.getByLabelText('Neue Identität'), {target: {value: 'alice'}});
-        fireEvent.click(screen.getByRole('button', {name: 'Speichern'}));
-
-        expect(changeIdentity).not.toHaveBeenCalled();
-        expect(screen.queryByRole('dialog')).toBeNull();
-        expect(getIdentity).toHaveBeenCalledTimes(1);
-    });
-
-    it('cancels editing without changing the confirmed identity', async () => {
-        const changeIdentity = vi.spyOn(apiClient, 'changeIdentity');
-        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
-
-        renderHome();
-        fireEvent.click(await screen.findByRole('button', {name: 'Identität ändern'}));
-        fireEvent.change(screen.getByLabelText('Neue Identität'), {target: {value: 'bob'}});
-        fireEvent.click(screen.getByRole('button', {name: 'Abbrechen'}));
-
-        expect(screen.getByTitle('alice')).toBeTruthy();
-        expect(screen.queryByLabelText('Neue Identität')).toBeNull();
-        expect(changeIdentity).not.toHaveBeenCalled();
-    });
-
-    it('keeps confirmation keyboard focus inside the modal and restores it on cancel', async () => {
-        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
-
-        renderHome();
-        fireEvent.click(await screen.findByRole('button', {name: 'Identität ändern'}));
-        fireEvent.change(screen.getByLabelText('Neue Identität'), {target: {value: 'bob'}});
-        const saveButton = screen.getByRole('button', {name: 'Speichern'});
-        fireEvent.click(saveButton);
-        const confirmButton = screen.getByRole('button', {name: 'Änderung bestätigen'});
-
-        expect(confirmButton).toHaveFocus();
-        fireEvent.keyDown(document, {key: 'Tab', shiftKey: true});
-        expect(within(screen.getByRole('dialog')).getByRole('button', {name: 'Abbrechen'})).toHaveFocus();
-        fireEvent.keyDown(document, {key: 'Escape'});
-        expect(saveButton).toHaveFocus();
-    });
-
-    it.each([
-        ['a server error', problemError({
-            status: 400,
-            code: 'identity_invalid',
-            detail: 'Invalid identity.'
-        }, 400), 'Die Anfrage konnte nicht verarbeitet werden.'],
-        ['a CSRF error', problemError({
-            status: 403,
-            code: 'csrf_invalid',
-            detail: 'Invalid CSRF.'
-        }, 403), 'Diese Aktion ist nicht erlaubt.'],
-        ['a network error', networkError(new Error('offline')), 'Netzwerkfehler. Prüfe deine Verbindung.'],
-    ])('keeps edit state and confirmed identity visible after %s', async (_description, error, message) => {
-        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
-        vi.spyOn(apiClient, 'changeIdentity').mockRejectedValue(error);
-
-        renderHome();
-        fireEvent.click(await screen.findByRole('button', {name: 'Identität ändern'}));
-        const input = screen.getByLabelText('Neue Identität');
-        fireEvent.change(input, {target: {value: ''}});
-        fireEvent.click(screen.getByRole('button', {name: 'Speichern'}));
-
-        expect(screen.getByRole('alert')).toHaveTextContent('Die Identität muss 1 bis 64 Zeichen enthalten');
-        expect(screen.queryByRole('dialog')).toBeNull();
-        expect(input).toHaveValue('');
-
-        fireEvent.change(input, {target: {value: 'Älice #1'}});
-        fireEvent.click(screen.getByRole('button', {name: 'Speichern'}));
-        fireEvent.click(screen.getByRole('button', {name: 'Änderung bestätigen'}));
-
-        expect(await screen.findByRole('alert')).toHaveTextContent(message);
-        expect(input).toHaveValue('Älice #1');
-        expect(screen.getByTitle('alice')).toBeTruthy();
-        expect(screen.getByRole('button', {name: 'Speichern'})).toHaveFocus();
-    });
-});
-
 describe('HomePage discovery', () => {
     it('uses one public list for deterministic hero, honest metrics, and newest preview cards', async () => {
         vi.mocked(apiClient.getPublicPolls).mockResolvedValue(discoveryPolls);
@@ -220,21 +101,9 @@ describe('HomePage discovery', () => {
     });
 });
 
-describe('HomePage identity and hierarchy', () => {
-    it('shows the identity call to action before the featured poll while no identity is set', async () => {
-        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: null});
-        vi.mocked(apiClient.getPublicPolls).mockResolvedValue(discoveryPolls);
-
-        renderHome();
-
-        const action = await screen.findByRole('button', {name: 'Identität festlegen'});
-        expect(action).toHaveClass('primary-button');
-        const featured = await screen.findByRole('region', {name: 'Im Fokus'});
-        expect(action.compareDocumentPosition(featured) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    });
-
-    it('keeps the start page heading visually hidden and shows no full identity card once identity is set', async () => {
-        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
+describe('HomePage hierarchy', () => {
+    it('keeps the start page heading visually hidden and shows no identity editor', async () => {
+        mockSession(userSession('alice'));
         vi.mocked(apiClient.getPublicPolls).mockResolvedValue(discoveryPolls);
 
         renderHome();
@@ -245,7 +114,7 @@ describe('HomePage identity and hierarchy', () => {
     });
 
     it('hides the latest section when the featured poll is the only public poll', async () => {
-        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
+        mockSession(userSession('alice'));
         vi.mocked(apiClient.getPublicPolls).mockResolvedValue([discoveryPolls[1]]);
 
         renderHome();

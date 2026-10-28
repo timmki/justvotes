@@ -1,5 +1,6 @@
 package de.justvotes.adapters.pollmanagement.infra.in.http;
 
+import de.justvotes.adapters.shared.infra.in.http.AuthenticatedAccounts;
 import de.justvotes.adapters.shared.infra.in.http.OpaqueIdCodec;
 import de.justvotes.api.v1.model.*;
 import de.justvotes.api.v1.model.Poll;
@@ -13,13 +14,9 @@ import de.justvotes.pollmanagement.core.model.VoteOutcome;
 import de.justvotes.pollmanagement.core.ports.in.ManageVotes;
 import de.justvotes.pollmanagement.core.ports.in.ViewPolls;
 import de.justvotes.pollmanagement.core.ports.in.ViewVotes;
-import jakarta.servlet.http.Cookie;
-import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -44,26 +41,11 @@ public class PublicPollController implements PublicPollsApi {
         return PollId.of(OpaqueIdCodec.decodeString("p", value));
     }
 
+    /**
+     * The fixed identity of the signed-in user account; voting is only routed here for role user.
+     */
     private static Identity identity() {
-        Identity identity = currentIdentity();
-        if (identity != null) return identity;
-        throw new IllegalArgumentException("An identity must be set before voting.");
-    }
-
-    private static Identity currentIdentity() {
-        HttpServletRequest request = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest();
-        if (request.getCookies() != null) {
-            for (Cookie cookie : request.getCookies()) {
-                if (IdentityCookieCodec.NAME.equals(cookie.getName())) {
-                    try {
-                        return IdentityCookieCodec.decode(cookie.getValue());
-                    } catch (IllegalArgumentException exception) {
-                        return null;
-                    }
-                }
-            }
-        }
-        return null;
+        return Identity.of(AuthenticatedAccounts.current().identity());
     }
 
     private static de.justvotes.api.v1.model.PollResults mapResults(PollResults results) {
@@ -106,13 +88,13 @@ public class PublicPollController implements PublicPollsApi {
 
     @Override
     public ResponseEntity<Void> withdrawVote(String pollId) {
-        votes.withdrawVote(pollId(pollId), currentIdentity());
+        votes.withdrawVote(pollId(pollId), identity());
         return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();
     }
 
     @Override
     public ResponseEntity<de.justvotes.api.v1.model.PollResults> pollResults(String pollId) {
-        return noStore(mapResults(voteQueries.results(pollId(pollId), currentIdentity())));
+        return noStore(mapResults(voteQueries.results(pollId(pollId), identity())));
     }
 
     @Override

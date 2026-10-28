@@ -1,123 +1,23 @@
-import {type FormEvent, useState, useSyncExternalStore} from 'react';
-import {useLocation, useNavigate} from 'react-router-dom';
-import {apiClient, sessionCoordinator} from '../../shared/api/client';
-import {ApiError, type FrontendError} from '../../shared/api/errors';
-import {queryClient} from '../../shared/api/queryClient';
-import {queryKeys} from '../../shared/api/queryKeys';
-import {useApiQuery} from '../../shared/api/useApiQuery';
+import {useLocation} from 'react-router-dom';
 import {useI18n} from '../../shared/i18n/I18nProvider';
 import {PageFrame} from '../../shared/ui/PageFrame';
-import {RouteState} from '../../shared/ui/RouteState';
+import {AccountAdministration} from './AccountAdministration';
 import {AdminVotes} from './AdministrativeVotes';
+import {InvitationAdministration} from './InvitationAdministration';
 import {AdminPolls} from './PollAdministration';
 import {TemplateCatalogGroups, TemplateCatalogTemplates} from './TemplateCatalog';
 
-type AdminSectionName = 'votes' | 'polls' | 'groups' | 'templates';
+type AdminSectionName = 'votes' | 'polls' | 'groups' | 'templates' | 'accounts' | 'invitations';
 
+/**
+ * Only rendered for the signed-in administrator; the application gate handles sign-in and roles.
+ */
 export function AdminPage() {
     const {t} = useI18n();
     const location = useLocation();
-    const sessionRequiredSignal = useSyncExternalStore((listener) => sessionCoordinator.subscribe(listener), () => sessionCoordinator.isLoginRequired(), () => false);
-    const loginRequired = sessionRequiredSignal || sessionCoordinator.isLoginRequired();
-    const sessionQuery = useApiQuery(queryKeys.adminSession, verifyAdminSession, {enabled: !loginRequired});
     const section = sectionFromPath(location.pathname);
-
-    if (loginRequired || isUnauthorized(sessionQuery.error)) return <AdminAccess mode="login"/>;
-    if (sessionQuery.isPending) return <AdminAccess mode="loading"/>;
-    if (sessionQuery.isError) return <AdminAccess mode="error" error={sessionQuery.error} onRetry={() => {
-        void sessionQuery.refetch();
-    }}/>;
-    return <AdminShell section={section ?? 'votes'}/>;
-}
-
-function AdminAccess({mode, error, onRetry}: {
-    mode: 'loading' | 'login' | 'error';
-    error?: unknown;
-    onRetry?: () => void
-}) {
-    const {t} = useI18n();
-    let accessError: FrontendError | undefined;
-    if (mode === 'error' && error instanceof ApiError) accessError = error.frontend;
-    return <PageFrame title={t('admin.title')}
-                      description={t('common.adminDescription')}>
-        {mode === 'loading' && <RouteState status="loading"/>}
-        {mode === 'error' && <RouteState status="error" error={accessError}
-                                         onRetry={onRetry}/>}
-        {mode === 'login' && <AdminLoginForm/>}
-    </PageFrame>;
-}
-
-function AdminLoginForm() {
-    const {t} = useI18n();
-    const navigate = useNavigate();
-    const [username, setUsername] = useState('');
-    const [password, setPassword] = useState('');
-    const [pending, setPending] = useState(false);
-    const [error, setError] = useState<FrontendError | null>(null);
-
-    async function submit(event: FormEvent<HTMLFormElement>) {
-        event.preventDefault();
-        setPending(true);
-        setError(null);
-        try {
-            await apiClient.login({username, password});
-            await queryClient.fetchQuery({queryKey: queryKeys.adminSession, queryFn: verifyAdminSession});
-            const returnRoute = sessionCoordinator.consumeReturnRoute();
-            let targetRoute = returnRoute ?? '/admin/votes';
-            if (returnRoute === '/admin') targetRoute = '/admin/votes';
-            navigate(targetRoute, {replace: returnRoute !== null});
-        } catch (cause) {
-            if (cause instanceof ApiError) setError(cause.frontend);
-            else setError(null);
-        } finally {
-            setPending(false);
-        }
-    }
-
-    let submitKey: 'common.signIn' | 'common.signingIn' | 'common.retry' = 'common.signIn';
-    if (pending) submitKey = 'common.signingIn';
-    else if (error?.retryable) submitKey = 'common.retry';
-    return <form className="login-form" onSubmit={submit}>
-        <label htmlFor="admin-username">{t('common.username')}</label>
-        <input id="admin-username" name="username" autoComplete="username" required value={username}
-               onChange={(event) => setUsername(event.target.value)}/>
-        <label htmlFor="admin-password">{t('common.password')}</label>
-        <input id="admin-password" name="password" type="password" autoComplete="current-password" required
-               value={password} onChange={(event) => setPassword(event.target.value)}/>
-        <button className="primary-button" type="submit"
-                aria-busy={pending} disabled={pending}>{pending && <span className="button-spinner" aria-hidden="true"/>}{t(submitKey)}</button>
-        {pending && <p role="status">{t('common.signingIn')}</p>}
-        {error && <p className="form-error" role="alert">{t(error.messageKey)}</p>}
-    </form>;
-}
-
-function AdminShell({section}: { section: AdminSectionName }) {
-    const {t} = useI18n();
-    const navigate = useNavigate();
-    const [pending, setPending] = useState(false);
-    const [error, setError] = useState<FrontendError | null>(null);
-    async function logout() {
-        setPending(true);
-        setError(null);
-        try {
-            await apiClient.logout();
-            navigate('/admin', {replace: true});
-        } catch (cause) {
-            if (cause instanceof ApiError) setError(cause.frontend);
-            else setError(null);
-        } finally {
-            setPending(false);
-        }
-    }
-
-    return <PageFrame title={t('admin.title')}
-                      description={t('common.adminDescription')}>
-        <div className="admin-toolbar">
-            <button className="text-button" type="button" onClick={logout}
-                    disabled={pending}>{pending && t('common.loggingOut')}{!pending && t('common.logout')}</button>
-        </div>
-        {error && <p className="form-error" role="alert">{t(error.messageKey)}</p>}
-        <AdminSectionView section={section}/>
+    return <PageFrame title={t('admin.title')} description={t('common.adminDescription')}>
+        <AdminSectionView section={section ?? 'votes'}/>
     </PageFrame>;
 }
 
@@ -126,6 +26,8 @@ function AdminSectionView({section}: { section: AdminSectionName }) {
     if (section === 'polls') return <AdminPolls/>;
     if (section === 'groups') return <TemplateCatalogGroups/>;
     if (section === 'templates') return <TemplateCatalogTemplates/>;
+    if (section === 'accounts') return <AccountAdministration/>;
+    if (section === 'invitations') return <InvitationAdministration/>;
     return <AdminPolls/>;
 }
 
@@ -135,14 +37,7 @@ function sectionFromPath(pathname: string): AdminSectionName | null {
     if (pathname === '/admin/groups') return 'groups';
     if (pathname === '/admin/templates') return 'templates';
     if (pathname === '/admin/create') return 'polls';
+    if (pathname === '/admin/accounts') return 'accounts';
+    if (pathname === '/admin/invitations') return 'invitations';
     return null;
-}
-
-function isUnauthorized(error: unknown) {
-    return error instanceof ApiError && error.frontend.status === 401;
-}
-
-async function verifyAdminSession() {
-    await apiClient.getAdminSession();
-    return true;
 }

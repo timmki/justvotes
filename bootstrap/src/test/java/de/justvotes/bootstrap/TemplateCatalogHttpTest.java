@@ -137,10 +137,10 @@ class TemplateCatalogHttpTest {
         assertTrue(matcher.find());
         String token = matcher.group(1);
         String cookies = cookieHeader(csrf.getHeaders());
-        ResponseEntity<String> login = client.exchange(RequestEntity.post(origin + "/api/v1/admin/login")
+        ResponseEntity<String> login = client.exchange(RequestEntity.post(origin + "/api/v1/session/login")
                 .contentType(MediaType.APPLICATION_JSON).header(HttpHeaders.COOKIE, cookies).header("X-XSRF-TOKEN", token)
                 .body("{\"username\":\"systemadmin\",\"password\":\"password\"}"), String.class);
-        assertEquals(204, login.getStatusCode().value());
+        assertEquals(200, login.getStatusCode().value());
         return new AuthenticatedAdmin(client, cookies + "; " + cookieHeader(login.getHeaders()), token);
     }
 

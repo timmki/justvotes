@@ -3363,3 +3363,122 @@ html.menu-open {
 :root[data-theme='openai'] .poll-metadata .eyebrow {
     color: var(--accent-text);
 }
+
+
+/* Accounts, sessions and invitations */
+.auth-page .login-form {
+    max-width: 30rem;
+}
+
+.login-form .form-hint {
+    margin-top: -.2rem;
+    font-size: .85rem;
+}
+
+.login-form .form-status:empty,
+.login-form .form-error:empty {
+    display: none;
+}
+
+.account-panel {
+    display: grid;
+    gap: .3rem;
+    min-width: 0;
+}
+
+.account-panel p {
+    margin: 0;
+}
+
+.account-panel-name,
+.account-panel-identity span {
+    overflow: hidden;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.account-panel-identity {
+    overflow: hidden;
+    color: var(--muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.account-panel-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem 1rem;
+    align-items: center;
+}
+
+.table-scroll {
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+.admin-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.admin-table th,
+.admin-table td {
+    padding: .6rem .5rem;
+    border-bottom: 1px solid var(--separator);
+    text-align: left;
+    vertical-align: top;
+    overflow-wrap: anywhere;
+}
+
+.admin-table-actions {
+    white-space: nowrap;
+}
+
+.admin-table-actions .text-button + .text-button {
+    margin-left: .75rem;
+}
+
+.status-badge {
+    display: inline-block;
+    margin: 0 .35rem .25rem 0;
+    padding: .1rem .5rem;
+    border: 1px solid var(--separator);
+    border-radius: 999px;
+    font-size: .8rem;
+}
+
+.status-badge.status-locked,
+.status-badge.status-failed,
+.status-badge.status-revoked {
+    border-color: #b42318;
+}
+
+.one-time-password {
+    display: grid;
+    gap: .5rem;
+    margin: 1rem 0;
+    padding: 1rem;
+    border: 2px solid var(--focus-ring);
+    border-radius: 1rem;
+    background: var(--surface);
+}
+
+.one-time-password h4,
+.one-time-password p {
+    margin: 0;
+}
+
+.one-time-password-value {
+    font-size: 1.25rem;
+    letter-spacing: .08em;
+    overflow-wrap: anywhere;
+}
+
+.invite-form {
+    margin-bottom: 1.25rem;
+}
+
+.invite-form h4 {
+    margin: 0;
+}

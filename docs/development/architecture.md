@@ -10,6 +10,7 @@ they are not an exhaustive list of domains that may exist in the future.
 |---|---|
 | [`poll-management`](../../poll-management/) | Framework-independent domain core for polls, lifecycle, options, votes, identities, and domain events. Inbound and outbound ports live under `core/ports/`. |
 | [`template-catalog`](../../template-catalog/) | Framework-independent domain core for option templates and template groups, with its own inbound and outbound ports. |
+| [`account-management`](../../account-management/) | Framework-independent domain core for local accounts, roles, credentials, and invitations, with its own inbound and outbound ports. |
 | [`api-contract`](../../api-contract/) | Versioned OpenAPI source contract and build-time contract/code-generation inputs. The YAML contract is authoritative for HTTP behavior. |
 | [`adapters`](../../adapters/) | Technical integration: inbound HTTP controllers, transaction adapters, scheduling, persistence, and adapters between domain ports. It depends on the domain modules and API contract. |
 | [`bootstrap`](../../bootstrap/) | Spring Boot application assembly, configuration, security, database migration resources, and runtime packaging. It wires adapters and domain ports. |
@@ -32,6 +33,12 @@ Spring, persistence, transaction management, and scheduling frameworks.
 - Generated server and TypeScript API sources MUST NOT be manually edited or committed;
   change their versioned OpenAPI source and use the repository generators instead.
 - Changes MUST NOT introduce an abstraction or dependency without a concrete need.
+- `adapters` does not depend on Spring Security or Spring Mail. Controllers that write
+  the Spring Security context (login, logout, password change, invitation acceptance)
+  and the adapters for password hashing and SMTP live in `bootstrap`. Controllers in
+  `adapters` read the signed-in account from the request attribute
+  `AuthenticatedAccount`, which `bootstrap` sets after validating the session;
+  security events are logged through `adapters`' `SecurityEventLogger`.
 
 ## Source references
 

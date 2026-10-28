@@ -20,15 +20,17 @@ export type FrontendError = {
 
 export class ApiError extends Error {
     readonly frontend: FrontendError;
+    readonly retryAfterSeconds: number | null;
 
-    constructor(frontend: FrontendError, cause?: unknown) {
+    constructor(frontend: FrontendError, cause?: unknown, retryAfterSeconds: number | null = null) {
         super(frontend.detail ?? frontend.code, {cause});
         this.name = 'ApiError';
         this.frontend = frontend;
+        this.retryAfterSeconds = retryAfterSeconds;
     }
 }
 
-export function problemError(problem: Partial<ProblemDetails>, status: number): ApiError {
+export function problemError(problem: Partial<ProblemDetails>, status: number, retryAfterSeconds: number | null = null): ApiError {
     return new ApiError({
         kind: 'problem',
         status,
@@ -36,7 +38,7 @@ export function problemError(problem: Partial<ProblemDetails>, status: number): 
         detail: problem.detail ?? problem.title ?? null,
         retryable: status >= 500,
         messageKey: messageKeyForStatus(status),
-    });
+    }, undefined, retryAfterSeconds);
 }
 
 export function networkError(cause: unknown): ApiError {

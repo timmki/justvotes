@@ -48,8 +48,9 @@ class SpaFallbackHttpTest {
         assertThat(staticFile.getHeaders().getContentType()).isEqualTo(MediaType.TEXT_HTML);
         assertThat(clientRoute.getBody()).isEqualTo(root.getBody());
         assertThat(missingAsset.getStatusCode().value()).isEqualTo(404);
-        assertThat(missingApiRoot.getStatusCode().value()).isEqualTo(404);
-        assertThat(missingApi.getStatusCode().value()).isEqualTo(404);
+        // Without a session nothing below /api is revealed, not even whether a route exists.
+        assertThat(missingApiRoot.getStatusCode().value()).isEqualTo(401);
+        assertThat(missingApi.getStatusCode().value()).isEqualTo(401);
         assertThat(missingActuator.getStatusCode().value()).isEqualTo(404);
     }
 }

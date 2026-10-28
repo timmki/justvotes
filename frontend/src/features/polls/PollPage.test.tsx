@@ -6,6 +6,7 @@ import {apiClient} from '../../shared/api/client';
 import {problemError} from '../../shared/api/errors';
 import {PollPage} from './PollPage';
 import {renderPollTest, usePollTestLifecycle} from './pollTestSupport';
+import {adminSession, mockSession, userSession} from '../../test/sessions';
 
 usePollTestLifecycle();
 
@@ -17,7 +18,7 @@ describe('PollPage', () => {
             templateGroup: {id: 'group-1', name: 'Gruppe', description: 'Beschreibung'},
             templateSnapshotOptions: [{number: 1, text: 'Ja'}], options: [{number: 1, text: 'Ja'}],
         });
-        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
+        mockSession(userSession('alice'));
         vi.spyOn(apiClient, 'getPollResults').mockRejectedValue(problemError({code: 'results-not-available'}, 403));
 
         renderPollTest('/poll/poll-1', <Routes><Route path="/poll/:pollId" element={<PollPage/>}/></Routes>);

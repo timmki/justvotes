@@ -130,7 +130,8 @@ jobs:
           done
           test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:18080/)" = 200
           test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:18080/polls)" = 200
-          test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:18080/api/v1/missing)" = 404
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:18080/api/v1/missing)" = 401
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:18080/api/v1/polls)" = 401
           test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:18080/actuator/health)" = 200
           test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:18080/actuator/health/readiness)" = 200
       - name: Show container logs on failure

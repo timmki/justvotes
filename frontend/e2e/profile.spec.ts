@@ -1,51 +1,31 @@
 import AxeBuilder from '@axe-core/playwright';
-import {expect, test} from '@playwright/test';
+import {expect, test, type Route} from '@playwright/test';
+
+const session = {accountName: 'alice', role: 'user', identity: 'Alice', passwordChangeRequired: false};
+
+/**
+ * Answers the session probe for the signed-in user before the test's own API mock.
+ */
+function signedIn(handler: (route: Route) => unknown) {
+    return (route: Route) => {
+        if (new URL(route.request().url()).pathname === '/api/v1/session') return route.fulfill({json: session});
+        return handler(route);
+    };
+}
 
 const vote = {poll: {id: 'p_v1_one', title: 'Personal transport', state: 'archived'}, option: {number: 2, text: 'Train'}, votedAt: '2026-09-15T12:00:00.000Z'};
-test('missing identity supports keyboard setting and becomes a distinct no-vote state', async ({page}) => {
-    let identity: string | null = null;
-    await page.route('**/api/v1/**', route => {
-        const request = route.request();
-        if (request.url().endsWith('/identity/votes')) return route.fulfill({json: {userID: identity, votes: []}});
-        if (request.url().endsWith('/csrf')) return route.fulfill({json: {token: 'test', headerName: 'X-XSRF-TOKEN'}});
-        if (request.url().endsWith('/identity') && request.method() === 'POST') {
-            identity = request.postDataJSON().userID;
-            return route.fulfill({status: 204});
-        }
-        return route.fulfill({json: {userID: identity}});
-    });
-    await page.goto('/profile');
-    await expect(page.getByText('Zuerst eine Identität setzen')).toBeVisible();
-    const action = page.locator('.profile-page').getByRole('button', {name: 'Identität festlegen'});
-    await action.focus();
-    await page.keyboard.press('Enter');
-    await page.locator('.profile-page').getByLabel('Neue Identität').fill('Alice');
-    await page.locator('.profile-page').getByRole('button', {name: 'Speichern'}).click();
-    await page.getByRole('button', {name: 'Festlegen', exact: true}).click();
-    await expect(page.getByText('Keine aktuelle Stimme')).toBeVisible();
-    await expect(page.locator('.profile-identity')).toContainText('Alice');
-    await expect(page.locator('.profile-votes')).toHaveCount(0);
-    const results = await new AxeBuilder({page}).analyze();
-    expect(results.violations.filter(v => v.impact === 'critical' || v.impact === 'serious')).toEqual([]);
-});
-test('cast, replacement, withdrawal and identity change refresh the personal route', async ({page}) => {
-    let identity = 'Alice';
+test('cast, replacement and withdrawal refresh the personal route', async ({page}) => {
+    const identity = 'Alice';
     let selected: number | null = null;
     let votedAt = '2026-09-15T12:00:00.000Z';
     const options = [{number: 1, text: 'Bike'}, {number: 2, text: 'Train'}];
     const poll = {id: 'p_v1_one', title: 'Personal transport', state: 'active', visibility: 'public',
         createdAt: votedAt, endsAt: '2099-01-01T00:00:00Z', totalVotes: 1,
         options, templateSnapshotOptions: options, templateGroup: {id: 'g_v1_one', name: 'Transport', description: ''}};
-    await page.route('**/api/v1/**', route => {
+    await page.route('**/api/v1/**', signedIn(route => {
         const request = route.request();
         const url = request.url();
         if (url.endsWith('/csrf')) return route.fulfill({json: {token: 'test', headerName: 'X-XSRF-TOKEN'}});
-        if (url.endsWith('/identity') && request.method() === 'POST') {
-            identity = request.postDataJSON().userID;
-            selected = null;
-            return route.fulfill({status: 204});
-        }
-        if (url.endsWith('/identity')) return route.fulfill({json: {userID: identity}});
         if (url.endsWith('/identity/votes')) {
             const votes = [];
             if (selected !== null) votes.push({poll: {id: poll.id, title: poll.title, state: 'active'}, option: options.find(o => o.number === selected), votedAt});
@@ -70,7 +50,7 @@ test('cast, replacement, withdrawal and identity change refresh the personal rou
         }
         if (url.endsWith('/polls/p_v1_one')) return route.fulfill({json: poll});
         return route.fulfill({json: []});
-    });
+    }));
     await page.goto('/poll/p_v1_one');
     await page.getByRole('radio', {name: 'Bike'}).click();
     await page.getByRole('button', {name: 'Stimme abgeben: Bike'}).click();
@@ -91,24 +71,18 @@ test('cast, replacement, withdrawal and identity change refresh the personal rou
     await expect(page.getByText('Ergebnisse werden nach eigener Stimme freigegeben.')).toBeVisible();
     await page.locator('.sidebar-navigation').getByRole('link', {name: 'Persönliches Profil'}).click();
     await expect(page.getByText('Keine aktuelle Stimme')).toBeVisible();
-    await page.locator('.identity-shell-editor').getByRole('button', {name: 'Identität ändern'}).click();
-    await page.getByLabel('Neue Identität').fill('Bob');
-    await page.locator('.identity-shell-editor').getByRole('button', {name: 'Speichern'}).click();
-    await page.getByRole('button', {name: 'Änderung bestätigen'}).click();
-    await expect(page.locator('.profile-identity')).toContainText('Bob');
-    await expect(page.locator('.profile-page')).not.toContainText('Alice');
+    await expect(page.locator('.profile-identity')).toContainText('Alice');
 });
 
-test('public personal profile uses one aggregate request and is accessible at 320px', async ({page}) => {
+test('personal profile uses one aggregate request and is accessible at 320px', async ({page}) => {
     const requests: string[] = [];
     await page.setViewportSize({width: 320, height: 720});
-    await page.route('**/api/v1/**', route => {
+    await page.route('**/api/v1/**', signedIn(route => {
         const url = route.request().url();
         requests.push(url);
         if (url.endsWith('/identity/votes')) return route.fulfill({json: {userID: 'Alice', votes: [vote]}});
-        if (url.endsWith('/identity')) return route.fulfill({json: {userID: 'Alice'}});
         return route.fulfill({status: 500});
-    });
+    }));
     await page.goto('/profile');
     await expect(page.getByRole('heading', {name: 'Persönliches Profil', level: 1})).toBeVisible();
     await expect(page.locator('.profile-page')).toContainText('Personal transport');

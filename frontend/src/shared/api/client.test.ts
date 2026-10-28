@@ -18,34 +18,35 @@ function jsonResponse(status: number, body: unknown, contentType = 'application/
 
 describe('ApiClient', () => {
     it('uses the relative API prefix and same-origin credentials', async () => {
-        const fetcher = vi.fn(async () => jsonResponse(200, {userID: null}));
+        const fetcher = vi.fn(async () => jsonResponse(200, {userID: 'alice', votes: []}));
         const client = new ApiClient({fetcher});
 
-        await client.getIdentity();
+        await client.getCurrentIdentityVotes();
 
-        expect(fetcher).toHaveBeenCalledWith('/api/v1/identity', expect.objectContaining({credentials: 'same-origin'}));
+        expect(fetcher).toHaveBeenCalledWith('/api/v1/identity/votes', expect.objectContaining({credentials: 'same-origin'}));
     });
 
     it('bootstraps CSRF once, attaches the returned header, and refreshes after login', async () => {
         const fetcher = vi.fn()
             .mockResolvedValueOnce(jsonResponse(200, {token: 'first-token', headerName: 'X-XSRF-TOKEN'}))
-            .mockResolvedValueOnce(new Response(null, {status: 204}))
+            .mockResolvedValueOnce(jsonResponse(200, {accountName: 'admin', role: 'admin', identity: null, passwordChangeRequired: false}))
             .mockResolvedValueOnce(jsonResponse(200, {token: 'second-token', headerName: 'X-XSRF-TOKEN'}))
             .mockResolvedValueOnce(new Response(null, {status: 204}));
         const client = new ApiClient({fetcher});
 
-        await client.login({username: 'admin', password: 'secret'});
-        await client.changeIdentity({userID: 'alice'});
+        const session = await client.login({username: 'admin', password: 'secret'});
+        await client.withdrawVote('p_v1_one');
 
+        expect(session.role).toBe('admin');
         const loginRequest = fetcher.mock.calls[1][1] as RequestInit;
         const identityRequest = fetcher.mock.calls[3][1] as RequestInit;
-        expect(fetcher.mock.calls[1][0]).toBe('/api/v1/admin/login');
+        expect(fetcher.mock.calls[1][0]).toBe('/api/v1/session/login');
         expect(loginRequest).toMatchObject({
             credentials: 'same-origin',
             body: JSON.stringify({username: 'admin', password: 'secret'})
         });
         expect((loginRequest.headers as Headers).get('X-XSRF-TOKEN')).toBe('first-token');
-        expect(fetcher.mock.calls[3][0]).toBe('/api/v1/identity');
+        expect(fetcher.mock.calls[3][0]).toBe('/api/v1/polls/p_v1_one/votes');
         expect(identityRequest.credentials).toBe('same-origin');
         expect((identityRequest.headers as Headers).get('X-XSRF-TOKEN')).toBe('second-token');
     });
@@ -78,11 +79,12 @@ describe('ApiClient', () => {
         expect((result as ApiError).frontend).toMatchObject({kind: 'network', code: 'network_error', retryable: true});
     });
 
-    it('clears protected query data and remembers the requested route after admin 401', async () => {
+    it('clears account data but keeps the session probe and remembers the requested route after a 401', async () => {
         const clientCache = new QueryClient();
         const session = new SessionCoordinator(clientCache);
         clientCache.setQueryData(queryKeys.adminPolls, [{id: 'private-poll'}]);
         clientCache.setQueryData(queryKeys.publicPolls, [{id: 'public-poll'}]);
+        clientCache.setQueryData(queryKeys.session, {accountName: 'admin'});
         const client = new ApiClient({
             fetcher: vi.fn(async () => jsonResponse(401, {
                 status: 401,
@@ -94,7 +96,8 @@ describe('ApiClient', () => {
         await expect(client.getAdminPolls()).rejects.toBeInstanceOf(ApiError);
 
         expect(clientCache.getQueryData(queryKeys.adminPolls)).toBeUndefined();
-        expect(clientCache.getQueryData(queryKeys.publicPolls)).toEqual([{id: 'public-poll'}]);
+        expect(clientCache.getQueryData(queryKeys.publicPolls)).toBeUndefined();
+        expect(clientCache.getQueryData(queryKeys.session)).toEqual({accountName: 'admin'});
         expect(session.consumeReturnRoute()).toBe('/admin/polls');
         expect(session.isLoginRequired()).toBe(false);
     });

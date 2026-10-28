@@ -1,34 +1,21 @@
 import {NavLink, Link, useLocation} from 'react-router-dom';
-import {useEffect, useRef, useState, useSyncExternalStore, type MouseEvent as ReactMouseEvent, type ReactNode} from 'react';
+import {useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode} from 'react';
 import {createPortal} from 'react-dom';
 import {useI18n} from '../shared/i18n/I18nProvider';
-import {queryKeys} from '../shared/api/queryKeys';
-import {useApiQuery} from '../shared/api/useApiQuery';
-import {apiClient, sessionCoordinator} from '../shared/api/client';
+import {apiClient, sessionCoordinator, type CurrentSession} from '../shared/api/client';
+import {ApiError, type FrontendError} from '../shared/api/errors';
 import {ChevronLeftIcon, CloseIcon, MenuIcon, MoonIcon, SunIcon} from '../shared/ui/Icons';
-import {IdentityDialog} from '../shared/ui/IdentityDialog';
-import {identityActionKey} from '../shared/ui/identityActionKey';
-import {IdentityEditor, IdentityStatus} from '../shared/ui/IdentityEditor';
 import {useMediaQuery} from '../shared/ui/useMediaQuery';
 import {themeOptions, useTheme, type Theme} from './theme';
 import {getAppInitials} from '../shared/config/appConfig';
 
 type ShellNavigationMode = 'public' | 'admin' | null;
-type IdentityState = 'ready' | 'loading' | 'error';
 
-export function AppShell({children}: {children: ReactNode}) {
+export function AppShell({session, children}: {session: CurrentSession | null; children: ReactNode}) {
     const {t} = useI18n();
-    const navigation = useShellNavigation();
+    const navigation = shellNavigation(session);
     const appName = t('common.appName');
     const appInitials = getAppInitials(appName);
-    const {pathname} = useLocation();
-    const identityQuery = useApiQuery(queryKeys.identity, () => apiClient.getIdentity());
-    const identity = identityQuery.data?.userID ?? null;
-    let identityState: IdentityState = 'ready';
-    if (identityQuery.isError) identityState = 'error';
-    else if (identityQuery.isPending) identityState = 'loading';
-    let showSidebarIdentity = true;
-    if (pathname === '/') showSidebarIdentity = false;
 
     return <div className="app-shell">
         <aside className="sidebar" aria-label={t('common.appName')}>
@@ -39,31 +26,55 @@ export function AppShell({children}: {children: ReactNode}) {
                 <span className="brand-mark" aria-hidden="true">{appInitials}</span><h2>{appName}</h2>
             </div>}
             <ShellNavigation className="sidebar-navigation" navigation={navigation} showLabel={navigation === 'admin'}/>
-            {showSidebarIdentity && <div className="sidebar-bottom">
-                <IdentityEditor identity={identity} identityState={identityState} variant="compact"/>
+            {session && !session.passwordChangeRequired && <div className="sidebar-bottom">
+                <AccountPanel session={session}/>
             </div>}
         </aside>
         <div className="app-content">
-            <Header navigation={navigation} identity={identity} identityState={identityState}/>
+            <Header navigation={navigation} session={session}/>
             {children}
         </div>
     </div>;
 }
 
-function useShellNavigation(): ShellNavigationMode {
-    const {pathname} = useLocation();
-    const adminRoute = pathname === '/admin' || pathname.startsWith('/admin/');
-    const loginRequired = useSyncExternalStore((listener) => sessionCoordinator.subscribe(listener), () => sessionCoordinator.isLoginRequired(), () => false);
-    const sessionQuery = useApiQuery(queryKeys.adminSession, verifyShellAdminSession, {enabled: adminRoute && !loginRequired});
-
-    if (!adminRoute) return 'public';
-    if (sessionQuery.isSuccess) return 'admin';
-    return null;
+/**
+ * Navigation follows the role: users see the poll area, the administrator only the administration,
+ * and nobody sees navigation before signing in or while a new password is required.
+ */
+function shellNavigation(session: CurrentSession | null): ShellNavigationMode {
+    if (!session || session.passwordChangeRequired) return null;
+    if (session.role === 'admin') return 'admin';
+    return 'public';
 }
 
-async function verifyShellAdminSession() {
-    await apiClient.getAdminSession();
-    return true;
+export function AccountPanel({session, onNavigate}: {session: CurrentSession; onNavigate?: () => void}) {
+    const {t} = useI18n();
+    const [pending, setPending] = useState(false);
+    const [error, setError] = useState<FrontendError | null>(null);
+
+    async function logout() {
+        setPending(true);
+        setError(null);
+        try {
+            await apiClient.logout();
+        } catch (cause) {
+            if (cause instanceof ApiError) setError(cause.frontend);
+            setPending(false);
+        }
+    }
+
+    let logoutLabel = t('auth.logout');
+    if (pending) logoutLabel = t('auth.loggingOut');
+    return <section className="account-panel" aria-label={t('auth.signedInAs')}>
+        <p className="eyebrow">{t('auth.signedInAs')}</p>
+        <p className="account-panel-name" title={session.accountName}>{session.accountName}</p>
+        {session.identity && <p className="account-panel-identity">{t('common.identity')}: <span title={session.identity}>{session.identity}</span></p>}
+        <div className="account-panel-actions">
+            <Link className="text-button" to="/password" onClick={onNavigate}>{t('auth.changePassword')}</Link>
+            <button className="text-button" type="button" onClick={logout} disabled={pending} aria-busy={pending}>{logoutLabel}</button>
+        </div>
+        {error && <p className="form-error" role="alert">{t(error.messageKey)}</p>}
+    </section>;
 }
 
 function ShellNavigation({className, navigation, showLabel = false, label}: {
@@ -106,6 +117,8 @@ function AdminNavigationLinks() {
         <li><AdminNavigationLink to="/admin/polls" active={pathname === '/admin/polls' || pathname === '/admin/create'}>{t('admin.polls')}</AdminNavigationLink></li>
         <li><AdminNavigationLink to="/admin/groups" active={pathname === '/admin/groups'}>{t('admin.groups')}</AdminNavigationLink></li>
         <li><AdminNavigationLink to="/admin/templates" active={pathname === '/admin/templates'}>{t('admin.templates')}</AdminNavigationLink></li>
+        <li><AdminNavigationLink to="/admin/accounts" active={pathname === '/admin/accounts'}>{t('admin.accounts')}</AdminNavigationLink></li>
+        <li><AdminNavigationLink to="/admin/invitations" active={pathname === '/admin/invitations'}>{t('admin.invitations')}</AdminNavigationLink></li>
     </ul>;
 }
 
@@ -115,17 +128,15 @@ function AdminNavigationLink({to, active, children}: { to: string; active: boole
     return <Link className="nav-item" to={to} aria-current={current}>{children}</Link>;
 }
 
-export function Header({navigation, identity, identityState}: {
+export function Header({navigation, session}: {
     navigation: ShellNavigationMode;
-    identity: string | null;
-    identityState: IdentityState;
+    session: CurrentSession | null;
 }) {
     const {locale, setLocale, t} = useI18n();
     const {theme, setTheme} = useTheme();
     const appInitials = getAppInitials(t('common.appName'));
     const [themeMenuOpen, setThemeMenuOpen] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
-    const [identityDialogOpen, setIdentityDialogOpen] = useState(false);
     const [panelClosing, setPanelClosing] = useState(false);
     const menuWasOpen = useRef(false);
     const themeMenuRef = useRef<HTMLDivElement>(null);
@@ -248,16 +259,6 @@ export function Header({navigation, identity, identityState}: {
         if (event.target instanceof Element && event.target.closest('a')) setMenuOpen(false);
     }
 
-    function editIdentity() {
-        setMenuOpen(false);
-        setIdentityDialogOpen(true);
-    }
-
-    function closeIdentityDialog() {
-        setIdentityDialogOpen(false);
-        menuButtonRef.current?.focus();
-    }
-
     let nextLocale: 'en' | 'de' = 'de';
     let localeLabel: 'common.english' | 'common.german' = 'common.german';
     if (locale === 'de') {
@@ -315,17 +316,12 @@ export function Header({navigation, identity, identityState}: {
                     </button>
                     {(menuOpen || panelClosing) && <div id="mobile-menu-panel" className="mobile-menu-panel" data-open={menuOpen} inert={!menuOpen} onClick={closeOnNavigate}>
                         <ShellNavigation className="mobile-menu-navigation" navigation={navigation} label={t('common.menu')}/>
-                        <section className="mobile-identity" aria-labelledby="mobile-identity-heading">
-                            <p className="eyebrow" id="mobile-identity-heading">{t('common.identity')}</p>
-                            <p className="mobile-identity-value"><IdentityStatus identity={identity} identityState={identityState}/></p>
-                            <button className="text-button" type="button" onClick={editIdentity}>{t(identityActionKey(identity))}</button>
-                        </section>
+                        {session && navigation && <AccountPanel session={session} onNavigate={() => setMenuOpen(false)}/>}
                     </div>}
                     {(menuOpen || panelClosing) && createPortal(<div className="mobile-menu-backdrop" data-open={menuOpen} aria-hidden="true" onClick={closeFromBackdrop}/>, document.body)}
                 </div>
             </div>
         </div>
-        {identityDialogOpen && <IdentityDialog identity={identity} identityState={identityState} onClose={closeIdentityDialog}/>}
     </header>;
 }
 
@@ -354,8 +350,7 @@ function isInside(event: Event, element: HTMLElement | null) {
 
 function routeContext(pathname: string, t: ReturnType<typeof useI18n>['t']) {
     const route = routeKind(pathname);
-    if (route.kind === 'home') return null;
-    if (route.kind === 'admin') return {to: '/', label: t('common.home')};
+    if (route.kind === 'home' || route.kind === 'login' || route.kind === 'invitation' || route.kind === 'admin') return null;
     if (route.kind === 'polls') return {to: '/', label: t('common.home')};
     if (route.kind === 'results' || route.kind === 'option' || route.kind === 'audit') {
         let to = '/polls';
@@ -376,12 +371,18 @@ function pageTitle(pathname: string, t: ReturnType<typeof useI18n>['t']) {
         case 'option': return t('polls.option');
         case 'audit': return t('audit.title');
         case 'admin': return t('admin.title');
+        case 'login': return t('auth.loginTitle');
+        case 'invitation': return t('auth.invitationTitle');
+        case 'password': return t('auth.passwordTitle');
         case 'notFound': return t('errors.notFound');
     }
 }
 
-function routeKind(pathname: string): {kind: 'home' | 'profile' | 'polls' | 'poll' | 'results' | 'option' | 'audit' | 'admin' | 'notFound'; pollId?: string} {
+function routeKind(pathname: string): {kind: 'home' | 'profile' | 'polls' | 'poll' | 'results' | 'option' | 'audit' | 'admin' | 'login' | 'invitation' | 'password' | 'notFound'; pollId?: string} {
     if (pathname === '/') return {kind: 'home'};
+    if (pathname === '/login') return {kind: 'login'};
+    if (pathname === '/invitation') return {kind: 'invitation'};
+    if (pathname === '/password') return {kind: 'password'};
     if (pathname === '/profile') return {kind: 'profile'};
     if (pathname === '/polls') return {kind: 'polls'};
     const result = pathname.match(/^\/poll\/results\/([^/]+)(?:\/option\/[^/]+)?$/);

@@ -5,6 +5,7 @@ import {describe, expect, it, vi} from 'vitest';
 import {apiClient} from '../../shared/api/client';
 import {ResultsPage} from './ResultsPages';
 import {renderPollTest, usePollTestLifecycle} from './pollTestSupport';
+import {adminSession, mockSession, userSession} from '../../test/sessions';
 
 usePollTestLifecycle();
 
@@ -15,7 +16,7 @@ describe('ResultsPages', () => {
             createdAt: '2026-08-01T10:00:00Z', endsAt: null, totalVotes: 1,
             options: [{number: 1, text: 'Ja', voteCount: 1, votes: []}],
         });
-        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: null});
+        mockSession(userSession('not-a-voter'));
 
         renderPollTest('/poll/results/poll-1', <Routes><Route path="/poll/results/:pollId" element={<ResultsPage/>}/></Routes>);
 
@@ -34,7 +35,7 @@ describe('ResultsPages vote labels', () => {
                 {number: 2, text: 'Nein', voteCount: 2, votes: []},
             ],
         });
-        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: null});
+        mockSession(userSession('not-a-voter'));
 
         const {container} = renderPollTest('/poll/results/poll-1', <Routes><Route path="/poll/results/:pollId" element={<ResultsPage/>}/></Routes>);
 

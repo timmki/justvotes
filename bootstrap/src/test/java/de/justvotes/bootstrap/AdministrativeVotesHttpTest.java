@@ -3,7 +3,13 @@ package de.justvotes.bootstrap;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import de.justvotes.adapters.shared.infra.in.http.OpaqueIdCodec;
+import de.justvotes.accountmanagement.core.ports.out.AccountRepository;
+import de.justvotes.accountmanagement.core.ports.out.PasswordHasher;
+import de.justvotes.bootstrap.support.AccountFixtures;
+import de.justvotes.bootstrap.support.TestSession;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
@@ -29,6 +35,12 @@ class AdministrativeVotesHttpTest {
 
     @LocalServerPort
     int port;
+    @Autowired
+    AccountRepository accounts;
+    @Autowired
+    PasswordHasher hasher;
+    @Autowired
+    PlatformTransactionManager transactionManager;
 
     @DynamicPropertySource
     static void applicationProperties(DynamicPropertyRegistry registry) {
@@ -85,10 +97,8 @@ class AdministrativeVotesHttpTest {
         admin.put(pollsUrl + "/" + alpha + "/publication", "{\"endsAt\":\"2099-01-01T00:00:00Z\"}");
         admin.put(pollsUrl + "/" + beta + "/publication", "{\"endsAt\":\"2099-01-01T00:00:00Z\"}");
 
-        PublicVisitor alice = visitor();
-        alice = alice.withIdentity("alice");
-        PublicVisitor bob = visitor();
-        bob = bob.withIdentity("bob");
+        PublicVisitor alice = voter("alice");
+        PublicVisitor bob = voter("bob");
         assertEquals(200, alice.post(publicUrl + "/" + alpha + "/votes", "{\"optionNumber\":1}").getStatusCode().value());
         assertEquals(200, bob.post(publicUrl + "/" + alpha + "/votes", "{\"optionNumber\":2}").getStatusCode().value());
         assertEquals(200, bob.post(publicUrl + "/" + beta + "/votes", "{\"optionNumber\":1}").getStatusCode().value());
@@ -146,18 +156,16 @@ class AdministrativeVotesHttpTest {
         ResponseEntity<String> csrf = client.getForEntity(baseUrl + "/api/v1/csrf", String.class);
         String token = token(csrf);
         String cookies = cookies(csrf);
-        ResponseEntity<String> login = client.exchange(RequestEntity.post(baseUrl + "/api/v1/admin/login")
+        ResponseEntity<String> login = client.exchange(RequestEntity.post(baseUrl + "/api/v1/session/login")
                 .contentType(MediaType.APPLICATION_JSON).header(HttpHeaders.COOKIE, cookies).header("X-XSRF-TOKEN", token)
                 .body("{\"username\":\"systemadmin\",\"password\":\"password\"}"), String.class);
-        assertEquals(204, login.getStatusCode().value());
+        assertEquals(200, login.getStatusCode().value());
         return new AuthenticatedAdmin(client, cookies + "; " + cookies(login), token);
     }
 
-    private PublicVisitor visitor() {
-        TestRestTemplate client = new TestRestTemplate();
-        String baseUrl = "http://localhost:" + port;
-        ResponseEntity<String> csrf = client.getForEntity(baseUrl + "/api/v1/csrf", String.class);
-        return new PublicVisitor(client, cookies(csrf), token(csrf), port);
+    private PublicVisitor voter(String identity) {
+        TestSession session = new AccountFixtures(accounts, hasher, transactionManager, port).loginAsUser(identity);
+        return new PublicVisitor(session.client(), session.cookies(), session.csrfToken(), port);
     }
 
     private record AuthenticatedAdmin(TestRestTemplate client, String cookies, String csrfToken) {
@@ -192,12 +200,6 @@ class AdministrativeVotesHttpTest {
     }
 
     private record PublicVisitor(TestRestTemplate client, String cookies, String csrfToken, int port) {
-        PublicVisitor withIdentity(String identity) {
-            ResponseEntity<String> changed = post("http://localhost:" + port + "/api/v1/identity", "{\"userID\":\"" + identity + "\"}");
-            assertEquals(204, changed.getStatusCode().value());
-            return new PublicVisitor(client, cookies + "; userID=" + identity, csrfToken, port);
-        }
-
         ResponseEntity<String> get(String url) {
             return client.exchange(RequestEntity.get(url).header(HttpHeaders.COOKIE, cookies).build(), String.class);
         }

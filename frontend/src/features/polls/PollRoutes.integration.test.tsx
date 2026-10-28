@@ -12,6 +12,7 @@ import {AuditPage} from './AuditPage';
 import {PollPage} from './PollPage';
 import {PollsPage} from './PollsPage';
 import {OptionPage, ResultsPage} from './ResultsPages';
+import {adminSession, mockSession, userSession} from '../../test/sessions';
 
 const polls = [
     {
@@ -402,7 +403,7 @@ describe('PollsPage', () => {
 describe('PollPage', () => {
     beforeEach(() => {
         vi.spyOn(apiClient, 'getPoll').mockResolvedValue(poll);
-        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
+        mockSession(userSession('alice'));
     });
 
     it('renders the poll sheet with real metadata, option numbers, and result release state', async () => {
@@ -576,7 +577,7 @@ describe('PollPage', () => {
     it('disables voting for an expired poll but keeps released results available', async () => {
         const expiredPoll = {...poll, state: 'expired' as const};
         vi.mocked(apiClient.getPoll).mockResolvedValue(expiredPoll);
-        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: null});
+        mockSession(userSession('alice'));
         vi.spyOn(apiClient, 'getPollResults').mockResolvedValue({...resultsFor(null), state: 'expired' as const});
 
         renderPollPage();
@@ -611,7 +612,7 @@ describe('PollPage inline confirm button', () => {
     beforeEach(() => {
         queryClient.clear();
         vi.spyOn(apiClient, 'getPoll').mockResolvedValue(poll);
-        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
+        mockSession(userSession('alice'));
     });
 
     it('shows one confirm button inside the selected option only', async () => {
@@ -676,16 +677,6 @@ describe('PollPage inline confirm button', () => {
         expect(alert.closest('.poll-option')).toBe(screen.getByRole('radio', {name: 'Apfel'}).closest('.poll-option'));
         await waitFor(() => expect(screen.getByRole('button', {name: 'Stimme abgeben: Apfel'})).toHaveFocus());
         expect(screen.getByRole('button', {name: 'Stimme abgeben: Apfel'})).toBeEnabled();
-    });
-
-    it('shows no confirm button without an identity', async () => {
-        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: null});
-        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(resultsFor(null));
-
-        renderPollPage();
-
-        expect((await screen.findAllByRole('radio')).length).toBeGreaterThan(0);
-        expect(screen.queryByRole('button', {name: /^Stimme abgeben/})).not.toBeInTheDocument();
     });
 
     it('moves the confirm button to another option that is not the current vote', async () => {
@@ -820,7 +811,7 @@ describe('ResultsPage', () => {
             ],
         };
         vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(result);
-        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
+        mockSession(userSession('alice'));
 
         renderResultsPage();
 
@@ -842,7 +833,7 @@ describe('ResultsPage', () => {
             ],
         };
         vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(result);
-        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
+        mockSession(userSession('alice'));
 
         renderResultsPage();
 
@@ -871,7 +862,7 @@ describe('ResultsPage', () => {
             votes: [{userID: 'alice', votedAt: '2026-08-01T10:01:00Z'}],
         }))};
         const getPollResults = vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(result);
-        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
+        mockSession(userSession('alice'));
 
         renderResultsPage();
         await act(async () => {
@@ -1018,7 +1009,7 @@ describe('ResultsPage', () => {
 
     it('confirms withdrawal, invalidates affected views, and returns to the poll', async () => {
         vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(resultsFor(7));
-        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
+        mockSession(userSession('alice'));
         const withdrawVote = vi.spyOn(apiClient, 'withdrawVote').mockResolvedValue(undefined);
         const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries');
         vi.spyOn(window, 'confirm').mockReturnValue(true);
@@ -1038,7 +1029,7 @@ describe('ResultsPage', () => {
 
     it('keeps the confirmed vote and shows an error when withdrawal fails', async () => {
         vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(resultsFor(7));
-        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
+        mockSession(userSession('alice'));
         vi.spyOn(apiClient, 'withdrawVote').mockRejectedValue(new Error('offline'));
         vi.spyOn(window, 'confirm').mockReturnValue(true);
 
@@ -1056,7 +1047,7 @@ describe('ResultsPage', () => {
         vi.useFakeTimers();
         const result = {...resultsFor(7), state: 'active' as const};
         const getPollResults = vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(result);
-        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
+        mockSession(userSession('alice'));
 
         renderResultsPage();
         await act(async () => {
@@ -1091,7 +1082,7 @@ describe('ResultsPage', () => {
         const getPollResults = vi.spyOn(apiClient, 'getPollResults')
             .mockResolvedValueOnce(result)
             .mockRejectedValueOnce(new Error('offline'));
-        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
+        mockSession(userSession('alice'));
 
         renderResultsPage();
         await act(async () => {
@@ -1153,7 +1144,6 @@ describe('AuditPage', () => {
             ['VoteCast', 'Stimme abgegeben', 'Vote cast'],
             ['VoteReplaced', 'Stimme ersetzt', 'Vote replaced'],
             ['VoteWithdrawn', 'Stimme zurückgenommen', 'Vote withdrawn'],
-            ['VoteRemovedForIdentityChange', 'Stimme wegen Identitätswechsel entfernt', 'Vote removed for identity change'],
             ['VoteRemovedByAdmin', 'Stimme administrativ entfernt', 'Vote removed by admin'],
         ] as const;
         const auditEntries = [
@@ -1206,123 +1196,10 @@ describe('AuditPage', () => {
     });
 });
 
-describe('PollPage identity notice', () => {
-    it('offers in-place identity assignment above locked options and restores the notice on cancel', async () => {
-        queryClient.clear();
-        vi.spyOn(apiClient, 'getPoll').mockResolvedValue(poll);
-        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: null});
-        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(resultsFor(2));
-
-        renderPollPage();
-
-        expect(await screen.findByText('Lege eine Identität fest, um abzustimmen.')).toBeVisible();
-        expect(document.querySelector('fieldset.poll-vote-form')).toHaveAttribute('aria-describedby');
-        const noticeLink = document.querySelector('fieldset.poll-vote-form')?.getAttribute('aria-describedby');
-        expect(document.getElementById(noticeLink!)).toHaveTextContent('Lege eine Identität fest, um abzustimmen.');
-        const radios = await screen.findAllByRole('radio');
-        expect(radios.length).toBeGreaterThan(0);
-        radios.forEach((radio) => expect(radio).toBeDisabled());
-        fireEvent.click(screen.getByRole('button', {name: 'Identität festlegen'}));
-        expect(screen.getByLabelText('Neue Identität')).toHaveFocus();
-        const editorLink = document.querySelector('fieldset.poll-vote-form')?.getAttribute('aria-describedby');
-        expect(document.getElementById(editorLink!)).toHaveTextContent('Identität festlegen');
-        fireEvent.click(screen.getByRole('button', {name: 'Abbrechen'}));
-        expect(await screen.findByText('Lege eine Identität fest, um abzustimmen.')).toBeVisible();
-        expect(screen.getByRole('button', {name: 'Identität festlegen'})).toHaveFocus();
-    });
-
-    it('focuses the first option and announces the saved identity once', async () => {
-        let identity: string | null = null;
-        vi.spyOn(apiClient, 'getPoll').mockResolvedValue(poll);
-        vi.spyOn(apiClient, 'getIdentity').mockImplementation(async () => ({userID: identity}));
-        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(resultsFor(null));
-        vi.spyOn(apiClient, 'changeIdentity').mockImplementation(async ({userID}) => {
-            identity = userID;
-        });
-
-        renderPollPage();
-
-        fireEvent.click(await screen.findByRole('button', {name: 'Identität festlegen'}));
-        fireEvent.change(screen.getByLabelText('Neue Identität'), {target: {value: 'bob'}});
-        fireEvent.click(screen.getByRole('button', {name: 'Speichern'}));
-        fireEvent.click(await screen.findByRole('button', {name: 'Festlegen'}));
-
-        await waitFor(() => expect(screen.getAllByRole('radio')[0]).toHaveFocus());
-        expect(screen.getAllByText('Identität gesetzt. Du kannst jetzt abstimmen.')).toHaveLength(1);
-        expect(screen.getByText('Identität gesetzt. Du kannst jetzt abstimmen.')).toBeVisible();
-        expect(screen.queryByText('Lege eine Identität fest, um abzustimmen.')).toBeNull();
-        expect(document.querySelector('fieldset.poll-vote-form')).not.toHaveAttribute('aria-describedby');
-    });
-});
-
 describe('PollPage convergence checks', () => {
-    it('omits the identity notice for an expired poll', async () => {
-        vi.spyOn(apiClient, 'getPoll').mockResolvedValue({...poll, state: 'expired' as const});
-        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: null});
-        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue({...resultsFor(null), state: 'expired' as const});
-
-        renderPollPage();
-
-        expect(await screen.findByRole('heading', {name: 'Team-Ausflug', level: 1})).toBeVisible();
-        expect(screen.queryByText('Lege eine Identität fest, um abzustimmen.')).toBeNull();
-    });
-
-    it('keeps options locked and shows the error in the editor when the identity change fails', async () => {
-        vi.spyOn(apiClient, 'getPoll').mockResolvedValue(poll);
-        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: null});
-        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(resultsFor(null));
-        vi.spyOn(apiClient, 'changeIdentity').mockRejectedValue(problemError({code: 'identity-invalid'}, 422));
-
-        renderPollPage();
-
-        fireEvent.click(await screen.findByRole('button', {name: 'Identität festlegen'}));
-        fireEvent.change(screen.getByLabelText('Neue Identität'), {target: {value: 'bob'}});
-        fireEvent.click(screen.getByRole('button', {name: 'Speichern'}));
-        fireEvent.click(await screen.findByRole('button', {name: 'Festlegen'}));
-
-        expect(await screen.findByRole('alert')).toBeVisible();
-        expect(screen.getAllByRole('radio')[0]).toBeDisabled();
-    });
-
-    it('marks the vote of the newly set identity after a successful change', async () => {
-        let identity: string | null = null;
-        let voted = false;
-        vi.spyOn(apiClient, 'getPoll').mockResolvedValue(poll);
-        vi.spyOn(apiClient, 'getIdentity').mockImplementation(async () => ({userID: identity}));
-        vi.spyOn(apiClient, 'getPollResults').mockImplementation(async () => ({
-            ...resultsFor(null),
-            totalVotes: Number(voted),
-            options: poll.options.map((option) => {
-                const hasVote = voted && option.number === 2;
-                let voteCount = 0;
-                let votes: Array<{userID: string; votedAt: string}> = [];
-                if (hasVote) {
-                    voteCount = 1;
-                    votes = [{userID: 'bob', votedAt: '2026-08-01T10:01:00Z'}];
-                }
-                return {...option, voteCount, votes};
-            }),
-        }));
-        vi.spyOn(apiClient, 'changeIdentity').mockImplementation(async ({userID}) => {
-            identity = userID;
-            voted = true;
-        });
-
-        renderPollPage();
-
-        fireEvent.click(await screen.findByRole('button', {name: 'Identität festlegen'}));
-        fireEvent.change(screen.getByLabelText('Neue Identität'), {target: {value: 'bob'}});
-        fireEvent.click(screen.getByRole('button', {name: 'Speichern'}));
-        fireEvent.click(await screen.findByRole('button', {name: 'Festlegen'}));
-
-        expect(await screen.findByText('Eigene Stimme')).toBeVisible();
-        expect(screen.getByRole('radio', {name: 'Zebra'})).toBeChecked();
-        expect(screen.queryByText('Lege eine Identität fest, um abzustimmen.')).toBeNull();
-    });
-
     it('uses the poll title as the only level-1 heading and no generic metadata heading', async () => {
         vi.spyOn(apiClient, 'getPoll').mockResolvedValue(poll);
-        vi.spyOn(apiClient, 'getIdentity').mockResolvedValue({userID: 'alice'});
+        mockSession(userSession('alice'));
         vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(resultsFor(null));
 
         renderPollPage();
@@ -1345,87 +1222,5 @@ describe('poll list card semantics', () => {
         expect(card).toHaveTextContent(/\d+ Stimmen?/);
         expect(card).toHaveAccessibleName(/^Badge poll /);
         expect(card).not.toHaveAccessibleName(/Erstellt/);
-    });
-});
-
-describe('PollPage identity slot motion', () => {
-    beforeEach(() => {
-        queryClient.clear();
-        vi.spyOn(apiClient, 'getPoll').mockResolvedValue(poll);
-    });
-
-    function mockIdentitySave() {
-        let identity: string | null = null;
-        vi.spyOn(apiClient, 'getIdentity').mockImplementation(async () => ({userID: identity}));
-        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(resultsFor(null));
-        vi.spyOn(apiClient, 'changeIdentity').mockImplementation(async ({userID}) => {
-            identity = userID;
-        });
-    }
-
-    async function saveIdentity() {
-        fireEvent.click(await screen.findByRole('button', {name: 'Identität festlegen'}));
-        fireEvent.change(screen.getByLabelText('Neue Identität'), {target: {value: 'bob'}});
-        fireEvent.click(screen.getByRole('button', {name: 'Speichern'}));
-        fireEvent.click(await screen.findByRole('button', {name: 'Festlegen'}));
-    }
-
-    it('keeps the identity slot leaving for a short moment after a save', async () => {
-        mockIdentitySave();
-        renderPollPage();
-
-        await saveIdentity();
-
-        await waitFor(() => expect(document.querySelector('.poll-identity-slot.leaving')).not.toBeNull());
-        await waitFor(() => expect(document.querySelector('.poll-identity-slot')).toBeNull(), {timeout: 1000});
-    });
-
-    it('removes the identity slot at once when reduced motion is requested', async () => {
-        const original = window.matchMedia;
-        window.matchMedia = vi.fn((query: string) => ({
-            matches: query.includes('reduce'),
-            media: query,
-            onchange: null,
-            addEventListener: () => undefined,
-            removeEventListener: () => undefined,
-            addListener: () => undefined,
-            removeListener: () => undefined,
-            dispatchEvent: () => false,
-        })) as unknown as typeof window.matchMedia;
-        try {
-            mockIdentitySave();
-            renderPollPage();
-
-            await saveIdentity();
-
-            await waitFor(() => expect(document.querySelector('.poll-identity-slot')).toBeNull());
-            expect(document.querySelector('.leaving')).toBeNull();
-        } finally {
-            window.matchMedia = original;
-        }
-    });
-});
-
-describe('PollPage identity notice motion', () => {
-    beforeEach(() => {
-        queryClient.clear();
-        vi.spyOn(apiClient, 'getPoll').mockResolvedValue(poll);
-    });
-
-    it('fades the identity notice out when the identity is set elsewhere', async () => {
-        let identity: string | null = null;
-        vi.spyOn(apiClient, 'getIdentity').mockImplementation(async () => ({userID: identity}));
-        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue(resultsFor(null));
-
-        renderPollPage();
-
-        expect(await screen.findByText('Lege eine Identität fest, um abzustimmen.')).toBeVisible();
-        identity = 'carol';
-        await act(async () => {
-            await queryClient.invalidateQueries({queryKey: queryKeys.identity});
-        });
-
-        await waitFor(() => expect(document.querySelector('.poll-identity-slot.leaving')).not.toBeNull());
-        await waitFor(() => expect(document.querySelector('.poll-identity-slot')).toBeNull(), {timeout: 1000});
     });
 });

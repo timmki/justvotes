@@ -49,23 +49,6 @@ public final class VoteManagement implements ManageVotes, ViewVotes, ManageAdmin
     }
 
     @Override
-    public void changeIdentity(Identity oldIdentity, Identity newIdentity) {
-        if (oldIdentity == null || oldIdentity.equals(newIdentity)) {
-            return;
-        }
-        polls.findAllPublicActive()
-                .forEach(poll -> poll.removeVoteForIdentity(oldIdentity)
-                        .ifPresent(vote -> {
-                            events.publish(new VoteRemovedForIdentityChange(
-                                    poll.id(),
-                                    vote,
-                                    optionText(poll, vote))
-                            );
-                            polls.save(poll);
-                        }));
-    }
-
-    @Override
     public VoteOutcome castOrReplace(PollId pollId, Identity identity, int optionNumber) {
         Poll poll = publiclyVotable(pollId);
         VoteOutcome outcome = poll.castOrReplace(identity, optionNumber, clock.now());

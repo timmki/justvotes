@@ -21,11 +21,12 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Prevents the service from becoming ready when the mounted SQLite file drifted from V1.
+ * Prevents the service from becoming ready when the mounted SQLite file drifted from the migrated schema.
  */
 @Component
 class SqliteSchemaValidator implements ApplicationRunner {
-    private static final Pattern CREATE_OBJECT = Pattern.compile("CREATE (?:TABLE|INDEX) \\\"([^\\\"]+)\\\"");
+    private static final Pattern CREATE_OBJECT = Pattern.compile("CREATE (?:TABLE|(?:UNIQUE )?INDEX) \\\"([^\\\"]+)\\\"");
+    private static final Pattern DROP_TABLE = Pattern.compile("DROP TABLE\\s+\\\"([^\\\"]+)\\\"");
     private static final Pattern ADD_COLUMN = Pattern.compile("ALTER TABLE\\s+\\\"([^\\\"]+)\\\"\\s+ADD COLUMN\\s+(.+)", Pattern.DOTALL);
     private static final List<String> MIGRATIONS = List.of(
             "/db/migration/V1__initial_schema.sql",
@@ -33,7 +34,8 @@ class SqliteSchemaValidator implements ApplicationRunner {
             "/db/migration/V3__store_poll_template_group_snapshots.sql",
             "/db/migration/V4__store_poll_template_option_snapshots.sql",
             "/db/migration/V5__store_poll_template_group_descriptions.sql",
-            "/db/migration/V6__store_administrative_vote_removal_details.sql");
+            "/db/migration/V6__store_administrative_vote_removal_details.sql",
+            "/db/migration/V7__local_accounts.sql");
     private final DataSource dataSource;
 
     SqliteSchemaValidator(DataSource dataSource) {
@@ -50,7 +52,9 @@ class SqliteSchemaValidator implements ApplicationRunner {
                         Matcher object = CREATE_OBJECT.matcher(statement);
                         Matcher column = ADD_COLUMN.matcher(statement.trim());
                         if (object.find()) schema.put(object.group(1), normalize(statement));
+                        Matcher droppedTable = DROP_TABLE.matcher(statement.trim());
                         if (column.matches()) addColumn(schema, column.group(1), column.group(2));
+                        if (droppedTable.matches()) schema.remove(droppedTable.group(1));
                     }
                 }
             }

@@ -31,6 +31,9 @@ spring:
       hibernate:
         dialect: org.hibernate.community.dialect.SQLiteDialect
 management:
+  health:
+    mail:
+      enabled: false
   endpoints:
     web:
       exposure:
@@ -47,6 +50,7 @@ server:
   forward-headers-strategy: native
   servlet:
     session:
+      timeout: 30m
       cookie:
         name: JSESSIONID
         path: /
@@ -57,3 +61,17 @@ logging:
 justvotes:
   api-docs:
     enabled: ${API_DOCS_ENABLED:false}
+  session:
+    max-lifetime: PT12H
+  admin:
+    password-reset: ${ADMIN_PASSWORD_RESET:false}
+  public-base-url: ${PUBLIC_BASE_URL:}
+  # Spring Boot's spring.mail.* is deliberately not used: an empty spring.mail.host would still enable
+  # the mail sender and its health indicator. Invitations are only offered when host and public URL are set.
+  mail:
+    host: ${MAIL_HOST:}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    starttls: ${MAIL_STARTTLS:true}
+    from: ${MAIL_FROM:}
