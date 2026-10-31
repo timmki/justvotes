@@ -16,6 +16,9 @@ export type FrontendError = {
     detail: string | null;
     retryable: boolean;
     messageKey: ErrorMessageKey;
+    /** Only for `invalid-account-input`: the rejected request property and the broken rule. */
+    field?: string;
+    rule?: string;
 };
 
 export class ApiError extends Error {
@@ -38,6 +41,8 @@ export function problemError(problem: Partial<ProblemDetails>, status: number, r
         detail: problem.detail ?? problem.title ?? null,
         retryable: status >= 500,
         messageKey: messageKeyForStatus(status),
+        ...(problem.field && {field: problem.field}),
+        ...(problem.rule && {rule: problem.rule}),
     }, undefined, retryAfterSeconds);
 }
 

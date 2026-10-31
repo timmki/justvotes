@@ -19,7 +19,7 @@ class SchemaDeviationStartupTest {
         return new SpringApplication(JustVotesApplication.class).run(
                 "--spring.main.web-application-type=none",
                 "--spring.datasource.url=" + databaseUrl,
-                "--ADMIN_USERNAME=systemadmin",
+                "--ADMIN_EMAIL=systemadmin@example.test",
                 "--ADMIN_PASSWORD_HASH=$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy");
     }
 

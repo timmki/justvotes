@@ -23,9 +23,8 @@ afterEach(() => {
     window.history.replaceState(null, '', '/');
 });
 
-function fill(name: string, identity: string, password: string, repeat = password) {
-    fireEvent.change(screen.getByLabelText('Kontoname'), {target: {value: name}});
-    fireEvent.change(screen.getByLabelText('Identität'), {target: {value: identity}});
+function fill(identity: string, password: string, repeat = password) {
+    fireEvent.change(screen.getByLabelText('Anzeigename'), {target: {value: identity}});
     fireEvent.change(screen.getByLabelText('Neues Passwort'), {target: {value: password}});
     fireEvent.change(screen.getByLabelText('Neues Passwort wiederholen'), {target: {value: repeat}});
     fireEvent.click(screen.getByRole('button', {name: 'Konto anlegen'}));
@@ -43,31 +42,57 @@ describe('InvitationPage', () => {
         expect(window.sessionStorage.getItem(INVITATION_TOKEN_KEY)).toBe('secret-token');
         expect(inspect).toHaveBeenCalledWith('secret-token');
 
-        fill('anna', 'Anna', 'correct-horse-battery');
+        fill('Anna', 'correct-horse-battery');
 
         await vi.waitFor(() => expect(accept).toHaveBeenCalledWith({
-            token: 'secret-token', username: 'anna', userID: 'Anna', password: 'correct-horse-battery',
+            token: 'secret-token', userID: 'Anna', password: 'correct-horse-battery',
         }));
         await vi.waitFor(() => expect(queryClient.getQueryData(queryKeys.session)).toEqual(userSession('Anna')));
         expect(window.sessionStorage.getItem(INVITATION_TOKEN_KEY)).toBeNull();
     });
 
-    it('validates passwords locally and reports taken names from the server', async () => {
+    it('validates passwords locally and reports taken display names at the field', async () => {
         signIn(null);
         vi.spyOn(apiClient, 'inspectInvitation').mockResolvedValue(preview);
-        const accept = vi.spyOn(apiClient, 'acceptInvitation').mockRejectedValue(problemError({code: 'account-name-taken'}, 409));
+        const accept = vi.spyOn(apiClient, 'acceptInvitation').mockRejectedValue(problemError({code: 'identity-taken'}, 409));
         renderPollTest('/invitation', <InvitationPage/>);
         await screen.findByText('anna@example.test');
 
-        fill('anna', 'Anna', 'short');
+        fill('Anna', 'short');
         expect(screen.getByRole('alert')).toHaveTextContent('mindestens 12 Zeichen');
-        fill('anna', 'Anna', 'correct-horse-battery', 'other-horse-battery');
+        fill('Anna', 'correct-horse-battery', 'other-horse-battery');
         expect(screen.getByRole('alert')).toHaveTextContent('Die Passwörter stimmen nicht überein.');
         expect(accept).not.toHaveBeenCalled();
 
-        fill('anna', 'Anna', 'correct-horse-battery');
-        expect(await screen.findByText('Dieser Kontoname ist bereits vergeben.')).toBeVisible();
+        fill('Anna', 'correct-horse-battery');
+        expect(await screen.findByText('Dieser Anzeigename ist bereits vergeben. Bitte wähle einen anderen.')).toBeVisible();
+        expect(screen.getByLabelText('Anzeigename')).toHaveAttribute('aria-invalid', 'true');
+        expect(screen.getByLabelText('Anzeigename')).toHaveFocus();
         expect(window.sessionStorage.getItem(INVITATION_TOKEN_KEY)).toBe('secret-token');
+    });
+
+    it('shows the invited email address as the read-only sign-in name', async () => {
+        signIn(null);
+        vi.spyOn(apiClient, 'inspectInvitation').mockResolvedValue(preview);
+        renderPollTest('/invitation', <InvitationPage/>);
+
+        expect(await screen.findByLabelText('E-Mail-Adresse')).toHaveValue('anna@example.test');
+        expect(screen.getByLabelText('E-Mail-Adresse')).toHaveAttribute('readonly');
+        expect(screen.queryByLabelText('Kontoname')).toBeNull();
+        expect(screen.getByText(/nicht deine E-Mail-Adresse/)).toBeVisible();
+    });
+
+    it('maps server-side input rules to the affected field', async () => {
+        signIn(null);
+        vi.spyOn(apiClient, 'inspectInvitation').mockResolvedValue(preview);
+        vi.spyOn(apiClient, 'acceptInvitation').mockRejectedValue(
+            problemError({code: 'invalid-account-input', field: 'userID', rule: 'length'}, 400));
+        renderPollTest('/invitation', <InvitationPage/>);
+        await screen.findByText('anna@example.test');
+
+        fill('Anna', 'correct-horse-battery');
+        expect(await screen.findByText('Der Anzeigename muss 1 bis 64 Zeichen lang sein.')).toBeVisible();
+        expect(screen.getByLabelText('Anzeigename')).toHaveAttribute('aria-invalid', 'true');
     });
 
     it('explains unusable invitations and forgets their token', async () => {
@@ -88,7 +113,7 @@ describe('InvitationPage', () => {
         });
         renderPollTest('/invitation', <InvitationPage/>);
 
-        expect(await screen.findByText(/Du bist als account-Bob angemeldet/)).toBeVisible();
+        expect(await screen.findByText(/Du bist als bob@example.test angemeldet/)).toBeVisible();
         expect(inspect).not.toHaveBeenCalled();
         expect(window.sessionStorage.getItem(INVITATION_TOKEN_KEY)).toBe('secret-token');
 

@@ -290,7 +290,7 @@ describe('app shell', () => {
         signIn(null);
         for (const route of ['/', '/polls', '/poll/example', '/profile', '/admin/polls', '/password']) {
             const {unmount} = renderApp(route);
-            expect(await screen.findByLabelText('Kontoname')).toBeVisible();
+            expect(await screen.findByLabelText('E-Mail-Adresse')).toBeVisible();
             expect(screen.queryAllByRole('navigation', {name: 'Hauptnavigation'})).toHaveLength(0);
             expect(screen.queryAllByRole('navigation', {name: 'Admin-Navigation'})).toHaveLength(0);
             unmount();
@@ -383,12 +383,12 @@ describe('app shell', () => {
         });
         renderApp('/poll/example');
 
-        fireEvent.change(await screen.findByLabelText('Kontoname'), {target: {value: 'alice'}});
+        fireEvent.change(await screen.findByLabelText('E-Mail-Adresse'), {target: {value: 'alice@example.test'}});
         fireEvent.change(screen.getByLabelText('Passwort'), {target: {value: 'secret-password'}});
         fireEvent.click(screen.getByRole('button', {name: 'Anmelden'}));
 
         expect(await screen.findByRole('heading', {name: 'Erinnerte Abstimmung', level: 1})).toBeVisible();
-        expect(login).toHaveBeenCalledWith({username: 'alice', password: 'secret-password'});
+        expect(login).toHaveBeenCalledWith({email: 'alice@example.test', password: 'secret-password'});
     });
 
     it('shows the uniform error for rejected credentials', async () => {
@@ -396,12 +396,12 @@ describe('app shell', () => {
         vi.spyOn(apiClient, 'login').mockRejectedValue(problemError({code: 'invalid-credentials'}, 401));
         renderApp('/login');
 
-        fireEvent.change(await screen.findByLabelText('Kontoname'), {target: {value: 'alice'}});
+        fireEvent.change(await screen.findByLabelText('E-Mail-Adresse'), {target: {value: 'alice@example.test'}});
         fireEvent.change(screen.getByLabelText('Passwort'), {target: {value: 'wrong'}});
         fireEvent.click(screen.getByRole('button', {name: 'Anmelden'}));
 
-        expect(await screen.findByRole('alert')).toHaveTextContent('Kontoname oder Passwort ist falsch.');
-        expect(screen.getByLabelText('Kontoname')).toHaveFocus();
+        expect(await screen.findByRole('alert')).toHaveTextContent('E-Mail-Adresse oder Passwort ist falsch.');
+        expect(screen.getByLabelText('E-Mail-Adresse')).toHaveFocus();
     });
 
     it('signs out from the account panel and shows the login page', async () => {
@@ -411,13 +411,13 @@ describe('app shell', () => {
         renderApp('/polls');
 
         const sidebar = screen.getByRole('complementary', {name: 'JustVotes'});
-        expect(within(sidebar).getByText('account-alice')).toBeVisible();
+        expect(within(sidebar).getByText('alice@example.test')).toBeVisible();
         // Let the background session probe of the first render settle before signing out.
         await waitFor(() => expect(queryClient.isFetching()).toBe(0));
         fireEvent.click(within(sidebar).getByRole('button', {name: 'Abmelden'}));
         await waitFor(() => expect(logout).toHaveBeenCalled());
 
-        expect(await screen.findByLabelText('Kontoname')).toBeVisible();
+        expect(await screen.findByLabelText('E-Mail-Adresse')).toBeVisible();
         expect(logout).toHaveBeenCalledTimes(1);
     });
 });

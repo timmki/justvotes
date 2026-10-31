@@ -8,8 +8,7 @@ Persistenz über Flyway `V7__local_accounts.sql`.
 | Typ | Regeln |
 |---|---|
 | `AccountId` | Opaque, serverseitig vergeben (Long intern, nach außen über `OpaqueIdCodec` mit Präfix `a`). |
-| `AccountName` | 3–32 Codepoints, `[A-Za-z0-9._-]`, nicht nur Ziffern; `normalized()` = Kleinschreibung (`Locale.ROOT`) für Eindeutigkeit. |
-| `EmailAddress` | 3–254 Zeichen, genau ein `@`, nicht leer davor/danach; `normalized()` = Kleinschreibung. |
+| `EmailAddress` | 3–254 Zeichen, genau ein `@`, nicht leer davor/danach; `normalized()` = Kleinschreibung. Dient als Anmeldename; einen getrennten Kontonamen gibt es nicht (Clarification 2026-10-31). |
 | `Identity` (account-seitig `AccountIdentity`) | Gleiche Regeln wie `poll-management` `Identity` (1–64 Codepoints); zusätzlich keine führenden/abschließenden Leerzeichen; `normalized()` = Kleinschreibung für Eindeutigkeit. Gespeichert wird der eingegebene Wert. |
 | `Password` | 12–128 Codepoints, nicht nur Leerraum; existiert nur transient, wird nie gespeichert (siehe research R3). |
 | `PasswordHash` | Opaque String mit Encoder-Präfix; Erzeugung/Prüfung über Out-Port `PasswordHasher`. |
@@ -22,10 +21,9 @@ Persistenz über Flyway `V7__local_accounts.sql`.
 | Feld | Typ | Bemerkung |
 |---|---|---|
 | id | `AccountId` | |
-| name | `AccountName` | eindeutig (normalisiert) |
 | role | `Role` | `ADMIN` genau einmal, nur über Bootstrap |
 | identity | `AccountIdentity?` | Pflicht bei `USER`, leer bei `ADMIN`; unveränderlich |
-| email | `EmailAddress?` | Pflicht bei `USER`, leer bei `ADMIN`; eindeutig (normalisiert) |
+| email | `EmailAddress` | Pflicht bei beiden Rollen; Anmeldename, eindeutig (normalisiert). Bei `USER` aus der Einladung, bei `ADMIN` aus `ADMIN_EMAIL` (folgt einer geänderten Konfiguration) |
 | status | `AccountStatus` | |
 | passwordHash | `PasswordHash` | |
 | passwordChangeRequired | boolean | true nach Einmalpasswort |
@@ -117,10 +115,9 @@ Ein Fehler bei der Kontoanlage (Name/Identität vergeben) lässt die Einladung
 
 ```text
 Account(id INTEGER PK AUTOINCREMENT,
-        name TEXT NOT NULL, nameKey TEXT NOT NULL UNIQUE,
         role TEXT NOT NULL CHECK (role IN ('USER','ADMIN')),
         identity TEXT NULL, identityKey TEXT NULL UNIQUE,
-        email TEXT NULL, emailKey TEXT NULL UNIQUE,
+        email TEXT NOT NULL, emailKey TEXT NOT NULL UNIQUE,
         status TEXT NOT NULL CHECK (status IN ('ACTIVE','LOCKED')),
         passwordHash TEXT NOT NULL,
         passwordChangeRequired INTEGER NOT NULL DEFAULT 0,
@@ -155,4 +152,6 @@ Spaltennamen folgen der bestehenden Konvention mit gequoteten camelCase-Namen.
 - Der HTTP-Adapter erzeugt `pollmanagement.core.model.Identity` aus
   `Account.identity` des angemeldeten Principals.
 - `Poll.createdBy` und `PollDomainEvent.actorId` für Administrationsaktionen
-  bleiben der Kontoname des Administrators.
+  sind der feste Principal-Name `admin`, nicht die E-Mail-Adresse; so bleiben
+  Entwürfe bei geänderter `ADMIN_EMAIL` zugeordnet und das Prüfprotokoll zeigt
+  keine Adresse.

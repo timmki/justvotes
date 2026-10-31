@@ -2,7 +2,6 @@ package de.justvotes.adapters.accountmanagement.infra.in.http;
 
 import de.justvotes.accountmanagement.core.model.Account;
 import de.justvotes.accountmanagement.core.model.AccountIdentity;
-import de.justvotes.accountmanagement.core.model.EmailAddress;
 import de.justvotes.accountmanagement.core.model.Invitation;
 import de.justvotes.accountmanagement.core.model.InvitationOverview;
 import de.justvotes.accountmanagement.core.model.Role;
@@ -35,25 +34,24 @@ public final class AccountResponseMapper {
     }
 
     public static CurrentSession session(Account account) {
-        return new CurrentSession(account.name().value(), role(account.role()), account.passwordChangeRequired())
+        return new CurrentSession(account.email().value(), role(account.role()), account.passwordChangeRequired())
                 .identity(account.identity().map(AccountIdentity::value).orElse(null));
     }
 
     public static AuthenticatedAccount authenticated(Account account) {
-        return new AuthenticatedAccount(account.id().orElseThrow().value(), account.name().value(),
+        return new AuthenticatedAccount(account.id().orElseThrow().value(), account.email().value(),
                 role(account.role()).getValue(), account.identity().map(AccountIdentity::value).orElse(null));
     }
 
     public static AccountSummary summary(Account account) {
         return new AccountSummary(
                 OpaqueIdCodec.encode(ACCOUNT_ID_KIND, account.id().orElseThrow().value()),
-                account.name().value(),
+                account.email().value(),
                 role(account.role()),
                 AccountStatus.fromValue(account.status().name().toLowerCase(Locale.ROOT)),
                 account.passwordChangeRequired(),
                 utc(account.createdAt()))
-                .identity(account.identity().map(AccountIdentity::value).orElse(null))
-                .email(account.email().map(EmailAddress::value).orElse(null));
+                .identity(account.identity().map(AccountIdentity::value).orElse(null));
     }
 
     public static InvitationSummary summary(InvitationOverview overview) {

@@ -60,7 +60,7 @@ offenen Klärungen.
 
 ## R5 – Anmeldedrosselung
 
-- **Decision**: In-Memory-Drosselung pro normalisiertem Kontonamen
+- **Decision**: In-Memory-Drosselung pro normalisierter E-Mail-Adresse
   (unabhängig davon, ob das Konto existiert): ab 5 aufeinanderfolgenden
   Fehlversuchen exponentielle Sperrfrist ab 30 s, verdoppelt bis maximal 15 min;
   Erfolg setzt zurück. Gedrosselte Anfragen erhalten `429` mit `Retry-After`
@@ -114,7 +114,7 @@ offenen Klärungen.
 ## R8 – Initiales Administratorkonto
 
 - **Decision**: Beim Start legt `AccountManagementConfiguration` das
-  Administratorkonto aus `ADMIN_USERNAME`/`ADMIN_PASSWORD_HASH` an, falls noch
+  Administratorkonto aus `ADMIN_EMAIL`/`ADMIN_PASSWORD_HASH` an, falls noch
   keins existiert. Ein bestehendes Administratorkonto wird nicht überschrieben,
   damit ein in der Anwendung geänderter Passwort-Hash erhalten bleibt. Mit
   `ADMIN_PASSWORD_RESET=true` wird der Hash aus der Umgebung einmalig erneut
@@ -152,7 +152,7 @@ offenen Klärungen.
 
 - **Decision**: `PublicPollController` und `IdentityController` lesen die
   Identität aus dem Request-Attribut `AuthenticatedAccount` (`accountId`,
-  `accountName`, `role`, `identity`), das der `SessionValidationFilter` aus der
+  `email`, `role`, `identity`), das der `SessionValidationFilter` aus der
   geprüften Sitzung setzt, nicht mehr aus dem `userID`-Cookie. So bleibt
   `adapters` frei von Spring Security (siehe plan.md, Adapter-/Security-Grenze).
   `ManageVotes.changeIdentity`, `IdentityCookieCodec`, `POST /identity`,
@@ -177,13 +177,12 @@ offenen Klärungen.
 
 - **Decision**: Strukturierte JSON-Logeinträge (vorhandenes
   `logstash-logback-encoder`) mit Logger `justvotes.security`, Feldern
-  `event`, `accountId`, `accountName` und Zeitpunkt. Bei `login-failed` und
-  `login-throttled` für einen nicht existierenden Kontonamen wird der
-  eingegebene Name nicht geloggt, sondern nur `nameFingerprint` = die ersten
-  12 Hex-Zeichen von SHA-256 über den normalisierten Namen – ein versehentlich
-  ins Namensfeld getipptes Passwort gelangt so nicht ins Log, wiederholte
-  Versuche bleiben korrelierbar. Bei existierenden Konten werden `accountId`
-  und `accountName` geloggt. Nie Passwörter oder
+  `event`, `accountId` (bei Administrationsaktionen zusätzlich `actorId`) und
+  Zeitpunkt; E-Mail-Adressen werden nie geloggt. Bei `login-failed` und
+  `login-throttled` wird die eingegebene Adresse nicht geloggt, sondern nur
+  `emailFingerprint` = die ersten 12 Hex-Zeichen von SHA-256 über die
+  normalisierte Eingabe – ein versehentlich ins E-Mail-Feld getipptes Passwort
+  gelangt so nicht ins Log, wiederholte Versuche bleiben korrelierbar. Nie Passwörter oder
   Tokens. Keine eigene Tabelle und keine Oberfläche in dieser Version.
   Umsetzung als `SecurityEventLogger` in `adapters/shared/infra/in/http`
   (nur SLF4J), damit sowohl die Admin-Controller in `adapters` als auch
@@ -210,7 +209,7 @@ offenen Klärungen.
   Die Route `/invitation` ist für beide Zustände registriert und wird nie
   rollenabhängig umgeleitet: Ohne Sitzung zeigt sie das Formular zum
   Vervollständigen; mit Sitzung zeigt sie den Hinweis „Du bist als
-  `Kontoname` angemeldet – zum Annehmen der Einladung bitte abmelden“ mit
+  `E-Mail-Adresse` angemeldet – zum Annehmen der Einladung bitte abmelden“ mit
   Abmelde-Schaltfläche. Das Token aus dem Fragment wird beim ersten Rendern in
   `sessionStorage` übernommen und aus der URL entfernt, damit es die Abmeldung
   übersteht; nach der Abmeldung lädt die Seite die Prüfung

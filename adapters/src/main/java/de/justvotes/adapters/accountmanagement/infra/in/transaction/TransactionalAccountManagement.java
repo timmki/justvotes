@@ -25,8 +25,8 @@ public class TransactionalAccountManagement implements Authenticate, ViewAccount
     }
 
     @Override
-    public Account authenticate(String accountName, String rawPassword) {
-        return transactions.execute(() -> accounts.authenticate(accountName, rawPassword));
+    public Account authenticate(String email, String rawPassword) {
+        return transactions.execute(() -> accounts.authenticate(email, rawPassword));
     }
 
     @Override
@@ -60,7 +60,7 @@ public class TransactionalAccountManagement implements Authenticate, ViewAccount
     }
 
     @Override
-    public AdminProvisioning provisionAdmin(String accountName, String passwordHash, boolean resetPassword) {
-        return transactions.execute(() -> accounts.provisionAdmin(accountName, passwordHash, resetPassword));
+    public AdminProvisioning provisionAdmin(String email, String passwordHash, boolean resetPassword) {
+        return transactions.execute(() -> accounts.provisionAdmin(email, passwordHash, resetPassword));
     }
 }

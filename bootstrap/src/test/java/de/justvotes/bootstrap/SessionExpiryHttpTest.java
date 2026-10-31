@@ -25,7 +25,7 @@ class SessionExpiryHttpTest extends AccountHttpTestBase {
     @DynamicPropertySource
     static void applicationProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + DATABASE_PATH);
-        registry.add("ADMIN_USERNAME", () -> "systemadmin");
+        registry.add("ADMIN_EMAIL", () -> "systemadmin@example.test");
         registry.add("ADMIN_PASSWORD_HASH", () -> new BCryptPasswordEncoder().encode("password"));
         registry.add("justvotes.session.max-lifetime", () -> "PT3S");
     }
@@ -45,12 +45,12 @@ class SessionExpiryHttpTest extends AccountHttpTestBase {
         TransactionTemplate transactions = new TransactionTemplate(transactionManager);
 
         transactions.executeWithoutResult(status -> {
-            Account account = accounts.findByNameKey(AccountFixtures.accountName("Locked Later")).orElseThrow();
+            Account account = accounts.findByEmailKey(AccountFixtures.email("Locked Later")).orElseThrow();
             account.lock(Instant.now());
             accounts.save(account);
         });
         transactions.executeWithoutResult(status -> {
-            Account account = accounts.findByNameKey(AccountFixtures.accountName("Epoch Later")).orElseThrow();
+            Account account = accounts.findByEmailKey(AccountFixtures.email("Epoch Later")).orElseThrow();
             account.assignOneTimePassword(hasher.hash("new-one-time-pass"), Instant.now());
             accounts.save(account);
         });

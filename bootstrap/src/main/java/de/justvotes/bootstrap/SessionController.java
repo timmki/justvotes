@@ -74,22 +74,22 @@ class SessionController implements SessionApi {
 
     @Override
     public ResponseEntity<CurrentSession> login(Login login) {
-        String name = login.getUsername();
-        if (throttle.blockedFor(name).isPresent()) {
-            securityEvents.loginThrottled(name);
-            throw new LoginThrottledException(throttle.blockedFor(name).get());
+        String email = login.getEmail();
+        if (throttle.blockedFor(email).isPresent()) {
+            securityEvents.loginThrottled(email);
+            throw new LoginThrottledException(throttle.blockedFor(email).get());
         }
         Account account;
         try {
-            account = authentication.authenticate(name, login.getPassword());
+            account = authentication.authenticate(email, login.getPassword());
         } catch (InvalidCredentialsException exception) {
-            throttle.recordFailure(name);
-            securityEvents.loginFailed(name);
+            throttle.recordFailure(email);
+            securityEvents.loginFailed(email);
             throw exception;
         }
-        throttle.recordSuccess(name);
+        throttle.recordSuccess(email);
         sessions.establish(account, attributes().getRequest(), attributes().getResponse());
-        securityEvents.login(account.id().orElseThrow().value(), account.name().value());
+        securityEvents.login(account.id().orElseThrow().value());
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(AccountResponseMapper.session(account));
     }
 
@@ -105,7 +105,7 @@ class SessionController implements SessionApi {
         HttpServletResponse response = attributes().getResponse();
         AuthenticatedAccount account = AuthenticatedAccounts.current(request);
         logoutHandler.logout(request, response, SecurityContextHolder.getContext().getAuthentication());
-        securityEvents.logout(account.accountId(), account.accountName());
+        securityEvents.logout(account.accountId());
         return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();
     }
 
@@ -116,7 +116,7 @@ class SessionController implements SessionApi {
         Account account = credentials.changePassword(AccountId.of(current.accountId()), passwordChange.getCurrentPassword(),
                 passwordChange.getNewPassword());
         sessions.updateEpoch(account, request);
-        securityEvents.passwordChanged(current.accountId(), current.accountName());
+        securityEvents.passwordChanged(current.accountId());
         return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();
     }
 

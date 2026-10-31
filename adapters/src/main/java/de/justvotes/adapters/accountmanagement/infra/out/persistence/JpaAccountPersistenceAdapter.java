@@ -21,18 +21,13 @@ public final class JpaAccountPersistenceAdapter implements AccountRepository {
     }
 
     @Override
-    public Optional<Account> findByNameKey(String normalizedName) {
-        return accounts.findByNameKey(normalizedName).map(AccountEntity::toDomain);
+    public Optional<Account> findByEmailKey(String normalizedEmail) {
+        return accounts.findByEmailKey(normalizedEmail).map(AccountEntity::toDomain);
     }
 
     @Override
     public Optional<Account> findAdmin() {
         return accounts.findFirstByRole(Role.ADMIN.name()).map(AccountEntity::toDomain);
-    }
-
-    @Override
-    public boolean existsByNameKey(String normalizedName) {
-        return accounts.existsByNameKey(normalizedName);
     }
 
     @Override

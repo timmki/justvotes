@@ -9,24 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class ValueObjectsTest {
     @Test
-    void accountNameAcceptsThreeToThirtyTwoAllowedCharacters() {
-        assertDoesNotThrow(() -> AccountName.of("ann"));
-        assertDoesNotThrow(() -> AccountName.of("a".repeat(32)));
-        assertDoesNotThrow(() -> AccountName.of("Anna.M_1-x"));
-        assertEquals("anna.m_1-x", AccountName.of("Anna.M_1-x").normalized());
-    }
-
-    @Test
-    void accountNameRejectsInvalidValues() {
-        assertThrows(IllegalArgumentException.class, () -> AccountName.of(null));
-        assertThrows(IllegalArgumentException.class, () -> AccountName.of("ab"));
-        assertThrows(IllegalArgumentException.class, () -> AccountName.of("a".repeat(33)));
-        assertThrows(IllegalArgumentException.class, () -> AccountName.of("anna maria"));
-        assertThrows(IllegalArgumentException.class, () -> AccountName.of("Änna"));
-        assertThrows(IllegalArgumentException.class, () -> AccountName.of("12345"));
-    }
-
-    @Test
     void emailAddressRequiresExactlyOneAtWithTextAround() {
         assertEquals("anna@example.test", EmailAddress.of("Anna@Example.TEST").normalized());
         assertThrows(IllegalArgumentException.class, () -> EmailAddress.of("a@"));

@@ -45,7 +45,7 @@ class AdministrativeVotesHttpTest {
     @DynamicPropertySource
     static void applicationProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + DATABASE_PATH);
-        registry.add("ADMIN_USERNAME", () -> "systemadmin");
+        registry.add("ADMIN_EMAIL", () -> "systemadmin@example.test");
         registry.add("ADMIN_PASSWORD_HASH", () -> new BCryptPasswordEncoder().encode("password"));
     }
 
@@ -142,7 +142,7 @@ class AdministrativeVotesHttpTest {
         ResponseEntity<String> audit = bob.get(publicUrl + "/" + alpha + "/audit");
         assertEquals(200, audit.getStatusCode().value(), audit.getBody());
         assertTrue(audit.getBody().contains("\"event\":\"VoteRemovedByAdmin\""));
-        assertTrue(audit.getBody().contains("\"actor\":\"systemadmin\""));
+        assertTrue(audit.getBody().contains("\"actor\":\"admin\""));
         assertTrue(audit.getBody().contains("\"reason\":\"Regelverstoß\""));
         assertTrue(audit.getBody().contains("\"userID\":\"alice\""));
         assertTrue(audit.getBody().contains("\"optionNumber\":1"));
@@ -158,7 +158,7 @@ class AdministrativeVotesHttpTest {
         String cookies = cookies(csrf);
         ResponseEntity<String> login = client.exchange(RequestEntity.post(baseUrl + "/api/v1/session/login")
                 .contentType(MediaType.APPLICATION_JSON).header(HttpHeaders.COOKIE, cookies).header("X-XSRF-TOKEN", token)
-                .body("{\"username\":\"systemadmin\",\"password\":\"password\"}"), String.class);
+                .body("{\"email\":\"systemadmin@example.test\",\"password\":\"password\"}"), String.class);
         assertEquals(200, login.getStatusCode().value());
         return new AuthenticatedAdmin(client, cookies + "; " + cookies(login), token);
     }

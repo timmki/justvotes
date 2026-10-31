@@ -3,7 +3,6 @@ package de.justvotes.adapters.accountmanagement.infra.out.persistence;
 import de.justvotes.accountmanagement.core.model.Account;
 import de.justvotes.accountmanagement.core.model.AccountId;
 import de.justvotes.accountmanagement.core.model.AccountIdentity;
-import de.justvotes.accountmanagement.core.model.AccountName;
 import de.justvotes.accountmanagement.core.model.AccountStatus;
 import de.justvotes.accountmanagement.core.model.EmailAddress;
 import de.justvotes.accountmanagement.core.model.PasswordHash;
@@ -23,9 +22,6 @@ public class AccountEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
-    private String name;
-    @Column(name = "nameKey")
-    private String nameKey;
     private String role;
     private String identity;
     @Column(name = "identityKey")
@@ -66,13 +62,11 @@ public class AccountEntity {
     }
 
     void apply(Account account) {
-        name = account.name().value();
-        nameKey = account.name().normalized();
         role = account.role().name();
         identity = account.identity().map(AccountIdentity::value).orElse(null);
         identityKey = account.identity().map(AccountIdentity::normalized).orElse(null);
-        email = account.email().map(EmailAddress::value).orElse(null);
-        emailKey = account.email().map(EmailAddress::normalized).orElse(null);
+        email = account.email().value();
+        emailKey = account.email().normalized();
         status = account.status().name();
         passwordHash = account.passwordHash().value();
         passwordChangeRequired = flag(account.passwordChangeRequired());
@@ -85,11 +79,7 @@ public class AccountEntity {
         if (identity != null) {
             accountIdentity = AccountIdentity.of(identity);
         }
-        EmailAddress emailAddress = null;
-        if (email != null) {
-            emailAddress = EmailAddress.of(email);
-        }
-        return Account.restore(AccountId.of(id), AccountName.of(name), Role.valueOf(role), accountIdentity, emailAddress,
+        return Account.restore(AccountId.of(id), Role.valueOf(role), accountIdentity, EmailAddress.of(email),
                 AccountStatus.valueOf(status), PasswordHash.of(passwordHash), passwordChangeRequired != 0, sessionEpoch,
                 Instant.parse(createdAt), Instant.parse(updatedAt));
     }

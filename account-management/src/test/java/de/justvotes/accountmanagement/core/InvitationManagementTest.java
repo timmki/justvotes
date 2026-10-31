@@ -3,7 +3,6 @@ package de.justvotes.accountmanagement.core;
 import de.justvotes.accountmanagement.core.TestSupport.MutableClock;
 import de.justvotes.accountmanagement.core.TestSupport.RecordingMailer;
 import de.justvotes.accountmanagement.core.TestSupport.SequentialTokens;
-import de.justvotes.accountmanagement.core.exception.AccountNameTakenException;
 import de.justvotes.accountmanagement.core.exception.EmailAlreadyInvitedException;
 import de.justvotes.accountmanagement.core.exception.IdentityTakenException;
 import de.justvotes.accountmanagement.core.exception.InvitationDeliveryUnavailableException;
@@ -44,7 +43,7 @@ class InvitationManagementTest {
         IssuedInvitation issued = management.invite("anna@example.test");
         assertThrows(EmailAlreadyInvitedException.class, () -> management.invite("ANNA@example.test"));
 
-        management.accept(issued.token().value(), "anna", "Anna", PASSWORD);
+        management.accept(issued.token().value(), "Anna", PASSWORD);
         assertThrows(EmailAlreadyInvitedException.class, () -> management.invite("anna@example.test"));
     }
 
@@ -54,31 +53,30 @@ class InvitationManagementTest {
         String token = issued.token().value();
         assertEquals("anna@example.test", management.inspect(token).email().value());
 
-        Account account = management.accept(token, "anna", "Anna", PASSWORD);
+        Account account = management.accept(token, "Anna", PASSWORD);
 
         assertEquals(Role.USER, account.role());
         assertEquals("Anna", account.identity().orElseThrow().value());
-        assertEquals("anna@example.test", account.email().orElseThrow().value());
+        assertEquals("anna@example.test", account.email().value());
         InvitationId id = issued.invitation().id().orElseThrow();
         assertEquals(InvitationState.ACCEPTED, management.invitation(id).state());
         assertThrows(InvitationNotUsableException.class, () -> management.inspect(token));
-        assertThrows(InvitationNotUsableException.class, () -> management.accept(token, "anna2", "Anna2", PASSWORD));
+        assertThrows(InvitationNotUsableException.class, () -> management.accept(token, "Anna2", PASSWORD));
         assertThrows(InvitationNotUsableException.class, () -> management.inspect("unknown-token"));
     }
 
     @Test
     void takenNameOrIdentityLeavesInvitationOpen() {
         String first = management.invite("anna@example.test").token().value();
-        management.accept(first, "anna", "Anna", PASSWORD);
+        management.accept(first, "Anna", PASSWORD);
         IssuedInvitation second = management.invite("bob@example.test");
         String token = second.token().value();
 
-        assertThrows(AccountNameTakenException.class, () -> management.accept(token, "ANNA", "Bob", PASSWORD));
-        assertThrows(IdentityTakenException.class, () -> management.accept(token, "bob", "anna", PASSWORD));
-        assertThrows(PasswordPolicyViolationException.class, () -> management.accept(token, "bob", "Bob", "short"));
+        assertThrows(IdentityTakenException.class, () -> management.accept(token, "anna", PASSWORD));
+        assertThrows(PasswordPolicyViolationException.class, () -> management.accept(token, "Bob", "short"));
         assertEquals(InvitationState.OPEN, management.invitation(second.invitation().id().orElseThrow()).state());
 
-        management.accept(token, "bob", "Bob", PASSWORD);
+        management.accept(token, "Bob", PASSWORD);
     }
 
     @Test
@@ -105,7 +103,7 @@ class InvitationManagementTest {
         assertThrows(InvitationNotUsableException.class, () -> management.inspect(issued.token().value()));
         IssuedInvitation resent = management.resend(id);
         assertEquals(InvitationState.OPEN, management.invitation(id).state());
-        management.accept(resent.token().value(), "anna", "Anna", PASSWORD);
+        management.accept(resent.token().value(), "Anna", PASSWORD);
     }
 
     @Test

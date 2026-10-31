@@ -66,11 +66,11 @@ class InvitationAcceptanceController implements InvitationsApi {
         if (authenticated()) {
             throw new AlreadyAuthenticatedException();
         }
-        Account account = invitations.accept(acceptance.getToken(), acceptance.getUsername(), acceptance.getUserID(),
+        Account account = invitations.accept(acceptance.getToken(), acceptance.getUserID(),
                 acceptance.getPassword());
         ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
         sessions.establish(account, attributes.getRequest(), attributes.getResponse());
-        securityEvents.invitationAccepted(account.id().orElseThrow().value(), account.name().value());
+        securityEvents.invitationAccepted(account.id().orElseThrow().value());
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(AccountResponseMapper.session(account));
     }
 

@@ -34,15 +34,15 @@ tags:
 x-status-matrix:
   description: Central inventory used to reconcile operation responses and HTTP tests.
   statuses:
-    '400': malformed JSON, bean validation, or invalid opaque identifier
+    '400': malformed JSON, bean validation, invalid opaque identifier, or a rejected account value (`invalid-account-input` with `field` and `rule`)
     '401': missing, expired or invalidated session (`authentication-required`), or invalid login credentials (`invalid-credentials`)
     '403': missing/invalid CSRF token, insufficient role (`access-denied`), or pending password change (`password-change-required`)
     '404': missing resource or unknown route
     '405': unsupported HTTP method
-    '409': illegal poll transition, duplicate name, conflicting state, or account and invitation conflicts (`account-name-taken`, `identity-taken`, `email-already-invited`, `invitation-not-usable`, `invitation-delivery-unavailable`, `account-not-manageable`, `already-authenticated`)
+    '409': illegal poll transition, duplicate name, conflicting state, or account and invitation conflicts (`identity-taken`, `email-already-invited`, `invitation-not-usable`, `invitation-delivery-unavailable`, `account-not-manageable`, `already-authenticated`)
     '415': unsupported request media type
     '422': password rejected (`password-policy-violation`, `current-password-invalid`)
-    '429': too many failed logins for an account name (`login-throttled`), with `Retry-After`
+    '429': too many failed logins for an email address (`login-throttled`), with `Retry-After`
   responseSchema: '#/components/schemas/Problem'
 paths:
   /csrf:
@@ -192,7 +192,7 @@ paths:
       tags:
         - Invitations
       operationId: acceptInvitation
-      description: Available without a session. Creates a user account with the chosen account name, fixed identity and password and signs it in. Rejected with `already-authenticated` while a session exists.
+      description: Available without a session. Creates a user account for the invited email address with the chosen fixed identity and password and signs it in. Rejected with `already-authenticated` while a session exists.
       security:
         - csrf: [ ]
           csrfCookie: [ ]
@@ -1037,7 +1037,7 @@ paths:
       operationId: accounts
       responses:
         '200':
-          description: All accounts, administrator first, then by account name.
+          description: All accounts, administrator first, then by email address.
           headers:
             Cache-Control:
               $ref: '#/components/headers/NoStore'
@@ -1517,7 +1517,7 @@ components:
           schema:
             $ref: '#/components/schemas/Problem'
     TooManyRequests:
-      description: Too many failed logins for this account name (`login-throttled`).
+      description: Too many failed logins for this email address (`login-throttled`).
       headers:
         Cache-Control:
           $ref: '#/components/headers/NoStore'
@@ -1641,12 +1641,13 @@ components:
       type: object
       additionalProperties: false
       required:
-        - username
+        - email
         - password
       properties:
-        username:
+        email:
           type: string
           minLength: 1
+          description: The email address of the account; compared ignoring case.
         password:
           type: string
           minLength: 1
@@ -1664,10 +1665,11 @@ components:
     CurrentSession:
       type: object
       additionalProperties: false
-      required: [accountName, role, passwordChangeRequired]
+      required: [email, role, passwordChangeRequired]
       properties:
-        accountName:
+        email:
           type: string
+          description: The email address the account signs in with.
         role:
           $ref: '#/components/schemas/AccountRole'
         identity:
@@ -1710,16 +1712,12 @@ components:
     InvitationAcceptance:
       type: object
       additionalProperties: false
-      required: [token, username, userID, password]
+      required: [token, userID, password]
       properties:
         token:
           type: string
           minLength: 1
           maxLength: 256
-        username:
-          type: string
-          description: 3 to 32 characters from `A-Z a-z 0-9 . _ -`, not only digits; unique ignoring case.
-          minLength: 1
         userID:
           type: string
           description: The fixed identity, 1 to 64 Unicode code points without surrounding whitespace; unique ignoring case.
@@ -1767,18 +1765,15 @@ components:
     AccountSummary:
       type: object
       additionalProperties: false
-      required: [accountId, accountName, role, status, passwordChangeRequired, createdAt]
+      required: [accountId, email, role, status, passwordChangeRequired, createdAt]
       properties:
         accountId:
           $ref: '#/components/schemas/AccountId'
-        accountName:
+        email:
           type: string
         role:
           $ref: '#/components/schemas/AccountRole'
         identity:
-          type: string
-          nullable: true
-        email:
           type: string
           nullable: true
         status:
@@ -2205,3 +2200,9 @@ components:
           format: uri-reference
         code:
           type: string
+        field:
+          type: string
+          description: Only for `invalid-account-input`; the rejected request property (`userID`).
+        rule:
+          type: string
+          description: Only for `invalid-account-input`; the broken rule (`length` or `whitespace`).

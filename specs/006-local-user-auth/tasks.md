@@ -358,3 +358,15 @@ Task: "InvitationPage in frontend/src/features/auth/InvitationPage.tsx"
 - Änderungen an `justvotes-v1.yaml` erfolgen pro Story inkrementell; nach jeder
   Änderung Generatoren laufen lassen, generierte Quellen nicht committen
 - Commit nach jeder Task oder logischen Gruppe
+
+## Phase 9: Änderung – E-Mail-Adresse als Anmeldename (Clarification 2026-10-31)
+
+**Goal**: Kein separater Kontoname mehr; alle Konten melden sich mit ihrer E-Mail-Adresse an, die Identität bleibt als sichtbarer Anzeigename.
+
+- [X] T093 Remove `AccountName`/`AccountNameTakenException`; make `Account.email` mandatory for both roles, add `Account.changeAdminEmail`; `Authenticate`, `AcceptInvitation`, `ProvisionAdmin` work with the email address; `AccountRepository.findByEmailKey` replaces the name lookup per FR-010, FR-020, FR-028
+- [X] T094 Drop `name`/`nameKey` from `V7__local_accounts.sql` (not yet released), make `email`/`emailKey` NOT NULL UNIQUE; adapt `AccountEntity` and Spring Data repository per data-model.md
+- [X] T095 Replace `ADMIN_USERNAME` with `ADMIN_EMAIL` in `AccountManagementConfiguration`, CI, `bootstrap/dev.env`, README; an existing administrator follows a changed address, a user-owned address stops the start per FR-028
+- [X] T096 Contract: `Login {email, password}`, `CurrentSession.email`, `AccountSummary.email` (required), `InvitationAcceptance` without `username`, `invalid-account-input` only for `userID`; remove `account-name-taken` per contracts/openapi-delta.md
+- [X] T097 Security log and principal: events carry `accountId`/`actorId` and `emailFingerprint`, never an email address; principal name is `admin` or the identity so poll creator and audit actor reveal no address per FR-032, SC-008
+- [X] T098 Frontend: login with email address, invitation page shows the invited address read-only and asks for display name and password with field-level errors, accounts table keyed by email, texts and invitation mail updated per US1, US2, FR-034
+- [X] T099 Update all affected backend, frontend and e2e tests; run full quality gates

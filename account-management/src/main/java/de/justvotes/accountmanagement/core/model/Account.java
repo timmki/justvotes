@@ -10,15 +10,14 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * A local account. User accounts own exactly one fixed identity and an email address; the single
- * administrator account owns neither and can never be locked.
+ * A local account, signed in with its unique email address. User accounts also own exactly one fixed
+ * identity; the single administrator account owns none and can never be locked.
  */
 public final class Account {
     private final AccountId id;
-    private final AccountName name;
     private final Role role;
     private final AccountIdentity identity;
-    private final EmailAddress email;
+    private EmailAddress email;
     private final Instant createdAt;
     private AccountStatus status;
     private PasswordHash passwordHash;
@@ -26,11 +25,11 @@ public final class Account {
     private int sessionEpoch;
     private Instant updatedAt;
 
-    private Account(AccountId id, AccountName name, Role role, AccountIdentity identity, EmailAddress email,
+    private Account(AccountId id, Role role, AccountIdentity identity, EmailAddress email,
                     AccountStatus status, PasswordHash passwordHash, boolean passwordChangeRequired,
                     int sessionEpoch, Instant createdAt, Instant updatedAt) {
         this.id = id;
-        this.name = Objects.requireNonNull(name, "An account requires a name.");
+        this.email = Objects.requireNonNull(email, "An account requires an email address.");
         this.role = Objects.requireNonNull(role, "An account requires a role.");
         this.status = Objects.requireNonNull(status, "An account requires a status.");
         this.passwordHash = Objects.requireNonNull(passwordHash, "An account requires a password hash.");
@@ -39,38 +38,36 @@ public final class Account {
         if (sessionEpoch < 0) {
             throw new IllegalArgumentException("A session epoch must not be negative.");
         }
-        if (role == Role.USER && (identity == null || email == null)) {
-            throw new IllegalArgumentException("A user account requires an identity and an email address.");
+        if (role == Role.USER && identity == null) {
+            throw new IllegalArgumentException("A user account requires an identity.");
         }
-        if (role == Role.ADMIN && (identity != null || email != null)) {
-            throw new IllegalArgumentException("The administrator account has neither identity nor email address.");
+        if (role == Role.ADMIN && identity != null) {
+            throw new IllegalArgumentException("The administrator account has no identity.");
         }
         if (role == Role.ADMIN && status != AccountStatus.ACTIVE) {
             throw new IllegalArgumentException("The administrator account is always active.");
         }
         this.identity = identity;
-        this.email = email;
         this.passwordChangeRequired = passwordChangeRequired;
         this.sessionEpoch = sessionEpoch;
     }
 
-    public static Account createUser(AccountName name, AccountIdentity identity, EmailAddress email,
-                                     PasswordHash passwordHash, Instant now) {
-        return new Account(null, name, Role.USER, identity, email, AccountStatus.ACTIVE, passwordHash,
+    public static Account createUser(AccountIdentity identity, EmailAddress email, PasswordHash passwordHash, Instant now) {
+        return new Account(null, Role.USER, identity, email, AccountStatus.ACTIVE, passwordHash,
                 false, 0, now, now);
     }
 
-    public static Account createAdmin(AccountName name, PasswordHash passwordHash, Instant now) {
-        return new Account(null, name, Role.ADMIN, null, null, AccountStatus.ACTIVE, passwordHash,
+    public static Account createAdmin(EmailAddress email, PasswordHash passwordHash, Instant now) {
+        return new Account(null, Role.ADMIN, null, email, AccountStatus.ACTIVE, passwordHash,
                 false, 0, now, now);
     }
 
-    public static Account restore(AccountId id, AccountName name, Role role, AccountIdentity identity,
+    public static Account restore(AccountId id, Role role, AccountIdentity identity,
                                   EmailAddress email, AccountStatus status, PasswordHash passwordHash,
                                   boolean passwordChangeRequired, int sessionEpoch, Instant createdAt,
                                   Instant updatedAt) {
         Objects.requireNonNull(id, "A restored account requires an ID.");
-        return new Account(id, name, role, identity, email, status, passwordHash, passwordChangeRequired,
+        return new Account(id, role, identity, email, status, passwordHash, passwordChangeRequired,
                 sessionEpoch, createdAt, updatedAt);
     }
 
@@ -136,6 +133,17 @@ public final class Account {
         updatedAt = now;
     }
 
+    /**
+     * Follows a changed ADMIN_EMAIL; existing sessions stay valid because the account itself is unchanged.
+     */
+    public void changeAdminEmail(EmailAddress newEmail, Instant now) {
+        if (role != Role.ADMIN) {
+            throw new AccountNotManageableException();
+        }
+        email = Objects.requireNonNull(newEmail, "An email address is required.");
+        updatedAt = now;
+    }
+
     private void requireUser() {
         if (role != Role.USER) {
             throw new AccountNotManageableException();
@@ -146,10 +154,6 @@ public final class Account {
         return Optional.ofNullable(id);
     }
 
-    public AccountName name() {
-        return name;
-    }
-
     public Role role() {
         return role;
     }
@@ -158,8 +162,8 @@ public final class Account {
         return Optional.ofNullable(identity);
     }
 
-    public Optional<EmailAddress> email() {
-        return Optional.ofNullable(email);
+    public EmailAddress email() {
+        return email;
     }
 
     public AccountStatus status() {

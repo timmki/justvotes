@@ -64,12 +64,12 @@ public class TransactionalInvitationManagement implements ManageInvitations, Acc
     }
 
     @Override
-    public Account accept(String token, String accountName, String identity, String password) {
+    public Account accept(String token, String identity, String password) {
         try {
-            return transactions.execute(() -> invitations.accept(token, accountName, identity, password));
+            return transactions.execute(() -> invitations.accept(token, identity, password));
         } catch (DataAccessException concurrentAcceptance) {
-            // A parallel acceptance won the unique index; the second attempt reports the taken name or identity.
-            return transactions.execute(() -> invitations.accept(token, accountName, identity, password));
+            // A parallel acceptance won the unique index; the second attempt reports the taken identity.
+            return transactions.execute(() -> invitations.accept(token, identity, password));
         }
     }
 }

@@ -4,11 +4,11 @@ import {queryClient} from '../shared/api/queryClient';
 import {queryKeys} from '../shared/api/queryKeys';
 
 export function userSession(identity = 'alice', overrides: Partial<CurrentSession> = {}): CurrentSession {
-    return {accountName: `account-${identity}`.replace(/[^A-Za-z0-9._-]/g, '-'), role: 'user', identity, passwordChangeRequired: false, ...overrides};
+    return {email: `${identity.toLowerCase().replace(/[^a-z0-9]/g, '-')}@example.test`, role: 'user', identity, passwordChangeRequired: false, ...overrides};
 }
 
 export function adminSession(overrides: Partial<CurrentSession> = {}): CurrentSession {
-    return {accountName: 'systemadmin', role: 'admin', identity: null, passwordChangeRequired: false, ...overrides};
+    return {email: 'systemadmin@example.test', role: 'admin', identity: null, passwordChangeRequired: false, ...overrides};
 }
 
 /**

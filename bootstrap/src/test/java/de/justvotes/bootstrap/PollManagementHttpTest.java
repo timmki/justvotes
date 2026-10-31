@@ -50,7 +50,7 @@ class PollManagementHttpTest {
     @DynamicPropertySource
     static void applicationProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + DATABASE_PATH);
-        registry.add("ADMIN_USERNAME", () -> "systemadmin");
+        registry.add("ADMIN_EMAIL", () -> "systemadmin@example.test");
         registry.add("ADMIN_PASSWORD_HASH", () -> new BCryptPasswordEncoder().encode("password"));
     }
 

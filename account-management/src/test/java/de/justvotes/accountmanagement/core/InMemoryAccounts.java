@@ -21,18 +21,13 @@ final class InMemoryAccounts implements AccountRepository {
     }
 
     @Override
-    public Optional<Account> findByNameKey(String normalizedName) {
-        return accounts.values().stream().filter(account -> account.name().normalized().equals(normalizedName)).findFirst();
+    public Optional<Account> findByEmailKey(String normalizedEmail) {
+        return accounts.values().stream().filter(account -> account.email().normalized().equals(normalizedEmail)).findFirst();
     }
 
     @Override
     public Optional<Account> findAdmin() {
         return accounts.values().stream().filter(account -> account.role() == Role.ADMIN).findFirst();
-    }
-
-    @Override
-    public boolean existsByNameKey(String normalizedName) {
-        return findByNameKey(normalizedName).isPresent();
     }
 
     @Override
@@ -43,8 +38,7 @@ final class InMemoryAccounts implements AccountRepository {
 
     @Override
     public boolean existsByEmailKey(String normalizedEmail) {
-        return accounts.values().stream().anyMatch(account -> account.email()
-                .map(email -> email.normalized().equals(normalizedEmail)).orElse(false));
+        return findByEmailKey(normalizedEmail).isPresent();
     }
 
     @Override
@@ -59,8 +53,8 @@ final class InMemoryAccounts implements AccountRepository {
             return account;
         }
         long id = nextId++;
-        Account stored = Account.restore(AccountId.of(id), account.name(), account.role(), account.identity().orElse(null),
-                account.email().orElse(null), account.status(), account.passwordHash(), account.passwordChangeRequired(),
+        Account stored = Account.restore(AccountId.of(id), account.role(), account.identity().orElse(null),
+                account.email(), account.status(), account.passwordHash(), account.passwordChangeRequired(),
                 account.sessionEpoch(), account.createdAt(), account.updatedAt());
         accounts.put(id, stored);
         return stored;

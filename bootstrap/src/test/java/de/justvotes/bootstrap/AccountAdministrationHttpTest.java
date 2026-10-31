@@ -25,17 +25,17 @@ class AccountAdministrationHttpTest extends AccountHttpTestBase {
     @DynamicPropertySource
     static void applicationProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + DATABASE_PATH);
-        registry.add("ADMIN_USERNAME", () -> "systemadmin");
+        registry.add("ADMIN_EMAIL", () -> "systemadmin@example.test");
         registry.add("ADMIN_PASSWORD_HASH", () -> new BCryptPasswordEncoder().encode("password"));
     }
 
-    private static String accountId(TestSession admin, String path, String accountName) {
+    private static String accountId(TestSession admin, String path, String email) {
         for (JsonNode account : json(admin.get(path))) {
-            if (account.path("accountName").asText().equals(accountName)) {
+            if (account.path("email").asText().equals(email)) {
                 return account.path("accountId").asText();
             }
         }
-        throw new AssertionError("No account " + accountName);
+        throw new AssertionError("No account " + email);
     }
 
     @Test
@@ -62,7 +62,7 @@ class AccountAdministrationHttpTest extends AccountHttpTestBase {
 
     @Test
     void lockingEndsSessionsAndBlocksLoginUntilUnlocked() {
-        String name = AccountFixtures.accountName("Lockable");
+        String name = AccountFixtures.email("Lockable");
         TestSession user = fixtures().loginAsUser("Lockable");
         TestSession admin = fixtures().loginAsAdmin();
         String id = accountId(admin, url("/admin/accounts"), name);
@@ -79,7 +79,7 @@ class AccountAdministrationHttpTest extends AccountHttpTestBase {
 
     @Test
     void oneTimePasswordForcesAPasswordChangeBeforeAnythingElse() {
-        String name = AccountFixtures.accountName("Forgetful");
+        String name = AccountFixtures.email("Forgetful");
         TestSession user = fixtures().loginAsUser("Forgetful");
         TestSession admin = fixtures().loginAsAdmin();
         String id = accountId(admin, url("/admin/accounts"), name);
@@ -105,7 +105,7 @@ class AccountAdministrationHttpTest extends AccountHttpTestBase {
     @Test
     void theAdministratorAccountCannotBeLockedOrReset() {
         TestSession admin = fixtures().loginAsAdmin();
-        String id = accountId(admin, url("/admin/accounts"), "systemadmin");
+        String id = accountId(admin, url("/admin/accounts"), "systemadmin@example.test");
         assertProblem(admin.post(url("/admin/accounts/" + id + "/lock")), 409, "account-not-manageable");
         assertProblem(admin.post(url("/admin/accounts/" + id + "/one-time-password")), 409, "account-not-manageable");
         assertProblem(admin.post(url("/admin/accounts/" + OpaqueIdCodec.encode("a", 999_999L) + "/lock")), 404, "resource-not-found");

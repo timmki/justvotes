@@ -27,13 +27,21 @@
 - Q: Ist der Administrator auch ein abstimmendes Konto? → A: Nein. Das
   Administratorkonto besitzt keine Identität und kann nicht abstimmen.
 
+### Session 2026-10-31
+
+- Q: Braucht ein Konto neben der Identität einen eigenen Kontonamen? → A: Nein.
+  Angemeldet wird mit der E-Mail-Adresse, die bei User-Konten aus der
+  Einladung stammt und beim Administrator aus der Installationskonfiguration
+  (`ADMIN_EMAIL`). Die Identität bleibt als sichtbarer Anzeigename für
+  Abstimmungen, damit E-Mail-Adressen anderen Konten verborgen bleiben.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Anmelden und unter fester Identität abstimmen (Priority: P1)
 
 Die gesamte Anwendung ist nur nach Anmeldung nutzbar. Eine nicht angemeldete
 Person sieht ausschließlich die Anmeldeseite. Alle Personen, auch der
-Administrator, melden sich auf dieselbe Weise mit Kontoname und Passwort an.
+Administrator, melden sich auf dieselbe Weise mit E-Mail-Adresse und Passwort an.
 Jedes User-Konto besitzt genau eine feste Identität; nach der Anmeldung ist sie
 automatisch die aktuelle Identität. Die Person sieht die Abstimmungen und kann
 unter dieser Identität abstimmen, ohne die Identität frei wählen zu können.
@@ -56,7 +64,7 @@ Anmeldeseite erreichbar.
    Anwendung aufgerufen wird, **Then** wird ausschließlich die Anmeldeseite
    angezeigt und es werden keine Polls, Stimmen oder Identitäten offengelegt.
 2. **Given** ein aktives User-Konto, **When** die Person sich mit korrektem
-   Kontonamen und Passwort anmeldet, **Then** ist sie angemeldet, ihre
+   E-Mail-Adresse und Passwort anmeldet, **Then** ist sie angemeldet, ihre
    Kontoidentität ist die aktuelle Identität und sie sieht die Abstimmungen.
 3. **Given** eine nicht angemeldete Person ruft eine bestimmte Seite auf,
    **When** sie sich anschließend anmeldet, **Then** gelangt sie zu der
@@ -65,7 +73,7 @@ Anmeldeseite erreichbar.
    Stimme abgibt, **Then** wird die Stimme ihrer Kontoidentität zugerechnet.
 5. **Given** falsche Anmeldedaten, **When** die Anmeldung versucht wird,
    **Then** wird sie mit einer allgemeinen Meldung abgelehnt, die nicht
-   verrät, ob der Kontoname existiert.
+   verrät, ob ein Konto mit dieser E-Mail-Adresse existiert.
 6. **Given** eine angemeldete Person, **When** sie sich abmeldet, **Then**
    endet die Anmeldung und sie sieht nur noch die Anmeldeseite.
 
@@ -76,8 +84,9 @@ Anmeldeseite erreichbar.
 Der Administrator lädt eine Person ein, indem er ihre E-Mail-Adresse angibt.
 Das System versendet automatisch eine E-Mail mit einem persönlichen, einmalig
 nutzbaren und zeitlich begrenzten Link zur Anwendung. Über diesen Link füllt
-die Person ihr Konto selbst mit Leben: Sie wählt Kontoname, feste Identität
-und Passwort. Das Konto erhält die Rolle „User“. Danach ist die Person
+die Person ihr Konto selbst mit Leben: Sie wählt ihre feste Identität (in der
+Oberfläche „Anzeigename“) und ein Passwort; angemeldet wird sie künftig mit der
+eingeladenen E-Mail-Adresse. Das Konto erhält die Rolle „User“. Danach ist die Person
 angemeldet. Die Identität ist instanzweit eindeutig und kann nach dem Anlegen
 nicht mehr geändert werden. Eine Selbstregistrierung ohne Einladung gibt es
 nicht.
@@ -100,18 +109,17 @@ Links wird abgelehnt.
 2. **Given** ein gültiger Einladungslink, **When** eine nicht angemeldete
    Person ihn öffnet, **Then** sieht sie die Seite zum Vervollständigen des
    Kontos statt der Anmeldeseite.
-3. **Given** ein gültiger Einladungslink, **When** die Person einen noch nicht
-   vergebenen Kontonamen, eine noch nicht vergebene Identität und ein gültiges
-   Passwort wählt, **Then** existiert das Konto mit der Rolle „User“ und die
-   Person ist angemeldet.
+3. **Given** ein gültiger Einladungslink, **When** die Person eine noch nicht
+   vergebene Identität und ein gültiges Passwort wählt, **Then** existiert das
+   Konto mit der Rolle „User“, sie ist angemeldet und meldet sich künftig mit
+   der eingeladenen E-Mail-Adresse an.
 4. **Given** ein bereits verwendeter, abgelaufener oder widerrufener
    Einladungslink, **When** er aufgerufen wird, **Then** kann kein Konto
    angelegt werden und die Person erhält eine verständliche Meldung mit Weg
    zur Anmeldeseite.
-5. **Given** eine bereits vergebene Identität oder ein bereits vergebener
-   Kontoname, **When** das Konto damit vervollständigt werden soll, **Then**
-   wird dies mit einer verständlichen Meldung abgelehnt und die Einladung
-   bleibt gültig.
+5. **Given** eine bereits vergebene oder ungültige Identität, **When** das
+   Konto damit vervollständigt werden soll, **Then** wird dies mit einer Meldung am betroffenen Feld abgelehnt, die Grund und
+   Lösung nennt, und die Einladung bleibt gültig.
 6. **Given** ein Passwort, das die Mindestanforderungen nicht erfüllt,
    **When** das Konto vervollständigt werden soll, **Then** wird dies mit
    einem Hinweis auf die Anforderungen abgelehnt.
@@ -235,14 +243,17 @@ Passwort wählen.
 - Eine Person öffnet einen Einladungslink, während sie bereits mit einem
   anderen Konto angemeldet ist; das Vervollständigen wird abgelehnt, bis sie
   sich abgemeldet hat.
-- Wiederholte fehlgeschlagene Anmeldeversuche für denselben Kontonamen werden
+- Wiederholte fehlgeschlagene Anmeldeversuche für dieselbe E-Mail-Adresse werden
   vorübergehend gebremst, ohne das Konto dauerhaft zu sperren.
 - Eine Anmeldung läuft während der Nutzung ab; die nächste Aktion führt zur
   Anmeldeseite, ohne bereits abgegebene Stimmen zu verändern.
 - Ein Konto wird gesperrt, während die Person gerade abstimmt; die Stimmabgabe
   wird abgelehnt.
-- Kontoname und Identität unterscheiden sich nur in Groß-/Kleinschreibung von
-  bestehenden Werten.
+- E-Mail-Adresse und Identität unterscheiden sich nur in Groß-/Kleinschreibung
+  von bestehenden Werten.
+- Die in `ADMIN_EMAIL` konfigurierte Adresse wird geändert; das
+  Administratorkonto übernimmt sie beim nächsten Start. Gehört sie bereits einem
+  User-Konto, startet die Anwendung nicht.
 - Ein Konto, dessen Identität bereits Stimmen hat, wird gesperrt; die Stimmen
   bleiben unverändert im Prüfprotokoll sichtbar.
 
@@ -260,7 +271,7 @@ Passwort wählen.
   Seiten und Funktionen MUST verweigert werden, ohne fachliche Daten
   offenzulegen.
 - **FR-003**: Alle Konten, einschließlich des Administratorkontos, MUST sich
-  über dieselbe Anmeldeseite mit Kontoname und Passwort anmelden; eine
+  über dieselbe Anmeldeseite mit E-Mail-Adresse und Passwort anmelden; eine
   getrennte Administratoranmeldung entfällt.
 - **FR-004**: Das System MUST die Abmeldung ermöglichen; danach ist nur noch
   die Anmeldeseite erreichbar.
@@ -268,8 +279,8 @@ Passwort wählen.
   aufgerufenen Seite gelangen, sofern ihre Rolle diese erlaubt, sonst zur
   Abstimmungsübersicht.
 - **FR-006**: Fehlgeschlagene Anmeldungen MUST eine einheitliche Meldung
-  erhalten, die nicht erkennen lässt, ob Kontoname oder Passwort falsch war.
-- **FR-007**: Wiederholte fehlgeschlagene Anmeldeversuche für einen Kontonamen
+  erhalten, die nicht erkennen lässt, ob E-Mail-Adresse oder Passwort falsch war.
+- **FR-007**: Wiederholte fehlgeschlagene Anmeldeversuche für eine E-Mail-Adresse
   MUST zeitlich gebremst werden.
 - **FR-008**: Anmeldungen MUST nach 30 Minuten Inaktivität und spätestens
   nach 12 Stunden ablaufen.
@@ -279,8 +290,9 @@ Passwort wählen.
 - **FR-009**: Jedes User-Konto MUST genau eine Identität besitzen, die beim
   Anlegen festgelegt wird, instanzweit eindeutig ist und danach nicht mehr
   geändert werden kann. Das Administratorkonto besitzt keine Identität.
-- **FR-010**: Kontonamen MUST instanzweit eindeutig sein; der Vergleich erfolgt
-  ohne Beachtung der Groß-/Kleinschreibung.
+- **FR-010**: Jedes Konto MUST sich mit seiner E-Mail-Adresse anmelden; sie ist
+  instanzweit eindeutig, der Vergleich erfolgt ohne Beachtung der
+  Groß-/Kleinschreibung. Einen davon getrennten Kontonamen gibt es nicht.
 - **FR-011**: Während der Anmeldung eines User-Kontos MUST die aktuelle
   Identität die Kontoidentität sein; bei Anmeldung des Administratorkontos
   gibt es keine aktuelle Identität. Das freie Setzen oder Ändern einer
@@ -312,7 +324,8 @@ Passwort wählen.
 - **FR-019**: Ein Einladungslink MUST einmalig nutzbar sein, nach 7 Tagen
   ablaufen und durch Widerruf oder erneuten Versand ungültig werden.
 - **FR-020**: Über einen gültigen Einladungslink MUST die eingeladene Person
-  Kontoname, Identität und Passwort selbst festlegen; das Konto erhält immer
+  Identität und Passwort selbst festlegen, die E-Mail-Adresse der Einladung
+  wird zum Anmeldenamen; das Konto erhält immer
   die Rolle „User“.
 - **FR-021**: Pro E-Mail-Adresse MUST es höchstens ein Konto oder eine offene
   Einladung geben; die E-Mail-Adresse ist für andere Konten nicht sichtbar.
@@ -341,8 +354,8 @@ Passwort wählen.
   Funktionen werden ihm weder angeboten noch bei direktem Aufruf ausgeführt.
   Polls sieht es über die Administration.
 - **FR-028**: Bei der Installation MUST das initiale Administratorkonto über
-  die Installationskonfiguration bereitgestellt werden, sodass eine leere
-  Instanz administrierbar ist.
+  die Installationskonfiguration (E-Mail-Adresse und Passwort-Hash)
+  bereitgestellt werden, sodass eine leere Instanz administrierbar ist.
 - **FR-029**: Der Administrator MUST Konten auflisten, User-Konten sperren
   und entsperren und für User-Konten ein Einmalpasswort setzen können.
 - **FR-030**: Das Administratorkonto MUST nicht gesperrt werden können.
@@ -365,10 +378,10 @@ Passwort wählen.
 ### Key Entities *(include if feature involves data)*
 
 - **Konto**: Lokaler, anmeldefähiger Zugang einer Person. Besitzt einen
-  eindeutigen Kontonamen, eine Rolle, einen Status (aktiv, gesperrt) und
-  Anmeldedaten. Ein User-Konto besitzt zusätzlich eine nicht öffentliche
-  E-Mail-Adresse und genau eine feste Identität; das Administratorkonto hat
-  keine Identität. Ein Konto ist kein Synonym für die Identität, sondern deren
+  eindeutige, nicht öffentliche E-Mail-Adresse als Anmeldenamen, eine Rolle,
+  einen Status (aktiv, gesperrt) und Anmeldedaten. Ein User-Konto besitzt
+  zusätzlich genau eine feste Identität; das Administratorkonto hat keine
+  Identität. Ein Konto ist kein Synonym für die Identität, sondern deren
   Eigentümer.
 - **Einladung**: Vom Administrator ausgestellte, einmalig nutzbare und
   zeitlich begrenzte Berechtigung, für eine E-Mail-Adresse ein User-Konto
@@ -448,7 +461,8 @@ Passwort wählen.
 - Konten werden nicht gelöscht, sondern nur gesperrt, damit die Zuordnung von
   Identität und Stimmen im Prüfprotokoll erhalten bleibt.
 - Die Identität eines Kontos ist für alle angemeldeten Konten sichtbar wie
-  heute; Kontoname und E-Mail-Adresse sind es nicht.
+  heute; die E-Mail-Adresse ist es nicht. Als Urheber von Administrationsaktionen
+  erscheint im Prüfprotokoll „admin“, nicht die Adresse des Administrators.
 - Der Begriff „Konto“ wird als neuer Fachbegriff in `CONTEXT.md` aufgenommen
   und klar von „Identität“ abgegrenzt; die Beschreibung des Prüfprotokolls
   als „öffentlich lesbar“ wird dort an die Anmeldepflicht angepasst.

@@ -55,12 +55,12 @@ final class SmtpInvitationMailer implements InvitationMailer {
         if (Locale.ENGLISH.getLanguage().equals(locale.getLanguage())) {
             message.setSubject("Your invitation to " + applicationName);
             message.setText("Hello,\n\nyou have been invited to " + applicationName + ".\n"
-                    + "Open the following link to choose your account name, identity and password:\n\n"
+                    + "Open the following link to choose your display name and password. You will sign in with this email address:\n\n"
                     + link(token) + "\n\nThe link can be used once and is valid until " + expiry + ".\n");
         } else {
             message.setSubject("Deine Einladung zu " + applicationName);
             message.setText("Hallo,\n\ndu wurdest zu " + applicationName + " eingeladen.\n"
-                    + "Öffne den folgenden Link, um Kontoname, Identität und Passwort festzulegen:\n\n"
+                    + "Öffne den folgenden Link, um deinen Anzeigenamen und dein Passwort festzulegen. Anmelden wirst du dich mit dieser E-Mail-Adresse:\n\n"
                     + link(token) + "\n\nDer Link ist einmalig nutzbar und gültig bis " + expiry + ".\n");
         }
         sender.send(message);

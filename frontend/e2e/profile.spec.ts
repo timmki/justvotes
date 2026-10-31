@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import {expect, test, type Route} from '@playwright/test';
 
-const session = {accountName: 'alice', role: 'user', identity: 'Alice', passwordChangeRequired: false};
+const session = {email: 'alice@example.test', role: 'user', identity: 'Alice', passwordChangeRequired: false};
 
 /**
  * Answers the session probe for the signed-in user before the test's own API mock.

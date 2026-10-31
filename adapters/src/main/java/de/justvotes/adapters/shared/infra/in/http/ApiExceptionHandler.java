@@ -1,11 +1,11 @@
 package de.justvotes.adapters.shared.infra.in.http;
 
-import de.justvotes.accountmanagement.core.exception.AccountNameTakenException;
 import de.justvotes.accountmanagement.core.exception.AccountNotFoundException;
 import de.justvotes.accountmanagement.core.exception.AccountNotManageableException;
 import de.justvotes.accountmanagement.core.exception.CurrentPasswordInvalidException;
 import de.justvotes.accountmanagement.core.exception.EmailAlreadyInvitedException;
 import de.justvotes.accountmanagement.core.exception.IdentityTakenException;
+import de.justvotes.accountmanagement.core.exception.InvalidAccountInputException;
 import de.justvotes.accountmanagement.core.exception.InvalidCredentialsException;
 import de.justvotes.accountmanagement.core.exception.InvitationDeliveryUnavailableException;
 import de.justvotes.accountmanagement.core.exception.InvitationNotFoundException;
@@ -71,6 +71,14 @@ public final class ApiExceptionHandler {
         return problem(HttpStatus.BAD_REQUEST, "invalid-request", "The request is invalid.");
     }
 
+    @ExceptionHandler(InvalidAccountInputException.class)
+    ResponseEntity<ProblemDetail> invalidAccountInput(InvalidAccountInputException exception) {
+        ResponseEntity<ProblemDetail> response = problem(HttpStatus.BAD_REQUEST, "invalid-account-input", exception.getMessage());
+        response.getBody().setProperty("field", exception.field());
+        response.getBody().setProperty("rule", exception.rule());
+        return response;
+    }
+
     @ExceptionHandler(HttpMessageNotReadableException.class)
     ResponseEntity<ProblemDetail> malformedMessage(HttpMessageNotReadableException exception) {
         return problem(HttpStatus.BAD_REQUEST, "invalid-request", "The request is invalid.");
@@ -110,11 +118,6 @@ public final class ApiExceptionHandler {
     @ExceptionHandler(InvalidCredentialsException.class)
     ResponseEntity<ProblemDetail> invalidCredentials(InvalidCredentialsException exception) {
         return problem(HttpStatus.UNAUTHORIZED, "invalid-credentials", "The account name or password is invalid.");
-    }
-
-    @ExceptionHandler(AccountNameTakenException.class)
-    ResponseEntity<ProblemDetail> accountNameTaken(AccountNameTakenException exception) {
-        return problem(HttpStatus.CONFLICT, "account-name-taken", "The account name is already taken.");
     }
 
     @ExceptionHandler(IdentityTakenException.class)

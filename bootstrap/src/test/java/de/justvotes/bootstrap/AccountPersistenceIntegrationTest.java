@@ -2,7 +2,6 @@ package de.justvotes.bootstrap;
 
 import de.justvotes.accountmanagement.core.model.Account;
 import de.justvotes.accountmanagement.core.model.AccountIdentity;
-import de.justvotes.accountmanagement.core.model.AccountName;
 import de.justvotes.accountmanagement.core.model.AccountStatus;
 import de.justvotes.accountmanagement.core.model.EmailAddress;
 import de.justvotes.accountmanagement.core.model.Invitation;
@@ -46,7 +45,7 @@ class AccountPersistenceIntegrationTest {
     @DynamicPropertySource
     static void applicationProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + DATABASE_PATH);
-        registry.add("ADMIN_USERNAME", () -> "systemadmin");
+        registry.add("ADMIN_EMAIL", () -> "systemadmin@example.test");
         registry.add("ADMIN_PASSWORD_HASH", () -> new BCryptPasswordEncoder().encode("password"));
     }
 
@@ -54,19 +53,19 @@ class AccountPersistenceIntegrationTest {
         return new TransactionTemplate(transactionManager).execute(status -> work.get());
     }
 
-    private Account user(String name, String identity, String email) {
-        return Account.createUser(AccountName.of(name), AccountIdentity.of(identity), EmailAddress.of(email),
+    private Account user(String identity, String email) {
+        return Account.createUser(AccountIdentity.of(identity), EmailAddress.of(email),
                 PasswordHash.of("{noop}x"), NOW);
     }
 
     @Test
     void roundTripsAccountsAndInvitations() {
-        Account saved = inTransaction(() -> accounts.save(user("Round.Trip", "Round Trip", "Round@Example.test")));
+        Account saved = inTransaction(() -> accounts.save(user("Round Trip", "Round@Example.test")));
         saved.lock(NOW);
         inTransaction(() -> accounts.save(saved));
 
-        Account loaded = inTransaction(() -> accounts.findByNameKey("round.trip")).orElseThrow();
-        assertThat(loaded.name().value()).isEqualTo("Round.Trip");
+        Account loaded = inTransaction(() -> accounts.findByEmailKey("round@example.test")).orElseThrow();
+        assertThat(loaded.email().value()).isEqualTo("Round@Example.test");
         assertThat(loaded.identity().orElseThrow().value()).isEqualTo("Round Trip");
         assertThat(loaded.status()).isEqualTo(AccountStatus.LOCKED);
         assertThat(loaded.sessionEpoch()).isEqualTo(1);
@@ -84,22 +83,20 @@ class AccountPersistenceIntegrationTest {
     }
 
     @Test
-    void enforcesUniqueNamesIdentitiesAndEmailsIgnoringCase() {
-        inTransaction(() -> accounts.save(user("unique", "Unique", "unique@example.test")));
-        assertThatThrownBy(() -> inTransaction(() -> accounts.save(user("UNIQUE", "Other", "other@example.test"))))
+    void enforcesUniqueIdentitiesAndEmailsIgnoringCase() {
+        inTransaction(() -> accounts.save(user("Unique", "unique@example.test")));
+        assertThatThrownBy(() -> inTransaction(() -> accounts.save(user("UNIQUE", "other1@example.test"))))
                 .isInstanceOf(DataAccessException.class).hasMessageContaining("constraint failed");
-        assertThatThrownBy(() -> inTransaction(() -> accounts.save(user("other1", "UNIQUE", "other1@example.test"))))
-                .isInstanceOf(DataAccessException.class).hasMessageContaining("constraint failed");
-        assertThatThrownBy(() -> inTransaction(() -> accounts.save(user("other2", "Other2", "UNIQUE@example.test"))))
+        assertThatThrownBy(() -> inTransaction(() -> accounts.save(user("Other2", "UNIQUE@example.test"))))
                 .isInstanceOf(DataAccessException.class).hasMessageContaining("constraint failed");
     }
 
     @Test
     void allowsOnlyOneAdministratorAndEnforcesRoleShapes() {
         assertThat(accounts.findAdmin()).isPresent();
-        assertThatThrownBy(() -> inTransaction(() -> accounts.save(Account.createAdmin(AccountName.of("second-admin"),
+        assertThatThrownBy(() -> inTransaction(() -> accounts.save(Account.createAdmin(EmailAddress.of("second-admin@example.test"),
                 PasswordHash.of("{noop}x"), NOW)))).isInstanceOf(DataAccessException.class).hasMessageContaining("constraint failed");
-        assertThatThrownBy(() -> jdbc.update("INSERT INTO \"Account\" (name, \"nameKey\", role, status, \"passwordHash\", \"createdAt\", \"updatedAt\") "
-                + "VALUES ('shape', 'shape', 'USER', 'ACTIVE', 'x', 'now', 'now')")).isInstanceOf(DataAccessException.class).hasMessageContaining("constraint failed");
+        assertThatThrownBy(() -> jdbc.update("INSERT INTO \"Account\" (email, \"emailKey\", role, status, \"passwordHash\", \"createdAt\", \"updatedAt\") "
+                + "VALUES ('shape@example.test', 'shape@example.test', 'USER', 'ACTIVE', 'x', 'now', 'now')")).isInstanceOf(DataAccessException.class).hasMessageContaining("constraint failed");
     }
 }

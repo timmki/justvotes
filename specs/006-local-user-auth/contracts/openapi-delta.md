@@ -21,7 +21,7 @@ verlangen weiterhin `X-XSRF-TOKEN` + `XSRF-TOKEN`-Cookie.
   (`authentication-required`, `invalid-credentials`)
 - `403`: CSRF, fehlende Rolle (`access-denied`), Passwortwechsel erforderlich
   (`password-change-required`)
-- `409`: zusätzlich `account-name-taken`, `identity-taken`,
+- `409`: zusätzlich `identity-taken`,
   `email-already-invited`, `invitation-not-usable`,
   `invitation-delivery-unavailable`, `account-not-manageable`
 - `422`: `password-policy-violation`, `current-password-invalid`
@@ -44,7 +44,7 @@ verlangen weiterhin `X-XSRF-TOKEN` + `XSRF-TOKEN`-Cookie.
 | Operation | Security | Request | Responses |
 |---|---|---|---|
 | `GET /csrf` | `[]` | – | unverändert |
-| `POST /session/login` | `[]` + CSRF | `Login {username, password}` | `200 CurrentSession`, setzt `JSESSIONID` (rotiert), löscht `userID`; `401 invalid-credentials`; `429 login-throttled` |
+| `POST /session/login` | `[]` + CSRF | `Login {email, password}` | `200 CurrentSession`, setzt `JSESSIONID` (rotiert), löscht `userID`; `401 invalid-credentials`; `429 login-throttled` |
 | `GET /session` | session | – | `200 CurrentSession`; `401` |
 | `POST /session/logout` | session + CSRF | – | `204`; `401` |
 | `PUT /session/password` | session + CSRF | `PasswordChange {currentPassword, newPassword}` | `204` (andere Sitzungen ungültig); `422 current-password-invalid` / `password-policy-violation` |
@@ -53,9 +53,9 @@ verlangen weiterhin `X-XSRF-TOKEN` + `XSRF-TOKEN`-Cookie.
 
 ```yaml
 type: object
-required: [accountName, role, passwordChangeRequired]
+required: [email, role, passwordChangeRequired]
 properties:
-  accountName: { type: string }
+  email: { type: string }
   role: { type: string, enum: [user, admin] }
   identity: { type: string, nullable: true }   # null für admin
   passwordChangeRequired: { type: boolean }
@@ -66,7 +66,7 @@ properties:
 | Operation | Security | Request | Responses |
 |---|---|---|---|
 | `POST /invitations/inspection` | `[]` + CSRF | `InvitationTokenRequest {token}` | `200 InvitationPreview {email, expiresAt}`; `409 invitation-not-usable` |
-| `POST /invitations/acceptance` | `[]` + CSRF | `InvitationAcceptance {token, username, userID, password}` | `200 CurrentSession` (angemeldet); `409 invitation-not-usable` / `account-name-taken` / `identity-taken`; `422 password-policy-violation`; `409 already-authenticated` bei bestehender Sitzung |
+| `POST /invitations/acceptance` | `[]` + CSRF | `InvitationAcceptance {token, userID, password}` | `200 CurrentSession` (angemeldet); `409 invitation-not-usable` / `identity-taken`; `400 invalid-account-input` (`field`, `rule`); `422 password-policy-violation`; `409 already-authenticated` bei bestehender Sitzung |
 
 ### Administration (Tag `Administration`, Rolle `admin`)
 
@@ -92,13 +92,12 @@ InvitationSummary:
     issuedAt: { type: string, format: date-time }
     expiresAt: { type: string, format: date-time }
 AccountSummary:
-  required: [accountId, accountName, role, status, passwordChangeRequired, createdAt]
+  required: [accountId, email, role, status, passwordChangeRequired, createdAt]
   properties:
     accountId: { type: string }         # opaque, Präfix a
-    accountName: { type: string }
+    email: { type: string }
     role: { type: string, enum: [user, admin] }
     identity: { type: string, nullable: true }
-    email: { type: string, nullable: true }
     status: { type: string, enum: [active, locked] }
     passwordChangeRequired: { type: boolean }
     createdAt: { type: string, format: date-time }

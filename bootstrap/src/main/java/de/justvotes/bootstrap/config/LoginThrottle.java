@@ -9,7 +9,7 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Slows down repeated failed logins per entered account name, whether or not the account exists.
+ * Slows down repeated failed logins per entered email address, whether or not the account exists.
  * After five consecutive failures a name is blocked for 30 seconds; every further failure doubles the
  * block up to 15 minutes. A successful login resets the name. Kept in memory because JustVotes runs as
  * a single instance.
@@ -26,18 +26,18 @@ public final class LoginThrottle {
         this.clock = clock;
     }
 
-    private static String key(String accountName) {
-        if (accountName == null) {
+    private static String key(String email) {
+        if (email == null) {
             return "";
         }
-        return accountName.toLowerCase(Locale.ROOT);
+        return email.strip().toLowerCase(Locale.ROOT);
     }
 
     /**
      * Returns the remaining block time if the name is currently blocked.
      */
-    public Optional<Duration> blockedFor(String accountName) {
-        Attempts current = attempts.get(key(accountName));
+    public Optional<Duration> blockedFor(String email) {
+        Attempts current = attempts.get(key(email));
         if (current == null || current.blockedUntil() == null) {
             return Optional.empty();
         }
@@ -48,9 +48,9 @@ public final class LoginThrottle {
         return Optional.of(remaining);
     }
 
-    public void recordFailure(String accountName) {
+    public void recordFailure(String email) {
         Instant now = clock.instant();
-        attempts.compute(key(accountName), (ignored, previous) -> {
+        attempts.compute(key(email), (ignored, previous) -> {
             int failures = 1;
             if (previous != null) {
                 failures = previous.failures() + 1;
@@ -66,8 +66,8 @@ public final class LoginThrottle {
         });
     }
 
-    public void recordSuccess(String accountName) {
-        attempts.remove(key(accountName));
+    public void recordSuccess(String email) {
+        attempts.remove(key(email));
     }
 
     private record Attempts(int failures, Instant blockedUntil) {

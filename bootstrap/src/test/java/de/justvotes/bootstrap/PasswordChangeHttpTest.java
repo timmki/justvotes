@@ -23,7 +23,7 @@ class PasswordChangeHttpTest extends AccountHttpTestBase {
     @DynamicPropertySource
     static void applicationProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + DATABASE_PATH);
-        registry.add("ADMIN_USERNAME", () -> "systemadmin");
+        registry.add("ADMIN_EMAIL", () -> "systemadmin@example.test");
         registry.add("ADMIN_PASSWORD_HASH", () -> new BCryptPasswordEncoder().encode("password"));
     }
 
@@ -33,7 +33,7 @@ class PasswordChangeHttpTest extends AccountHttpTestBase {
 
     @Test
     void changesThePasswordKeepsTheCurrentSessionAndEndsOtherSessions() {
-        String name = AccountFixtures.accountName("Changer");
+        String name = AccountFixtures.email("Changer");
         TestSession first = fixtures().loginAsUser("Changer");
         TestSession second = fixtures().login(name, AccountFixtures.USER_PASSWORD);
 
@@ -60,6 +60,6 @@ class PasswordChangeHttpTest extends AccountHttpTestBase {
     void theAdministratorCanChangeItsOwnPasswordToo() {
         TestSession admin = fixtures().loginAsAdmin();
         assertThat(admin.put(url("/session/password"), change("password", "admin-password-2026")).getStatusCode().value()).isEqualTo(204);
-        assertThat(fixtures().login("systemadmin", "admin-password-2026").get(url("/session")).getStatusCode().value()).isEqualTo(200);
+        assertThat(fixtures().login("systemadmin@example.test", "admin-password-2026").get(url("/session")).getStatusCode().value()).isEqualTo(200);
     }
 }

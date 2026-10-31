@@ -19,12 +19,12 @@ class AccountTest {
     private final FakePasswordHasher hasher = new FakePasswordHasher();
 
     private Account user() {
-        return Account.createUser(AccountName.of("anna"), AccountIdentity.of("Anna"), EmailAddress.of("anna@example.test"),
+        return Account.createUser(AccountIdentity.of("Anna"), EmailAddress.of("anna@example.test"),
                 hasher.hash("correct-horse-battery"), NOW);
     }
 
     private Account admin() {
-        return Account.createAdmin(AccountName.of("admin"), hasher.hash("admin-password"), NOW);
+        return Account.createAdmin(EmailAddress.of("admin@example.test"), hasher.hash("admin-password"), NOW);
     }
 
     @Test
@@ -32,27 +32,39 @@ class AccountTest {
         Account account = user();
         assertEquals(Role.USER, account.role());
         assertEquals("Anna", account.identity().orElseThrow().value());
-        assertEquals("anna@example.test", account.email().orElseThrow().value());
+        assertEquals("anna@example.test", account.email().value());
         assertEquals(AccountStatus.ACTIVE, account.status());
         assertEquals(0, account.sessionEpoch());
     }
 
     @Test
-    void administratorHasNeitherIdentityNorEmailAndIsAlwaysActive() {
+    void administratorHasAnEmailButNoIdentityAndIsAlwaysActive() {
         Account account = admin();
         assertTrue(account.identity().isEmpty());
-        assertTrue(account.email().isEmpty());
-        assertThrows(IllegalArgumentException.class, () -> Account.restore(AccountId.of(1), AccountName.of("admin"),
-                Role.ADMIN, null, null, AccountStatus.LOCKED, hasher.hash("x"), false, 0, NOW, NOW));
-        assertThrows(IllegalArgumentException.class, () -> Account.restore(AccountId.of(1), AccountName.of("admin"),
-                Role.ADMIN, AccountIdentity.of("admin"), null, AccountStatus.ACTIVE, hasher.hash("x"), false, 0, NOW, NOW));
+        assertEquals("admin@example.test", account.email().value());
+        EmailAddress email = EmailAddress.of("admin@example.test");
+        assertThrows(IllegalArgumentException.class, () -> Account.restore(AccountId.of(1),
+                Role.ADMIN, null, email, AccountStatus.LOCKED, hasher.hash("x"), false, 0, NOW, NOW));
+        assertThrows(IllegalArgumentException.class, () -> Account.restore(AccountId.of(1),
+                Role.ADMIN, AccountIdentity.of("admin"), email, AccountStatus.ACTIVE, hasher.hash("x"), false, 0, NOW, NOW));
+        assertThrows(NullPointerException.class, () -> Account.restore(AccountId.of(1),
+                Role.ADMIN, null, null, AccountStatus.ACTIVE, hasher.hash("x"), false, 0, NOW, NOW));
+    }
+
+    @Test
+    void administratorEmailFollowsTheConfiguration() {
+        Account account = admin();
+        account.changeAdminEmail(EmailAddress.of("root@example.test"), LATER);
+        assertEquals("root@example.test", account.email().value());
+        assertEquals(0, account.sessionEpoch());
+        assertThrows(AccountNotManageableException.class, () -> user().changeAdminEmail(EmailAddress.of("x@example.test"), LATER));
     }
 
     @Test
     void userAccountsRequireIdentityAndEmail() {
-        assertThrows(IllegalArgumentException.class, () -> Account.restore(AccountId.of(2), AccountName.of("anna"),
+        assertThrows(IllegalArgumentException.class, () -> Account.restore(AccountId.of(2),
                 Role.USER, null, EmailAddress.of("a@b.de"), AccountStatus.ACTIVE, hasher.hash("x"), false, 0, NOW, NOW));
-        assertThrows(IllegalArgumentException.class, () -> Account.restore(AccountId.of(2), AccountName.of("anna"),
+        assertThrows(NullPointerException.class, () -> Account.restore(AccountId.of(2),
                 Role.USER, AccountIdentity.of("Anna"), null, AccountStatus.ACTIVE, hasher.hash("x"), false, 0, NOW, NOW));
     }
 

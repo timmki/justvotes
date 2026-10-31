@@ -12,17 +12,18 @@ import java.util.Locale;
 
 /**
  * Writes security-relevant account events as structured log entries. It never receives passwords,
- * tokens or password hashes; names of unknown accounts are only logged as a short fingerprint so that
- * a password typed into the name field cannot reach the log.
+ * tokens or password hashes, and identifies accounts only by their ID; entered email addresses of failed
+ * logins are only logged as a short fingerprint so that a password typed into the email field cannot
+ * reach the log.
  */
 public final class SecurityEventLogger {
     private static final Logger LOG = LoggerFactory.getLogger("justvotes.security");
     private static final int FINGERPRINT_LENGTH = 12;
 
-    static String fingerprint(String accountName) {
+    static String fingerprint(String enteredEmail) {
         String normalized = "";
-        if (accountName != null) {
-            normalized = accountName.toLowerCase(Locale.ROOT);
+        if (enteredEmail != null) {
+            normalized = enteredEmail.strip().toLowerCase(Locale.ROOT);
         }
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256").digest(normalized.getBytes(StandardCharsets.UTF_8));
@@ -32,92 +33,88 @@ public final class SecurityEventLogger {
         }
     }
 
-    private static void account(String event, long accountId, String accountName) {
+    private static void account(String event, long accountId) {
         LOG.atInfo()
                 .addKeyValue("event", event)
                 .addKeyValue("accountId", accountId)
-                .addKeyValue("accountName", accountName)
                 .log("Security event {}", event);
     }
 
-    private static void enteredName(String event, String enteredName) {
+    private static void enteredEmail(String event, String enteredEmail) {
         LoggingEventBuilder builder = LOG.atWarn().addKeyValue("event", event);
-        builder.addKeyValue("nameFingerprint", fingerprint(enteredName)).log("Security event {}", event);
+        builder.addKeyValue("emailFingerprint", fingerprint(enteredEmail)).log("Security event {}", event);
     }
 
-    public void login(long accountId, String accountName) {
-        account("login", accountId, accountName);
+    public void login(long accountId) {
+        account("login", accountId);
     }
 
     /**
-     * Failed logins never log the entered name, whether or not an account with that name exists.
+     * Failed logins never log the entered email address, whether or not an account with it exists.
      */
-    public void loginFailed(String enteredName) {
-        enteredName("login-failed", enteredName);
+    public void loginFailed(String enteredEmail) {
+        enteredEmail("login-failed", enteredEmail);
     }
 
-    public void loginThrottled(String enteredName) {
-        enteredName("login-throttled", enteredName);
+    public void loginThrottled(String enteredEmail) {
+        enteredEmail("login-throttled", enteredEmail);
     }
 
-    public void logout(long accountId, String accountName) {
-        account("logout", accountId, accountName);
+    public void logout(long accountId) {
+        account("logout", accountId);
     }
 
-    public void passwordChanged(long accountId, String accountName) {
-        account("password-changed", accountId, accountName);
+    public void passwordChanged(long accountId) {
+        account("password-changed", accountId);
     }
 
-    public void invitationIssued(long invitationId, long actorId, String actorName) {
-        invitation("invitation-issued", invitationId, actorId, actorName);
+    public void invitationIssued(long invitationId, long actorId) {
+        invitation("invitation-issued", invitationId, actorId);
     }
 
-    public void invitationResent(long invitationId, long actorId, String actorName) {
-        invitation("invitation-resent", invitationId, actorId, actorName);
+    public void invitationResent(long invitationId, long actorId) {
+        invitation("invitation-resent", invitationId, actorId);
     }
 
-    public void invitationRevoked(long invitationId, long actorId, String actorName) {
-        invitation("invitation-revoked", invitationId, actorId, actorName);
+    public void invitationRevoked(long invitationId, long actorId) {
+        invitation("invitation-revoked", invitationId, actorId);
     }
 
-    public void invitationAccepted(long accountId, String accountName) {
-        account("invitation-accepted", accountId, accountName);
+    public void invitationAccepted(long accountId) {
+        account("invitation-accepted", accountId);
     }
 
-    public void accountLocked(long accountId, String accountName, String actorName) {
-        administration("account-locked", accountId, accountName, actorName);
+    public void accountLocked(long accountId, long actorId) {
+        administration("account-locked", accountId, actorId);
     }
 
-    public void accountUnlocked(long accountId, String accountName, String actorName) {
-        administration("account-unlocked", accountId, accountName, actorName);
+    public void accountUnlocked(long accountId, long actorId) {
+        administration("account-unlocked", accountId, actorId);
     }
 
-    public void oneTimePasswordSet(long accountId, String accountName, String actorName) {
-        administration("one-time-password-set", accountId, accountName, actorName);
+    public void oneTimePasswordSet(long accountId, long actorId) {
+        administration("one-time-password-set", accountId, actorId);
     }
 
-    public void adminPasswordReset(String accountName) {
+    public void adminPasswordReset() {
         LOG.atWarn()
                 .addKeyValue("event", "admin-password-reset")
-                .addKeyValue("accountName", accountName)
                 .log("Security event admin-password-reset");
     }
 
-    private static void invitation(String event, long invitationId, long actorId, String actorName) {
+    private static void invitation(String event, long invitationId, long actorId) {
         LOG.atInfo()
                 .addKeyValue("event", event)
                 .addKeyValue("invitationId", invitationId)
-                .addKeyValue("accountId", actorId)
-                .addKeyValue("accountName", actorName)
+                .addKeyValue("actorId", actorId)
                 .log("Security event {}", event);
     }
 
-    private static void administration(String event, long accountId, String accountName, String actorName) {
+    private static void administration(String event, long accountId, long actorId) {
         LOG.atInfo()
                 .addKeyValue("event", event)
                 .addKeyValue("accountId", accountId)
-                .addKeyValue("accountName", accountName)
-                .addKeyValue("actorName", actorName)
+                .addKeyValue("actorId", actorId)
                 .log("Security event {}", event);
     }
 }

@@ -33,7 +33,7 @@ class CsrfSessionOpenApiContractTest {
     @DynamicPropertySource
     static void applicationProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + DATABASE_PATH);
-        registry.add("ADMIN_USERNAME", () -> "systemadmin");
+        registry.add("ADMIN_EMAIL", () -> "systemadmin@example.test");
         registry.add("ADMIN_PASSWORD_HASH", () -> new BCryptPasswordEncoder().encode("password"));
     }
 
@@ -141,7 +141,7 @@ class CsrfSessionOpenApiContractTest {
             assertStatus(client.exchange(request(method, url, csrfCookie, token, "{}"), String.class), 401);
         }));
         assertStatus(client.exchange(request("post", baseUrl + "/session/login", csrfCookie, token,
-                "{\"username\":\"systemadmin\",\"password\":\"wrong\"}"), String.class), 401);
+                "{\"email\":\"systemadmin@example.test\",\"password\":\"wrong\"}"), String.class), 401);
     }
 
     @Test

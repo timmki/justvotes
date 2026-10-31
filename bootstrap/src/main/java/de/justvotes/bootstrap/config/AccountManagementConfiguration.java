@@ -3,6 +3,7 @@ package de.justvotes.bootstrap.config;
 import de.justvotes.accountmanagement.core.AccountManagement;
 import de.justvotes.accountmanagement.core.InvitationManagement;
 import de.justvotes.accountmanagement.core.model.AdminProvisioning;
+import de.justvotes.accountmanagement.core.model.EmailAddress;
 import de.justvotes.accountmanagement.core.ports.in.AcceptInvitation;
 import de.justvotes.accountmanagement.core.ports.in.Authenticate;
 import de.justvotes.accountmanagement.core.ports.in.ManageAccounts;
@@ -43,9 +44,11 @@ import java.util.Properties;
 
 @Configuration
 class AccountManagementConfiguration {
-    static void validateAdminConfiguration(String username, String passwordHash) {
-        if (username.isBlank()) {
-            throw new IllegalStateException("ADMIN_USERNAME must not be blank.");
+    static void validateAdminConfiguration(String email, String passwordHash) {
+        try {
+            EmailAddress.of(email);
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalStateException("ADMIN_EMAIL must be a valid email address.", exception);
         }
         try {
             BCrypt.checkpw("configuration-validation", passwordHash);
@@ -199,23 +202,23 @@ class AccountManagementConfiguration {
     }
 
     /**
-     * Creates the single administrator account from the installation configuration on first start.
-     * An existing administrator keeps a password changed in the application unless
+     * Creates the single administrator account from the installation configuration on first start and
+     * follows a changed {@code ADMIN_EMAIL}. An existing administrator keeps a password changed in the application unless
      * {@code ADMIN_PASSWORD_RESET=true} explicitly re-applies the configured hash.
      */
     @Bean
     @Order(0)
     ApplicationRunner administratorProvisioning(TransactionalAccountManagement accounts,
                                                 SecurityEventLogger securityEvents,
-                                                @Value("${ADMIN_USERNAME}") String username,
+                                                @Value("${ADMIN_EMAIL:}") String email,
                                                 @Value("${ADMIN_PASSWORD_HASH}") String passwordHash,
                                                 @Value("${justvotes.admin.password-reset:false}") boolean reset) {
-        validateAdminConfiguration(username, passwordHash);
+        validateAdminConfiguration(email, passwordHash);
         ProvisionAdmin provisioning = accounts;
         return arguments -> {
-            AdminProvisioning result = provisioning.provisionAdmin(username, SpringPasswordHasher.bcrypt(passwordHash), reset);
+            AdminProvisioning result = provisioning.provisionAdmin(email.strip(), SpringPasswordHasher.bcrypt(passwordHash), reset);
             if (result == AdminProvisioning.PASSWORD_RESET) {
-                securityEvents.adminPasswordReset(username);
+                securityEvents.adminPasswordReset();
             }
         };
     }

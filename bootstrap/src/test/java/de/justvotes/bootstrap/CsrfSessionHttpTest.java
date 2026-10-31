@@ -43,7 +43,7 @@ class CsrfSessionHttpTest {
     @DynamicPropertySource
     static void applicationProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + DATABASE_PATH);
-        registry.add("ADMIN_USERNAME", () -> "systemadmin");
+        registry.add("ADMIN_EMAIL", () -> "systemadmin@example.test");
         registry.add("ADMIN_PASSWORD_HASH", () -> new BCryptPasswordEncoder().encode("password"));
     }
 
@@ -56,7 +56,7 @@ class CsrfSessionHttpTest {
     }
 
     private static String credentials(String name, String password) {
-        return "{\"username\":\"" + name + "\",\"password\":\"" + password + "\"}";
+        return "{\"email\":\"" + name + "\",\"password\":\"" + password + "\"}";
     }
 
     private static String token(ResponseEntity<String> response) {
@@ -95,7 +95,7 @@ class CsrfSessionHttpTest {
         ResponseEntity<String> bootstrap = client.getForEntity(baseUrl + "/csrf", String.class);
         String token = token(bootstrap);
         String csrfCookie = cookies(bootstrap);
-        String admin = credentials("systemadmin", "password");
+        String admin = credentials("systemadmin@example.test", "password");
 
         assertThat(bootstrap.getStatusCode().value()).isEqualTo(200);
         assertThat(bootstrap.getBody()).contains("\"headerName\":\"X-XSRF-TOKEN\"");
@@ -135,7 +135,7 @@ class CsrfSessionHttpTest {
                 .header(HttpHeaders.COOKIE, csrfCookie)
                 .header("X-XSRF-TOKEN", token)
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(credentials(AccountFixtures.accountName("Älice #42"), AccountFixtures.USER_PASSWORD));
+                .body(credentials(AccountFixtures.email("Älice #42"), AccountFixtures.USER_PASSWORD));
         ResponseEntity<String> login = client.exchange(loginRequest, String.class);
         assertStatus(login, 200);
         assertCookie(login, "JSESSIONID", true, true);

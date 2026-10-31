@@ -1,4 +1,4 @@
-import {type FormEvent, type ReactNode, useEffect, useId, useState} from 'react';
+import {type FormEvent, type ReactNode, useEffect, useId, useRef, useState} from 'react';
 import {Link, Navigate} from 'react-router-dom';
 import {apiClient} from '../../shared/api/client';
 import {ApiError} from '../../shared/api/errors';
@@ -51,7 +51,7 @@ export function InvitationPage() {
     // Signed in without a pending invitation, e.g. right after accepting one: continue in the own area.
     if (session && !token) return <Navigate to={homeRoute(session)} replace/>;
     if (sessionQuery.isPending) return <InvitationFrame><RouteState status="loading"/></InvitationFrame>;
-    if (session) return <InvitationFrame><SignedInNotice name={session.accountName}/></InvitationFrame>;
+    if (session) return <InvitationFrame><SignedInNotice name={session.email}/></InvitationFrame>;
     if (!token) return <InvitationFrame><UnusableInvitation messageKey="auth.invitationMissing"/></InvitationFrame>;
     return <InvitationFrame><InvitationForm token={token} t={t}/></InvitationFrame>;
 }
@@ -92,14 +92,14 @@ function UnusableInvitation({messageKey}: {messageKey: TranslationKey}) {
 function InvitationForm({token, t}: {token: string; t: ReturnType<typeof useI18n>['t']}) {
     const {locale} = useI18n();
     const preview = useApiQuery(['invitation', token], () => apiClient.inspectInvitation(token));
-    const [accountName, setAccountName] = useState('');
     const [identity, setIdentity] = useState('');
     const [password, setPassword] = useState('');
     const [repeatPassword, setRepeatPassword] = useState('');
     const [pending, setPending] = useState(false);
     const [error, setError] = useState<TranslationKey | null>(null);
+    const [invalidField, setInvalidField] = useState<InvalidField>(null);
+    const identityRef = useRef<HTMLInputElement>(null);
     const [unusable, setUnusable] = useState(false);
-    const nameHintId = useId();
     const identityHintId = useId();
     const policyId = useId();
     const errorId = useId();
@@ -114,6 +114,12 @@ function InvitationForm({token, t}: {token: string; t: ReturnType<typeof useI18n
 
     async function submit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
+        const invalid = identityProblem(identity.trim());
+        if (invalid) {
+            reject(invalid);
+            return;
+        }
+        setInvalidField(null);
         if (passwordLength(password) < MIN_PASSWORD_LENGTH) {
             setError('auth.passwordTooShort');
             return;
@@ -125,32 +131,38 @@ function InvitationForm({token, t}: {token: string; t: ReturnType<typeof useI18n
         setPending(true);
         setError(null);
         try {
-            const session = await apiClient.acceptInvitation({token, username: accountName.trim(), userID: identity.trim(), password});
+            const session = await apiClient.acceptInvitation({token, userID: identity.trim(), password});
             forgetInvitationToken();
             queryClient.setQueryData(queryKeys.session, session);
         } catch (cause) {
             if (isUnusable(cause)) setUnusable(true);
-            else setError(acceptanceError(cause));
+            else reject(acceptanceError(cause));
         } finally {
             setPending(false);
         }
+    }
+
+    function reject(problem: FieldProblem) {
+        setError(problem.messageKey);
+        setInvalidField(problem.field);
+        if (problem.field === 'identity') identityRef.current?.focus();
     }
 
     let submitLabel = t('auth.createAccount');
     if (pending) submitLabel = t('auth.creatingAccount');
     let describedBy: string | undefined;
     if (error) describedBy = errorId;
+    let identityDescribedBy = identityHintId;
+    if (invalidField === 'identity') identityDescribedBy = `${errorId} ${identityHintId}`;
     return <form className="login-form" onSubmit={submit} noValidate aria-describedby={describedBy}>
         <p>{t('auth.invitationFor')} <strong>{preview.data.email}</strong> · {t('auth.invitationValidUntil')} <time
             dateTime={preview.data.expiresAt}>{formatTimestamp(preview.data.expiresAt, locale)}</time></p>
-        <label htmlFor="invitation-account-name">{t('auth.accountName')}</label>
-        <input id="invitation-account-name" autoComplete="username" required maxLength={32} value={accountName}
-               aria-describedby={nameHintId} aria-invalid={error === 'auth.accountNameTaken'}
-               onChange={(event) => setAccountName(event.target.value)}/>
-        <p id={nameHintId} className="form-hint">{t('auth.accountNameHint')}</p>
+        <label htmlFor="invitation-email">{t('auth.email')}</label>
+        <input id="invitation-email" type="email" autoComplete="username" readOnly value={preview.data.email}/>
         <label htmlFor="invitation-identity">{t('auth.identity')}</label>
-        <input id="invitation-identity" required value={identity} aria-describedby={identityHintId}
-               aria-invalid={error === 'auth.identityTaken'} onChange={(event) => setIdentity(event.target.value)}/>
+        <input id="invitation-identity" required value={identity} ref={identityRef}
+               aria-describedby={identityDescribedBy}
+               aria-invalid={invalidField === 'identity'} onChange={(event) => setIdentity(event.target.value)}/>
         <p id={identityHintId} className="form-hint">{t('auth.identityHint')}</p>
         <label htmlFor="invitation-password">{t('auth.newPassword')}</label>
         <input id="invitation-password" type="password" autoComplete="new-password" required value={password}
@@ -160,7 +172,7 @@ function InvitationForm({token, t}: {token: string; t: ReturnType<typeof useI18n
         <input id="invitation-repeat" type="password" autoComplete="new-password" required value={repeatPassword}
                aria-invalid={error === 'auth.passwordsDiffer'} onChange={(event) => setRepeatPassword(event.target.value)}/>
         <button className="primary-button" type="submit" aria-busy={pending}
-                disabled={pending || !accountName.trim() || !identity.trim() || !password || !repeatPassword}>
+                disabled={pending || !identity.trim() || !password || !repeatPassword}>
             {pending && <span className="button-spinner" aria-hidden="true"/>}{submitLabel}
         </button>
         <p id={errorId} className="form-error" role="alert">{error && t(error)}</p>
@@ -171,11 +183,29 @@ function isUnusable(cause: unknown) {
     return cause instanceof ApiError && cause.frontend.code === 'invitation-not-usable';
 }
 
-function acceptanceError(cause: unknown): TranslationKey {
-    if (!(cause instanceof ApiError)) return 'errors.generic';
-    if (cause.frontend.code === 'account-name-taken') return 'auth.accountNameTaken';
-    if (cause.frontend.code === 'identity-taken') return 'auth.identityTaken';
-    if (cause.frontend.code === 'password-policy-violation') return 'auth.passwordRejected';
-    if (cause.frontend.code === 'invalid-request') return 'auth.invalidInput';
-    return cause.frontend.messageKey;
+type InvalidField = 'identity' | null;
+type FieldProblem = {field: InvalidField; messageKey: TranslationKey};
+
+/** Mirrors the server rule for identities, so the person sees the reason before submitting. */
+function identityProblem(identity: string): FieldProblem | null {
+    const length = [...identity].length;
+    if (length < 1 || length > 64) return {field: 'identity', messageKey: 'auth.identityLength'};
+    return null;
+}
+
+const ACCOUNT_INPUT_RULES: Record<string, FieldProblem> = {
+    'userID/length': {field: 'identity', messageKey: 'auth.identityLength'},
+    'userID/whitespace': {field: 'identity', messageKey: 'auth.identityWhitespace'},
+};
+
+function acceptanceError(cause: unknown): FieldProblem {
+    if (!(cause instanceof ApiError)) return {field: null, messageKey: 'errors.generic'};
+    const {code, field, rule} = cause.frontend;
+    if (code === 'invalid-account-input') {
+        return ACCOUNT_INPUT_RULES[`${field}/${rule}`] ?? {field: null, messageKey: 'auth.invalidInput'};
+    }
+    if (code === 'identity-taken') return {field: 'identity', messageKey: 'auth.identityTaken'};
+    if (code === 'password-policy-violation') return {field: null, messageKey: 'auth.passwordRejected'};
+    if (code === 'invalid-request') return {field: null, messageKey: 'auth.invalidInput'};
+    return {field: null, messageKey: cause.frontend.messageKey};
 }

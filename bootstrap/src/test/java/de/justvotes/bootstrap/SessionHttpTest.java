@@ -43,7 +43,7 @@ class SessionHttpTest {
     @DynamicPropertySource
     static void applicationProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + DATABASE_PATH);
-        registry.add("ADMIN_USERNAME", () -> AccountFixtures.ADMIN_NAME);
+        registry.add("ADMIN_EMAIL", () -> AccountFixtures.ADMIN_EMAIL);
         registry.add("ADMIN_PASSWORD_HASH", () -> new BCryptPasswordEncoder().encode(AccountFixtures.ADMIN_PASSWORD));
     }
 
@@ -76,11 +76,11 @@ class SessionHttpTest {
 
         ResponseEntity<String> unsupported = anonymous.client().exchange(RequestEntity.post(url("/session/login"))
                 .contentType(MediaType.TEXT_PLAIN).header(HttpHeaders.COOKIE, anonymous.cookies())
-                .header("X-XSRF-TOKEN", anonymous.csrfToken()).body("username=systemadmin"), String.class);
+                .header("X-XSRF-TOKEN", anonymous.csrfToken()).body("email=systemadmin@example.test"), String.class);
         assertProblem(unsupported, 415, "unsupported-media-type");
 
         ResponseEntity<String> withoutCsrf = anonymous.postWithoutCsrf(url("/session/login"),
-                "{\"username\":\"systemadmin\",\"password\":\"password\"}");
+                "{\"email\":\"systemadmin@example.test\",\"password\":\"password\"}");
         assertProblem(withoutCsrf, 403, "access-denied");
     }
 
@@ -89,7 +89,7 @@ class SessionHttpTest {
         fixtures().userWithIdentity("Identical");
         TestSession anonymous = fixtures().anonymous();
         ResponseEntity<String> wrongPassword = fixtures().attemptLogin(anonymous,
-                AccountFixtures.accountName("Identical"), "not-the-password");
+                AccountFixtures.email("Identical"), "not-the-password");
         ResponseEntity<String> unknownName = fixtures().attemptLogin(anonymous, "nobody-here", "not-the-password");
 
         assertProblem(wrongPassword, 401, "invalid-credentials");
@@ -102,12 +102,12 @@ class SessionHttpTest {
     void userLoginReturnsTheSessionAndRotatesTheSessionCookie() throws Exception {
         fixtures().userWithIdentity("Session User");
         TestSession anonymous = fixtures().anonymous();
-        ResponseEntity<String> first = fixtures().attemptLogin(anonymous, AccountFixtures.accountName("Session User"),
+        ResponseEntity<String> first = fixtures().attemptLogin(anonymous, AccountFixtures.email("Session User"),
                 AccountFixtures.USER_PASSWORD);
         assertThat(first.getStatusCode().value()).isEqualTo(200);
         assertThat(first.getHeaders().getCacheControl()).contains("no-store");
         JsonNode body = JSON.readTree(first.getBody());
-        assertThat(body.path("accountName").asText()).isEqualTo(AccountFixtures.accountName("Session User"));
+        assertThat(body.path("email").asText()).isEqualTo(AccountFixtures.email("Session User"));
         assertThat(body.path("role").asText()).isEqualTo("user");
         assertThat(body.path("identity").asText()).isEqualTo("Session User");
         assertThat(body.path("passwordChangeRequired").asBoolean()).isFalse();
@@ -118,7 +118,7 @@ class SessionHttpTest {
         String firstSession = AccountFixtures.cookieHeader(first.getHeaders());
         TestSession signedIn = new TestSession(anonymous.client(), anonymous.cookies() + "; " + firstSession,
                 anonymous.csrfToken());
-        ResponseEntity<String> second = fixtures().attemptLogin(signedIn, AccountFixtures.accountName("Session User"),
+        ResponseEntity<String> second = fixtures().attemptLogin(signedIn, AccountFixtures.email("Session User"),
                 AccountFixtures.USER_PASSWORD);
         assertThat(AccountFixtures.cookieHeader(second.getHeaders())).isNotEqualTo(firstSession);
         assertProblem(signedIn.get(url("/session")), 401, "authentication-required");

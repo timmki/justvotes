@@ -3,9 +3,9 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 
 const centralRoutes = ['/', '/profile', '/polls', '/poll/example', '/poll/results/example', '/poll/results/example/option/1', '/poll/audit/example', '/404', '/admin', '/admin/votes', '/admin/polls', '/admin/groups', '/admin/templates', '/admin/create', '/admin/accounts', '/admin/invitations'];
 
-type Session = { accountName: string; role: 'user' | 'admin'; identity: string | null; passwordChangeRequired: boolean };
-const userSession: Session = { accountName: 'alice', role: 'user', identity: 'alice', passwordChangeRequired: false };
-const adminSession: Session = { accountName: 'systemadmin', role: 'admin', identity: null, passwordChangeRequired: false };
+type Session = { email: string; role: 'user' | 'admin'; identity: string | null; passwordChangeRequired: boolean };
+const userSession: Session = { email: 'alice@example.test', role: 'user', identity: 'alice', passwordChangeRequired: false };
+const adminSession: Session = { email: 'systemadmin@example.test', role: 'admin', identity: null, passwordChangeRequired: false };
 const sessionOverrides = new WeakMap<Page, Session | null>();
 
 /**
@@ -667,12 +667,12 @@ test('signs the administrator in, restores the active admin area after reload, a
   });
 
   await page.goto('/admin');
-  await expect(page.getByLabel('Kontoname')).toBeVisible();
+  await expect(page.getByLabel('E-Mail-Adresse')).toBeVisible();
   await expect(page).toHaveURL(/\/login$/);
   expect(await page.getByRole('navigation', { name: 'Admin-Navigation' }).count()).toBe(0);
   const accessibility = await new AxeBuilder({ page }).analyze();
   expect(accessibility.violations.filter(({ impact }) => impact === 'critical' || impact === 'serious')).toEqual([]);
-  await page.getByLabel('Kontoname').fill('systemadmin');
+  await page.getByLabel('E-Mail-Adresse').fill('systemadmin@example.test');
   await page.getByLabel('Passwort').fill('secret');
   await page.getByRole('button', { name: 'Anmelden' }).click();
 
@@ -702,7 +702,7 @@ test('signs the administrator in, restores the active admin area after reload, a
   }
   await page.setViewportSize({ width: 1024, height: 800 });
   await page.locator('.sidebar .account-panel').getByRole('button', { name: 'Abmelden' }).click();
-  await expect(page.getByLabel('Kontoname')).toBeVisible();
+  await expect(page.getByLabel('E-Mail-Adresse')).toBeVisible();
   expect(await page.getByRole('navigation', { name: 'Admin-Navigation' }).count()).toBe(0);
 });
 
@@ -795,10 +795,10 @@ test('shows login on session expiry and restores the previous admin route', asyn
   await page.getByRole('link', { name: 'Vorlagengruppen' }).click();
   await page.getByRole('link', { name: 'Abstimmungen' }).click();
 
-  await expect(page.getByLabel('Kontoname')).toBeVisible();
+  await expect(page.getByLabel('E-Mail-Adresse')).toBeVisible();
   await expect(page.getByText('Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.')).toBeVisible();
   expect(await page.getByRole('navigation', { name: 'Admin-Navigation' }).count()).toBe(0);
-  await page.getByLabel('Kontoname').fill('systemadmin');
+  await page.getByLabel('E-Mail-Adresse').fill('systemadmin@example.test');
   await page.getByLabel('Passwort').fill('secret');
   await page.getByRole('button', { name: 'Anmelden' }).click();
 

@@ -10,11 +10,11 @@ import {InvitationAdministration, type InvitationSummary} from './InvitationAdmi
 usePollTestLifecycle();
 
 const admin: AccountSummary = {
-    accountId: 'a_v1_1', accountName: 'systemadmin', role: 'admin', identity: null, email: null,
+    accountId: 'a_v1_1', email: 'systemadmin@example.test', role: 'admin', identity: null,
     status: 'active', passwordChangeRequired: false, createdAt: '2026-10-27T10:00:00Z',
 };
 const anna: AccountSummary = {
-    accountId: 'a_v1_2', accountName: 'anna', role: 'user', identity: 'Anna', email: 'anna@example.test',
+    accountId: 'a_v1_2', email: 'anna@example.test', role: 'user', identity: 'Anna',
     status: 'active', passwordChangeRequired: false, createdAt: '2026-10-27T11:00:00Z',
 };
 

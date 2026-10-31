@@ -43,7 +43,7 @@ class SecurityEventLoggingTest extends AccountHttpTestBase {
     @DynamicPropertySource
     static void applicationProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + DATABASE_PATH);
-        registry.add("ADMIN_USERNAME", () -> "systemadmin");
+        registry.add("ADMIN_EMAIL", () -> "systemadmin@example.test");
         registry.add("ADMIN_PASSWORD_HASH", () -> new BCryptPasswordEncoder().encode("password"));
     }
 
@@ -76,7 +76,7 @@ class SecurityEventLoggingTest extends AccountHttpTestBase {
     @Test
     void recordsAllSecurityEventsWithoutSecrets() {
         String userPassword = AccountFixtures.USER_PASSWORD;
-        String name = AccountFixtures.accountName("Logged");
+        String name = AccountFixtures.email("Logged");
         fixtures().userWithIdentity("Logged");
         TestSession anonymous = fixtures().anonymous();
         fixtures().attemptLogin(anonymous, "secret-password-typed-as-name", "wrong");
@@ -94,10 +94,10 @@ class SecurityEventLoggingTest extends AccountHttpTestBase {
         admin.delete(url("/admin/invitations/" + invitationId));
         JsonNode second = json(admin.post(url("/admin/invitations"), "{\"email\":\"accepting@example.test\"}"));
         fixtures().anonymous().post(url("/invitations/acceptance"), "{\"token\":\"" + TOKENS.getLast()
-                + "\",\"username\":\"accepting\",\"userID\":\"Accepting\",\"password\":\"accepting-password\"}");
+                + "\",\"userID\":\"Accepting\",\"password\":\"accepting-password\"}");
         String accountId = null;
         for (JsonNode account : json(admin.get(url("/admin/accounts")))) {
-            if (account.path("accountName").asText().equals(name)) accountId = account.path("accountId").asText();
+            if (account.path("email").asText().equals(name)) accountId = account.path("accountId").asText();
         }
         admin.post(url("/admin/accounts/" + accountId + "/lock"));
         admin.post(url("/admin/accounts/" + accountId + "/unlock"));
@@ -109,14 +109,14 @@ class SecurityEventLoggingTest extends AccountHttpTestBase {
                 "account-locked", "account-unlocked", "one-time-password-set");
         String log = everything();
         assertThat(log).doesNotContain(userPassword, "next-secret-password", "accepting-password", "secret-password-typed-as-name",
-                oneTimePassword, "{pbkdf2", "{bcrypt", "$2a$");
+                oneTimePassword, "{pbkdf2", "{bcrypt", "$2a$", name);
         for (String token : TOKENS) {
             assertThat(log).doesNotContain(token);
         }
         assertThat(appender.list.stream().filter(event -> "login-failed".equals(value(event, "event"))))
                 .allSatisfy(event -> {
-                    assertThat(value(event, "nameFingerprint")).hasSize(12);
-                    assertThat(value(event, "accountName")).isNull();
+                    assertThat(value(event, "emailFingerprint")).hasSize(12);
+                    assertThat(value(event, "email")).isNull();
                 });
     }
 

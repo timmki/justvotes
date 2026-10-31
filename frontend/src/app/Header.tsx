@@ -67,7 +67,7 @@ export function AccountPanel({session, onNavigate}: {session: CurrentSession; on
     if (pending) logoutLabel = t('auth.loggingOut');
     return <section className="account-panel" aria-label={t('auth.signedInAs')}>
         <p className="eyebrow">{t('auth.signedInAs')}</p>
-        <p className="account-panel-name" title={session.accountName}>{session.accountName}</p>
+        <p className="account-panel-name" title={session.email}>{session.email}</p>
         {session.identity && <p className="account-panel-identity">{t('common.identity')}: <span title={session.identity}>{session.identity}</span></p>}
         <div className="account-panel-actions">
             <Link className="text-button" to="/password" onClick={onNavigate}>{t('auth.changePassword')}</Link>

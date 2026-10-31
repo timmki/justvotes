@@ -10,12 +10,12 @@ type LoginError = {kind: 'credentials'} | {kind: 'throttled'; seconds: number} |
 
 export function LoginPage() {
     const {t} = useI18n();
-    const [accountName, setAccountName] = useState('');
+    const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [pending, setPending] = useState(false);
     const [error, setError] = useState<LoginError | null>(null);
     const errorId = useId();
-    const nameRef = useRef<HTMLInputElement>(null);
+    const emailRef = useRef<HTMLInputElement>(null);
     const expired = useSyncExternalStore((listener) => sessionCoordinator.subscribe(listener),
         () => sessionCoordinator.isLoginRequired(), () => false);
 
@@ -24,13 +24,13 @@ export function LoginPage() {
         setPending(true);
         setError(null);
         try {
-            const session = await apiClient.login({username: accountName, password});
+            const session = await apiClient.login({email: email.trim(), password});
             // The application gate now renders the signed-in routes and restores the remembered route.
             queryClient.setQueryData(queryKeys.session, session);
         } catch (cause) {
             setError(loginError(cause));
             setPassword('');
-            nameRef.current?.focus();
+            emailRef.current?.focus();
         } finally {
             setPending(false);
         }
@@ -44,13 +44,13 @@ export function LoginPage() {
     return <PageFrame className="auth-page" title={t('auth.loginTitle')} description={t('auth.loginDescription')}>
         {expired && <p className="session-notice" role="status">{t('auth.sessionExpired')}</p>}
         <form className="login-form" onSubmit={submit} aria-describedby={describedBy} noValidate>
-            <label htmlFor="login-account-name">{t('auth.accountName')}</label>
-            <input ref={nameRef} id="login-account-name" name="username" autoComplete="username" required autoFocus
-                   value={accountName} aria-invalid={Boolean(error)} onChange={(event) => setAccountName(event.target.value)}/>
+            <label htmlFor="login-email">{t('auth.email')}</label>
+            <input ref={emailRef} id="login-email" name="email" type="email" autoComplete="username" required autoFocus
+                   value={email} aria-invalid={Boolean(error)} onChange={(event) => setEmail(event.target.value)}/>
             <label htmlFor="login-password">{t('auth.password')}</label>
             <input id="login-password" name="password" type="password" autoComplete="current-password" required
                    value={password} aria-invalid={Boolean(error)} onChange={(event) => setPassword(event.target.value)}/>
-            <button className="primary-button" type="submit" aria-busy={pending} disabled={pending || !accountName || !password}>
+            <button className="primary-button" type="submit" aria-busy={pending} disabled={pending || !email.trim() || !password}>
                 {pending && <span className="button-spinner" aria-hidden="true"/>}{submitLabel}
             </button>
             <p id={errorId} className="form-error" role="alert">{error && errorText(error, t)}</p>

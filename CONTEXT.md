@@ -12,7 +12,8 @@ wählbar.
 _Avoid_: Benutzerkonto, Nutzer
 
 **Konto**:
-Ein lokaler, anmeldefähiger Zugang mit Kontoname, Passwort und Rolle. Ein Konto
+Ein lokaler, anmeldefähiger Zugang mit E-Mail-Adresse als Anmeldename, Passwort
+und Rolle. Die E-Mail-Adresse ist für andere Konten nicht sichtbar. Ein Konto
 mit der Rolle User besitzt genau eine feste Identität; das Administratorkonto
 besitzt keine. Ein Konto ist Eigentümer einer Identität, kein Synonym dafür.
 _Avoid_: Identität, Account

@@ -54,7 +54,7 @@ public class AdminInvitationController implements InvitationAdministrationApi {
     public ResponseEntity<InvitationSummary> createInvitation(InvitationRequest request) {
         InvitationOverview created = delivery.invite(request.getEmail(), locale(request));
         AuthenticatedAccount actor = AuthenticatedAccounts.current();
-        securityEvents.invitationIssued(created.invitation().id().orElseThrow().value(), actor.accountId(), actor.accountName());
+        securityEvents.invitationIssued(created.invitation().id().orElseThrow().value(), actor.accountId());
         return ResponseEntity.status(HttpStatus.CREATED).cacheControl(CacheControl.noStore())
                 .body(AccountResponseMapper.summary(created));
     }
@@ -64,7 +64,7 @@ public class AdminInvitationController implements InvitationAdministrationApi {
         InvitationId id = invitationId(invitationId);
         InvitationOverview resent = delivery.resend(id, DEFAULT_LOCALE);
         AuthenticatedAccount actor = AuthenticatedAccounts.current();
-        securityEvents.invitationResent(id.value(), actor.accountId(), actor.accountName());
+        securityEvents.invitationResent(id.value(), actor.accountId());
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(AccountResponseMapper.summary(resent));
     }
 
@@ -73,7 +73,7 @@ public class AdminInvitationController implements InvitationAdministrationApi {
         InvitationId id = invitationId(invitationId);
         invitations.revoke(id);
         AuthenticatedAccount actor = AuthenticatedAccounts.current();
-        securityEvents.invitationRevoked(id.value(), actor.accountId(), actor.accountName());
+        securityEvents.invitationRevoked(id.value(), actor.accountId());
         return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();
     }
 }

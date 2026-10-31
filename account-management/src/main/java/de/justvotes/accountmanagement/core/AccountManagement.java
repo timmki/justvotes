@@ -1,14 +1,16 @@
 package de.justvotes.accountmanagement.core;
 
 import de.justvotes.accountmanagement.core.exception.AccountNotFoundException;
+import de.justvotes.accountmanagement.core.exception.EmailAlreadyInvitedException;
 import de.justvotes.accountmanagement.core.exception.InvalidCredentialsException;
 import de.justvotes.accountmanagement.core.exception.PasswordPolicyViolationException;
 import de.justvotes.accountmanagement.core.model.Account;
 import de.justvotes.accountmanagement.core.model.AccountId;
-import de.justvotes.accountmanagement.core.model.AccountName;
 import de.justvotes.accountmanagement.core.model.AdminProvisioning;
+import de.justvotes.accountmanagement.core.model.EmailAddress;
 import de.justvotes.accountmanagement.core.model.Password;
 import de.justvotes.accountmanagement.core.model.PasswordHash;
+import de.justvotes.accountmanagement.core.model.Role;
 import de.justvotes.accountmanagement.core.ports.in.Authenticate;
 import de.justvotes.accountmanagement.core.ports.in.ManageAccounts;
 import de.justvotes.accountmanagement.core.ports.in.ManageOwnCredentials;
@@ -52,13 +54,13 @@ public final class AccountManagement implements Authenticate, ViewAccounts, Mana
     }
 
     @Override
-    public Account authenticate(String accountName, String rawPassword) {
+    public Account authenticate(String email, String rawPassword) {
         if (rawPassword == null) {
             throw new InvalidCredentialsException();
         }
         Optional<Account> candidate = Optional.empty();
-        if (accountName != null) {
-            candidate = accounts.findByNameKey(accountName.toLowerCase(Locale.ROOT));
+        if (email != null) {
+            candidate = accounts.findByEmailKey(email.strip().toLowerCase(Locale.ROOT));
         }
         if (candidate.isEmpty()) {
             hasher.matches(rawPassword, timingDummy);
@@ -79,7 +81,7 @@ public final class AccountManagement implements Authenticate, ViewAccounts, Mana
     public List<Account> accounts() {
         return accounts.findAll().stream()
                 .sorted(Comparator.comparing((Account account) -> account.role().ordinal()).reversed()
-                        .thenComparing(account -> account.name().normalized()))
+                        .thenComparing(account -> account.email().normalized()))
                 .toList();
     }
 
@@ -120,21 +122,34 @@ public final class AccountManagement implements Authenticate, ViewAccounts, Mana
     }
 
     @Override
-    public AdminProvisioning provisionAdmin(String accountName, String passwordHash, boolean resetPassword) {
+    public AdminProvisioning provisionAdmin(String email, String passwordHash, boolean resetPassword) {
+        EmailAddress adminEmail = EmailAddress.of(email);
         PasswordHash hash = PasswordHash.of(passwordHash);
         Instant now = clock.now();
         Optional<Account> existing = accounts.findAdmin();
+        Optional<Account> owner = accounts.findByEmailKey(adminEmail.normalized());
+        if (owner.isPresent() && owner.get().role() != Role.ADMIN) {
+            throw new EmailAlreadyInvitedException();
+        }
         if (existing.isEmpty()) {
-            accounts.save(Account.createAdmin(AccountName.of(accountName), hash, now));
+            accounts.save(Account.createAdmin(adminEmail, hash, now));
             return AdminProvisioning.CREATED;
         }
-        if (!resetPassword) {
-            return AdminProvisioning.UNCHANGED;
-        }
         Account admin = existing.get();
-        admin.resetAdminPassword(hash, now);
-        accounts.save(admin);
-        return AdminProvisioning.PASSWORD_RESET;
+        boolean emailChanged = !admin.email().equals(adminEmail);
+        if (emailChanged) {
+            admin.changeAdminEmail(adminEmail, now);
+        }
+        if (resetPassword) {
+            admin.resetAdminPassword(hash, now);
+        }
+        if (emailChanged || resetPassword) {
+            accounts.save(admin);
+        }
+        if (resetPassword) {
+            return AdminProvisioning.PASSWORD_RESET;
+        }
+        return AdminProvisioning.UNCHANGED;
     }
 
     private Account load(AccountId accountId) {

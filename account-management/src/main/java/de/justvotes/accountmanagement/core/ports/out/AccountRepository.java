@@ -9,11 +9,9 @@ import java.util.Optional;
 public interface AccountRepository {
     Optional<Account> findById(AccountId id);
 
-    Optional<Account> findByNameKey(String normalizedName);
+    Optional<Account> findByEmailKey(String normalizedEmail);
 
     Optional<Account> findAdmin();
-
-    boolean existsByNameKey(String normalizedName);
 
     boolean existsByIdentityKey(String normalizedIdentity);
 

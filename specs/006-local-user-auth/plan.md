@@ -95,10 +95,10 @@ account-management/                       # NEU: frameworkfreier Domänenkern
 └── src/main/java/de/justvotes/accountmanagement/
     ├── package-info.java
     └── core/
-        ├── model/        # Account, AccountId, AccountName, Role, AccountStatus,
+        ├── model/        # Account, AccountId, EmailAddress, Role, AccountStatus,
         │                 # Invitation, InvitationId, InvitationStatus, EmailAddress,
         │                 # Password (Regeln), PasswordHash, InvitationToken
-        ├── exception/    # AccountNameTaken, IdentityTaken, InvitationNotUsable, ...
+        ├── exception/    # IdentityTaken, InvalidAccountInput, InvitationNotUsable, ...
         └── ports/
             ├── in/       # Authenticate, ManageOwnCredentials, AcceptInvitation,
             │             # ManageInvitations, ManageAccounts, ViewAccounts

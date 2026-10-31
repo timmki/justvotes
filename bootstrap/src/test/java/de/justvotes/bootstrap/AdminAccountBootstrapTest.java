@@ -15,10 +15,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class AdminAccountBootstrapTest {
-    private static ConfigurableApplicationContext start(String database, String username, String hash, boolean reset) {
+    private static ConfigurableApplicationContext start(String database, String email, String hash, boolean reset) {
         SpringApplication application = new SpringApplication(JustVotesApplication.class);
         return application.run("--spring.main.web-application-type=none", "--spring.main.banner-mode=off",
-                "--spring.datasource.url=jdbc:sqlite:" + database, "--ADMIN_USERNAME=" + username,
+                "--spring.datasource.url=jdbc:sqlite:" + database, "--ADMIN_EMAIL=" + email,
                 "--ADMIN_PASSWORD_HASH=" + hash, "--justvotes.admin.password-reset=" + reset);
     }
 
@@ -30,20 +30,26 @@ class AdminAccountBootstrapTest {
     void createsTheAdministratorOnceAndResetsItsPasswordOnlyOnRequest() {
         String database = Path.of("target", "admin-bootstrap-" + UUID.randomUUID() + ".db").toString();
         BCryptPasswordEncoder bcrypt = new BCryptPasswordEncoder();
-        try (ConfigurableApplicationContext context = start(database, "systemadmin", bcrypt.encode("first-password"), false)) {
+        try (ConfigurableApplicationContext context = start(database, "systemadmin@example.test", bcrypt.encode("first-password"), false)) {
             Account admin = admin(context);
-            assertThat(admin.name().value()).isEqualTo("systemadmin");
+            assertThat(admin.email().value()).isEqualTo("systemadmin@example.test");
             assertThat(admin.identity()).isEmpty();
             assertThat(admin.passwordHash().value()).startsWith("{bcrypt}");
             assertThat(context.getBean(PasswordHasher.class).matches("first-password", admin.passwordHash())).isTrue();
         }
-        try (ConfigurableApplicationContext context = start(database, "systemadmin", bcrypt.encode("second-password"), false)) {
+        try (ConfigurableApplicationContext context = start(database, "systemadmin@example.test", bcrypt.encode("second-password"), false)) {
             Account admin = admin(context);
             assertThat(context.getBean(PasswordHasher.class).matches("first-password", admin.passwordHash())).isTrue();
             assertThat(admin.sessionEpoch()).isZero();
         }
-        try (ConfigurableApplicationContext context = start(database, "systemadmin", bcrypt.encode("second-password"), true)) {
+        try (ConfigurableApplicationContext context = start(database, "systemadmin@example.test", bcrypt.encode("second-password"), true)) {
             Account admin = admin(context);
+            assertThat(context.getBean(PasswordHasher.class).matches("second-password", admin.passwordHash())).isTrue();
+            assertThat(admin.sessionEpoch()).isEqualTo(1);
+        }
+        try (ConfigurableApplicationContext context = start(database, "new-admin@example.test", bcrypt.encode("second-password"), false)) {
+            Account admin = admin(context);
+            assertThat(admin.email().value()).isEqualTo("new-admin@example.test");
             assertThat(context.getBean(PasswordHasher.class).matches("second-password", admin.passwordHash())).isTrue();
             assertThat(admin.sessionEpoch()).isEqualTo(1);
         }
@@ -53,8 +59,10 @@ class AdminAccountBootstrapTest {
     void refusesToStartWithoutValidAdministratorConfiguration() {
         String database = Path.of("target", "admin-bootstrap-" + UUID.randomUUID() + ".db").toString();
         assertThatThrownBy(() -> start(database, " ", new BCryptPasswordEncoder().encode("x"), false))
-                .hasStackTraceContaining("ADMIN_USERNAME must not be blank");
-        assertThatThrownBy(() -> start(database, "systemadmin", "not-a-bcrypt-hash", false))
+                .hasStackTraceContaining("ADMIN_EMAIL must be a valid email address");
+        assertThatThrownBy(() -> start(database, "systemadmin", new BCryptPasswordEncoder().encode("x"), false))
+                .hasStackTraceContaining("ADMIN_EMAIL must be a valid email address");
+        assertThatThrownBy(() -> start(database, "systemadmin@example.test", "not-a-bcrypt-hash", false))
                 .hasStackTraceContaining("ADMIN_PASSWORD_HASH must be a BCrypt hash");
     }
 }

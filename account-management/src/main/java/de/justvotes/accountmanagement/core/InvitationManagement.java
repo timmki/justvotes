@@ -1,6 +1,5 @@
 package de.justvotes.accountmanagement.core;
 
-import de.justvotes.accountmanagement.core.exception.AccountNameTakenException;
 import de.justvotes.accountmanagement.core.exception.EmailAlreadyInvitedException;
 import de.justvotes.accountmanagement.core.exception.IdentityTakenException;
 import de.justvotes.accountmanagement.core.exception.InvitationDeliveryUnavailableException;
@@ -9,7 +8,6 @@ import de.justvotes.accountmanagement.core.exception.InvitationNotUsableExceptio
 import de.justvotes.accountmanagement.core.model.Account;
 import de.justvotes.accountmanagement.core.model.AccountId;
 import de.justvotes.accountmanagement.core.model.AccountIdentity;
-import de.justvotes.accountmanagement.core.model.AccountName;
 import de.justvotes.accountmanagement.core.model.EmailAddress;
 import de.justvotes.accountmanagement.core.model.Invitation;
 import de.justvotes.accountmanagement.core.model.InvitationId;
@@ -111,15 +109,11 @@ public final class InvitationManagement implements ManageInvitations, AcceptInvi
     }
 
     @Override
-    public Account accept(String token, String accountName, String identity, String password) {
+    public Account accept(String token, String identity, String password) {
         InvitationTokenHash tokenHash = tokenHash(token);
         Invitation invitation = usable(token);
-        AccountName name = AccountName.of(accountName);
         AccountIdentity accountIdentity = AccountIdentity.of(identity);
         Password newPassword = AccountManagement.newPassword(password);
-        if (accounts.existsByNameKey(name.normalized())) {
-            throw new AccountNameTakenException();
-        }
         if (accounts.existsByIdentityKey(accountIdentity.normalized())) {
             throw new IdentityTakenException();
         }
@@ -127,7 +121,7 @@ public final class InvitationManagement implements ManageInvitations, AcceptInvi
             throw new EmailAlreadyInvitedException();
         }
         Instant now = clock.now();
-        Account created = accounts.save(Account.createUser(name, accountIdentity, invitation.email(),
+        Account created = accounts.save(Account.createUser(accountIdentity, invitation.email(),
                 hasher.hash(newPassword.value()), now));
         AccountId createdId = created.id().orElseThrow();
         invitation.accept(tokenHash, createdId, now);

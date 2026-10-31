@@ -1,6 +1,7 @@
 package de.justvotes.bootstrap.config;
 
 import de.justvotes.accountmanagement.core.model.Account;
+import de.justvotes.accountmanagement.core.model.AccountIdentity;
 import de.justvotes.accountmanagement.core.model.Role;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -22,6 +23,7 @@ import java.util.List;
  * password changes, the account is locked or the absolute lifetime is exceeded.
  */
 public final class AccountSessions {
+    static final String ADMIN_PRINCIPAL = "admin";
     public static final String ACCOUNT_ID = "justvotes.accountId";
     public static final String SESSION_EPOCH = "justvotes.sessionEpoch";
     public static final String LOGIN_AT = "justvotes.loginAt";
@@ -39,6 +41,14 @@ public final class AccountSessions {
         return "ROLE_" + role.name();
     }
 
+    /**
+     * The principal name ends up as poll creator and audit actor, so it must stay stable and must not reveal
+     * an email address: the single administrator is always "admin", users appear under their identity.
+     */
+    static String principalName(Account account) {
+        return account.identity().map(AccountIdentity::value).orElse(ADMIN_PRINCIPAL);
+    }
+
     public void establish(Account account, HttpServletRequest request, HttpServletResponse response) {
         HttpSession previous = request.getSession(false);
         if (previous != null) {
@@ -50,7 +60,7 @@ public final class AccountSessions {
         session.setAttribute(LOGIN_AT, clock.instant().toEpochMilli());
 
         UsernamePasswordAuthenticationToken authentication = UsernamePasswordAuthenticationToken.authenticated(
-                account.name().value(), null, List.of(new SimpleGrantedAuthority(authority(account.role()))));
+                principalName(account), null, List.of(new SimpleGrantedAuthority(authority(account.role()))));
         SecurityContext context = SecurityContextHolder.createEmptyContext();
         context.setAuthentication(authentication);
         SecurityContextHolder.setContext(context);

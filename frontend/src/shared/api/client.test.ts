@@ -29,12 +29,12 @@ describe('ApiClient', () => {
     it('bootstraps CSRF once, attaches the returned header, and refreshes after login', async () => {
         const fetcher = vi.fn()
             .mockResolvedValueOnce(jsonResponse(200, {token: 'first-token', headerName: 'X-XSRF-TOKEN'}))
-            .mockResolvedValueOnce(jsonResponse(200, {accountName: 'admin', role: 'admin', identity: null, passwordChangeRequired: false}))
+            .mockResolvedValueOnce(jsonResponse(200, {email: 'admin@example.test', role: 'admin', identity: null, passwordChangeRequired: false}))
             .mockResolvedValueOnce(jsonResponse(200, {token: 'second-token', headerName: 'X-XSRF-TOKEN'}))
             .mockResolvedValueOnce(new Response(null, {status: 204}));
         const client = new ApiClient({fetcher});
 
-        const session = await client.login({username: 'admin', password: 'secret'});
+        const session = await client.login({email: 'admin@example.test', password: 'secret'});
         await client.withdrawVote('p_v1_one');
 
         expect(session.role).toBe('admin');
@@ -43,7 +43,7 @@ describe('ApiClient', () => {
         expect(fetcher.mock.calls[1][0]).toBe('/api/v1/session/login');
         expect(loginRequest).toMatchObject({
             credentials: 'same-origin',
-            body: JSON.stringify({username: 'admin', password: 'secret'})
+            body: JSON.stringify({email: 'admin@example.test', password: 'secret'})
         });
         expect((loginRequest.headers as Headers).get('X-XSRF-TOKEN')).toBe('first-token');
         expect(fetcher.mock.calls[3][0]).toBe('/api/v1/polls/p_v1_one/votes');
@@ -84,7 +84,7 @@ describe('ApiClient', () => {
         const session = new SessionCoordinator(clientCache);
         clientCache.setQueryData(queryKeys.adminPolls, [{id: 'private-poll'}]);
         clientCache.setQueryData(queryKeys.publicPolls, [{id: 'public-poll'}]);
-        clientCache.setQueryData(queryKeys.session, {accountName: 'admin'});
+        clientCache.setQueryData(queryKeys.session, {email: 'admin@example.test'});
         const client = new ApiClient({
             fetcher: vi.fn(async () => jsonResponse(401, {
                 status: 401,
@@ -97,7 +97,7 @@ describe('ApiClient', () => {
 
         expect(clientCache.getQueryData(queryKeys.adminPolls)).toBeUndefined();
         expect(clientCache.getQueryData(queryKeys.publicPolls)).toBeUndefined();
-        expect(clientCache.getQueryData(queryKeys.session)).toEqual({accountName: 'admin'});
+        expect(clientCache.getQueryData(queryKeys.session)).toEqual({email: 'admin@example.test'});
         expect(session.consumeReturnRoute()).toBe('/admin/polls');
         expect(session.isLoginRequired()).toBe(false);
     });
@@ -112,7 +112,7 @@ describe('ApiClient', () => {
         const client = new ApiClient({fetcher});
 
         await expect(client.getAdminPolls()).rejects.toBeInstanceOf(ApiError);
-        await client.login({username: 'admin', password: 'secret'});
+        await client.login({email: 'admin@example.test', password: 'secret'});
 
         expect(queryClient.getQueryData(queryKeys.adminPolls)).toBeUndefined();
         expect(sessionCoordinator.isLoginRequired()).toBe(true);

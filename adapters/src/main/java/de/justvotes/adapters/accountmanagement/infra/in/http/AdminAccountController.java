@@ -44,16 +44,16 @@ public class AdminAccountController implements AccountAdministrationApi {
     @Override
     public ResponseEntity<AccountSummary> lockAccount(String accountId) {
         Account account = commands.lock(accountId(accountId));
-        securityEvents.accountLocked(account.id().orElseThrow().value(), account.name().value(),
-                AuthenticatedAccounts.current().accountName());
+        securityEvents.accountLocked(account.id().orElseThrow().value(),
+                AuthenticatedAccounts.current().accountId());
         return noStore(AccountResponseMapper.summary(account));
     }
 
     @Override
     public ResponseEntity<AccountSummary> unlockAccount(String accountId) {
         Account account = commands.unlock(accountId(accountId));
-        securityEvents.accountUnlocked(account.id().orElseThrow().value(), account.name().value(),
-                AuthenticatedAccounts.current().accountName());
+        securityEvents.accountUnlocked(account.id().orElseThrow().value(),
+                AuthenticatedAccounts.current().accountId());
         return noStore(AccountResponseMapper.summary(account));
     }
 
@@ -62,7 +62,7 @@ public class AdminAccountController implements AccountAdministrationApi {
         AccountId id = accountId(accountId);
         String password = commands.assignOneTimePassword(id);
         Account account = queries.account(id).orElseThrow();
-        securityEvents.oneTimePasswordSet(id.value(), account.name().value(), AuthenticatedAccounts.current().accountName());
+        securityEvents.oneTimePasswordSet(id.value(), AuthenticatedAccounts.current().accountId());
         return noStore(new OneTimePassword(password));
     }
 }

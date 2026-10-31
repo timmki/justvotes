@@ -32,15 +32,15 @@ export function AccountAdministration() {
         },
         onSuccess: async ({account, password}) => {
             setError(null);
-            if (password) setOneTimePassword({name: account.accountName, password});
+            if (password) setOneTimePassword({name: account.email, password});
             await queryClient.invalidateQueries({queryKey: queryKeys.accounts});
         },
         onError: (cause) => setError(frontendError(cause) ?? null),
     });
 
     function run(account: AccountSummary, action: AccountAction) {
-        if (action === 'lock' && !window.confirm(t('admin.lockConfirm').replace('{name}', account.accountName))) return;
-        if (action === 'oneTimePassword' && !window.confirm(t('admin.oneTimePasswordConfirm').replace('{name}', account.accountName))) return;
+        if (action === 'lock' && !window.confirm(t('admin.lockConfirm').replace('{name}', account.email))) return;
+        if (action === 'oneTimePassword' && !window.confirm(t('admin.oneTimePasswordConfirm').replace('{name}', account.email))) return;
         setOneTimePassword(null);
         mutation.mutate({account, action});
     }
@@ -56,9 +56,8 @@ export function AccountAdministration() {
         {query.data.length === 0 && <RouteState status="empty" title={t('admin.noAccounts')}/>}
         {query.data.length !== 0 && <div className="table-scroll"><table className="admin-table">
             <thead><tr>
-                <th scope="col">{t('admin.accountName')}</th>
-                <th scope="col">{t('admin.accountIdentity')}</th>
                 <th scope="col">{t('admin.accountEmail')}</th>
+                <th scope="col">{t('admin.accountIdentity')}</th>
                 <th scope="col">{t('admin.accountRole')}</th>
                 <th scope="col">{t('admin.accountStatus')}</th>
                 <th scope="col"><span className="sr-only">{t('admin.actions')}</span></th>
@@ -80,9 +79,8 @@ function AccountRow({account, pending, onAction}: {
     let statusKey: TranslationKey = 'admin.statusActive';
     if (account.status === 'locked') statusKey = 'admin.statusLocked';
     return <tr>
-        <th scope="row"><span title={`${account.accountName} · ${formatTimestamp(account.createdAt, locale)}`}>{account.accountName}</span></th>
+        <th scope="row"><span title={`${account.email} · ${formatTimestamp(account.createdAt, locale)}`}>{account.email}</span></th>
         <td>{account.identity ?? '—'}</td>
-        <td>{account.email ?? '—'}</td>
         <td>{t(roleKey)}</td>
         <td>
             <span className={`status-badge status-${account.status}`}>{t(statusKey)}</span>

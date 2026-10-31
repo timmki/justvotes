@@ -13,7 +13,7 @@ mvn -s .mvn/settings.xml test
 
 For separate backend development, start the Spring Boot module with
 `mvn -s .mvn/settings.xml -pl bootstrap -am spring-boot:run` and provide
-`ADMIN_USERNAME` and `ADMIN_PASSWORD_HASH` in the environment. Run the SPA
+`ADMIN_EMAIL` and `ADMIN_PASSWORD_HASH` in the environment. Run the SPA
 from `frontend/` with `pnpm dev`; Vite proxies `/api` to the backend.
 
 The default database path is `/data/justvotes.db`. It can be overridden with
@@ -22,8 +22,10 @@ The default database path is `/data/justvotes.db`. It can be overridden with
 history differs.
 
 Exactly one system administrator and their BCrypt hash must also be configured during
-installation: `ADMIN_USERNAME` and `ADMIN_PASSWORD_HASH`. The application does not
-start without these values. On the first start they create the administrator account;
+installation: `ADMIN_EMAIL` and `ADMIN_PASSWORD_HASH`. The application does not
+start without these values. Everybody, the administrator included, signs in with their email
+address and password. On the first start these values create the administrator account; a
+changed `ADMIN_EMAIL` is applied to it on the next start (it must not belong to a user account);
 afterwards a password changed in the application is kept. To recover a lost administrator
 password, set a new `ADMIN_PASSWORD_HASH` together with `ADMIN_PASSWORD_RESET=true` for one
 start and remove the flag again.
@@ -35,7 +37,7 @@ SQLite file before upgrading if you need the old votes.
 ```powershell
 docker build -t justvotes .
 docker run --rm -p 8080:8080 -v justvotes-data:/data `
-  -e ADMIN_USERNAME=admin `
+  -e ADMIN_EMAIL=admin@example.test `
   -e ADMIN_PASSWORD_HASH="$2a$10$yXyXCUgriz0cm1V1n0fypOPqDx.vQRVFpB42WFqYRQgPWd/vDC40m" justvotes
 ```
 
@@ -56,18 +58,20 @@ Every page and API requires a signed-in local account; without a session only th
 the invitation page, `GET /api/v1/csrf`, `/config.js` and the health endpoints are reachable.
 There is no external identity provider. Two roles exist:
 
-- **Administrator** – the single account from `ADMIN_USERNAME`; it only sees the administration
+- **Administrator** – the single account from `ADMIN_EMAIL`; it only sees the administration
   (polls, template catalog, votes, accounts, invitations) and never votes.
-- **User** – every invited account; it owns exactly one fixed identity, sees and uses polls and
-  its personal profile, and can change its own password.
+- **User** – every invited account; it signs in with the invited email address, owns exactly one
+  fixed identity (shown as display name in polls and the audit log, while the email address stays
+  hidden from other accounts), sees and uses polls and its personal profile, and can change its own
+  password.
 
 `GET /api/v1/csrf` returns the CSRF token and sets the associated cookie.
-`POST /api/v1/session/login` expects JSON with `username` and `password` plus the token in
+`POST /api/v1/session/login` expects JSON with `email` and `password` plus the token in
 `X-XSRF-TOKEN`; it rotates and sets the server-side session cookie and returns the signed-in
 account. `GET /api/v1/session` returns the current account, `POST /api/v1/session/logout` ends
 the session, and `PUT /api/v1/session/password` changes the own password (other sessions of the
 account end). Sessions expire after 30 minutes without activity and at the latest 12 hours after
-login. Five failed logins for the same name block further attempts for 30 seconds, doubling up
+login. Five failed logins for the same email address block further attempts for 30 seconds, doubling up
 to 15 minutes (`429` with `Retry-After`).
 
 The administrator invites people by email under *Administration → Einladungen*. Invitation links
@@ -127,13 +131,13 @@ Build and smoke-test the final image with a temporary SQLite volume:
 ```bash
 docker build --build-arg VITE_APP_NAME="Foo App" -t justvotes .
 docker run --rm -p 8080:8080 -v justvotes-data:/data \
-  -e ADMIN_USERNAME=admin \
+  -e ADMIN_EMAIL=admin@example.test \
   -e ADMIN_PASSWORD_HASH="$2a$10$yXyXCUgriz0cm1V1n0fypOPqDx.vQRVFpB42WFqYRQgPWd/vDC40m" justvotes
 ```
 
 ```cmd
 docker build --build-arg VITE_APP_NAME="Foo App" -t justvotes .
-docker run --rm -p 8080:8080 -e ADMIN_USERNAME=admin -e ADMIN_PASSWORD_HASH="$2a$10$yXyXCUgriz0cm1V1n0fypOPqDx.vQRVFpB42WFqYRQgPWd/vDC40m" -e DATABASE_URL=jdbc:sqlite:/data/justvotes.db justvotes
+docker run --rm -p 8080:8080 -e ADMIN_EMAIL=admin@example.test -e ADMIN_PASSWORD_HASH="$2a$10$yXyXCUgriz0cm1V1n0fypOPqDx.vQRVFpB42WFqYRQgPWd/vDC40m" -e DATABASE_URL=jdbc:sqlite:/data/justvotes.db justvotes
 ```
 
 Then verify `/`, a direct SPA route such as `/polls`, `/api/v1/missing` and `/api/v1/polls` (401 without a session), `/actuator/health` and `/actuator/health/readiness`. The same checks run automatically in `.github/workflows/ci.yml`.

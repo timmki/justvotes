@@ -1,10 +1,10 @@
 import AxeBuilder from '@axe-core/playwright';
 import {expect, test, type Page, type Route} from '@playwright/test';
 
-type Session = {accountName: string; role: 'user' | 'admin'; identity: string | null; passwordChangeRequired: boolean};
+type Session = {email: string; role: 'user' | 'admin'; identity: string | null; passwordChangeRequired: boolean};
 
-const user: Session = {accountName: 'anna', role: 'user', identity: 'Anna', passwordChangeRequired: false};
-const admin: Session = {accountName: 'systemadmin', role: 'admin', identity: null, passwordChangeRequired: false};
+const user: Session = {email: 'anna@example.test', role: 'user', identity: 'Anna', passwordChangeRequired: false};
+const admin: Session = {email: 'systemadmin@example.test', role: 'admin', identity: null, passwordChangeRequired: false};
 const poll = {
     id: 'p_v1_auth', title: 'Signed-in poll', visibility: 'public', state: 'active',
     createdAt: '2026-10-27T10:00:00.000Z', endsAt: '2099-01-01T00:00:00.000Z', totalVotes: 0,
@@ -70,10 +70,10 @@ test('anonymous visitors only see the login page; users sign in, vote and sign o
     await expect(page.getByRole('navigation')).toHaveCount(0);
     expect(await seriousViolations(page)).toEqual([]);
 
-    await page.getByLabel('Kontoname').fill('anna');
+    await page.getByLabel('E-Mail-Adresse').fill('anna@example.test');
     await page.getByLabel('Passwort').fill('wrong-password');
     await page.getByRole('button', {name: 'Anmelden'}).click();
-    await expect(page.getByRole('alert')).toHaveText('Kontoname oder Passwort ist falsch.');
+    await expect(page.getByRole('alert')).toHaveText('E-Mail-Adresse oder Passwort ist falsch.');
 
     await page.getByLabel('Passwort').fill('correct-horse-battery');
     await page.getByRole('button', {name: 'Anmelden'}).click();
@@ -87,7 +87,7 @@ test('anonymous visitors only see the login page; users sign in, vote and sign o
     expect(votes).toEqual([2]);
 
     await page.locator('.sidebar .account-panel').getByRole('button', {name: 'Abmelden'}).click();
-    await expect(page.getByLabel('Kontoname')).toBeVisible();
+    await expect(page.getByLabel('E-Mail-Adresse')).toBeVisible();
     await expect(page.getByText('Deine Sitzung ist abgelaufen')).toHaveCount(0);
 });
 
@@ -132,14 +132,14 @@ test('an invited person completes the account from the link (component-level, mo
     await expect(page).toHaveURL(/\/invitation$/);
     expect(await seriousViolations(page)).toEqual([]);
 
-    await page.getByLabel('Kontoname').fill('anna');
-    await page.getByLabel('Identität').fill('Anna');
+    await expect(page.getByLabel('E-Mail-Adresse')).toHaveValue('anna@example.test');
+    await page.getByLabel('Anzeigename').fill('Anna');
     await page.getByLabel('Neues Passwort', {exact: true}).fill('correct-horse-battery');
     await page.getByLabel('Neues Passwort wiederholen').fill('correct-horse-battery');
     await page.getByRole('button', {name: 'Konto anlegen'}).click();
 
     await expect(page).toHaveURL(/\/polls$/);
-    expect(accepted).toEqual({token: 'invite-token', username: 'anna', userID: 'Anna', password: 'correct-horse-battery'});
+    expect(accepted).toEqual({token: 'invite-token', userID: 'Anna', password: 'correct-horse-battery'});
 });
 
 test('a signed-in person is asked to sign out before accepting an invitation', async ({page}) => {
@@ -152,7 +152,7 @@ test('a signed-in person is asked to sign out before accepting an invitation', a
     });
 
     await page.goto('/invitation#token=invite-token');
-    await expect(page.getByText('Du bist als systemadmin angemeldet.')).toBeVisible();
+    await expect(page.getByText('Du bist als systemadmin@example.test angemeldet.')).toBeVisible();
     await page.getByRole('button', {name: 'Abmelden'}).first().click();
     await expect(page.getByText('anna@example.test')).toBeVisible();
 });
