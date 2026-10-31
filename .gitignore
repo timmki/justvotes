@@ -17,3 +17,5 @@ node_modules/
 frontend/.vite/
 frontend/test-results/
 data/
+# Local settings with credentials; bootstrap/dev.env.example is the template
+bootstrap/dev.env
