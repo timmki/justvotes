@@ -262,8 +262,8 @@ entsperren + Einmalpasswort → Login erzwingt `/password`.
 - [X] T088 [P] Accessibility and responsive review of `frontend/src/features/auth/LoginPage.tsx`, `InvitationPage.tsx`, `PasswordChangePage.tsx`, `frontend/src/features/admin/AccountAdministration.tsx`, `InvitationAdministration.tsx` (360 px, keyboard only, visible focus, live regions); axe checks in `frontend/e2e/auth.spec.ts`
 - [X] T089 [P] Verify no password, token or hash appears in logs or responses: test `bootstrap/src/test/java/de/justvotes/bootstrap/SecurityEventLoggingTest.java` capturing `justvotes.security` output for every event listed in T021; a failed login whose name field contains a password-like string for a non-existing account logs only `nameFingerprint`, never the entered text (FR-032, SC-008, research R12)
 - [X] T090 Remove leftover references to the `userID` cookie, `adminSession`, `IdentityCookieCodec`, `/admin/login` and the event type `VoteRemovedForIdentityChange` across `frontend/src` (incl. `frontend/src/features/polls/AuditPage.tsx` and audit labels in `frontend/src/shared/i18n/translations.ts`) and `bootstrap/src/test` (analysis G1)
-- [ ] T091 Run full quality gates: `mvn -s .mvn/settings.xml test`; in `frontend/`: `pnpm build`, `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm test:e2e`; contract typecheck in `api-contract/typescript-contract`; `docker build -t justvotes .` and container start without `MAIL_HOST`
-- [ ] T092 Run manual scenarios 1–14 incl. 4a and 12a from `specs/006-local-user-auth/quickstart.md` with Mailpit
+- [X] T091 Run full quality gates: `mvn -s .mvn/settings.xml test`; in `frontend/`: `pnpm build`, `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm test:e2e`; contract typecheck in `api-contract/typescript-contract`; `docker build -t justvotes .` and container start without `MAIL_HOST`
+- [X] T092 Run manual scenarios 1–14 incl. 4a and 12a from `specs/006-local-user-auth/quickstart.md` with Mailpit (API-gestützt gegen Container + Mailpit; 4a, 7 und 14 über E2E-/Migrationstests abgedeckt)
 
 ---
 

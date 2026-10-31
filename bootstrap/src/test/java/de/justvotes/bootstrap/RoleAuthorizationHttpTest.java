@@ -84,13 +84,11 @@ class RoleAuthorizationHttpTest extends AccountHttpTestBase {
     void apiDocumentationIsOnlyForTheAdministrator() {
         TestRestTemplate client = new TestRestTemplate();
         for (TestSession session : List.of(fixtures().loginAsUser("Docs User"), fixtures().loginAsAdmin())) {
-            int status = client.exchange(RequestEntity.get("http://localhost:" + port + "/swagger-ui/index.html")
-                    .header(HttpHeaders.COOKIE, session.cookies()).build(), String.class).getStatusCode().value();
             String role = json(session.get(url("/session"))).path("role").asText();
-            if (role.equals("admin")) {
-                assertThat(status).isNotIn(401, 403);
-            } else {
-                assertThat(status).isEqualTo(403);
+            for (String path : List.of("/swagger-ui/index.html", "/swagger-ui/swagger-ui-bundle.js", "/api-docs/openapi-v1.yaml")) {
+                int status = client.exchange(RequestEntity.get("http://localhost:" + port + path)
+                        .header(HttpHeaders.COOKIE, session.cookies()).build(), String.class).getStatusCode().value();
+                assertThat(status).as(role + " " + path).isEqualTo(role.equals("admin") ? 200 : 403);
             }
         }
     }

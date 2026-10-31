@@ -9,6 +9,7 @@ import de.justvotes.accountmanagement.core.model.IssuedInvitation;
 import de.justvotes.accountmanagement.core.ports.in.AcceptInvitation;
 import de.justvotes.accountmanagement.core.ports.in.ManageInvitations;
 import de.justvotes.adapters.sqlite.SqliteRetryingTransaction;
+import org.springframework.dao.DataAccessException;
 
 import java.util.List;
 
@@ -64,6 +65,11 @@ public class TransactionalInvitationManagement implements ManageInvitations, Acc
 
     @Override
     public Account accept(String token, String accountName, String identity, String password) {
-        return transactions.execute(() -> invitations.accept(token, accountName, identity, password));
+        try {
+            return transactions.execute(() -> invitations.accept(token, accountName, identity, password));
+        } catch (DataAccessException concurrentAcceptance) {
+            // A parallel acceptance won the unique index; the second attempt reports the taken name or identity.
+            return transactions.execute(() -> invitations.accept(token, accountName, identity, password));
+        }
     }
 }
