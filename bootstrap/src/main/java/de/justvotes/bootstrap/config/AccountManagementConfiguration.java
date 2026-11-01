@@ -1,5 +1,9 @@
 package de.justvotes.bootstrap.config;
 
+import de.justvotes.accountmanagement.core.ports.out.MemberJoinedListener;
+import de.justvotes.adapters.membership.MemberJoinedFanOut;
+import de.justvotes.pollmanagement.core.PollManagement;
+import de.justvotes.templatecatalog.core.TemplateCatalogAdministration;
 import de.justvotes.accountmanagement.core.AccountManagement;
 import de.justvotes.accountmanagement.core.InvitationManagement;
 import de.justvotes.accountmanagement.core.model.AdminProvisioning;
@@ -158,9 +162,15 @@ class AccountManagementConfiguration {
                                                                         AccountRepository accounts, PasswordHasher hasher,
                                                                         TokenGenerator tokens, InvitationMailer mailer,
                                                                         UtcClock accountClock,
+                                                                        MemberJoinedListener members,
                                                                         SqliteRetryingTransaction transactions) {
         return new TransactionalInvitationManagement(
-                new InvitationManagement(invitations, accounts, hasher, tokens, mailer, accountClock), transactions);
+                new InvitationManagement(invitations, accounts, hasher, tokens, mailer, accountClock, members), transactions);
+    }
+
+    @Bean
+    MemberJoinedListener memberJoinedListener(TemplateCatalogAdministration catalog, PollManagement polls) {
+        return new MemberJoinedFanOut(catalog, polls);
     }
 
     @Bean

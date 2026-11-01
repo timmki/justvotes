@@ -311,6 +311,11 @@ class VoteManagementTest {
         }
 
         @Override
+        public List<Poll> findAllFollowingMembers() {
+            return List.of();
+        }
+
+        @Override
         public AdminVotePage findAdminVotes(int page, int size) {
             return adminPage;
         }

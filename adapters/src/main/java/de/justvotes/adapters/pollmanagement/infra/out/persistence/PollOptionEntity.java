@@ -31,6 +31,10 @@ public class PollOptionEntity {
         return text;
     }
 
+    void changeText(String text) {
+        this.text = text;
+    }
+
     PollEntity poll() {
         return poll;
     }

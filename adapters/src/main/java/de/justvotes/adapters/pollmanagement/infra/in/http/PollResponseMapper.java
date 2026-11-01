@@ -5,6 +5,7 @@ import de.justvotes.api.v1.model.Option;
 import de.justvotes.api.v1.model.PollState;
 import de.justvotes.api.v1.model.PollVisibility;
 import de.justvotes.api.v1.model.TemplateGroup;
+import de.justvotes.api.v1.model.TemplateGroupKind;
 import de.justvotes.pollmanagement.core.model.Poll;
 import de.justvotes.pollmanagement.core.model.PollSummary;
 
@@ -24,7 +25,11 @@ final class PollResponseMapper {
     }
 
     static de.justvotes.api.v1.model.Poll map(PollSummary poll) {
-        TemplateGroup group = new TemplateGroup(OpaqueIdCodec.encode("g", poll.templateGroup().id().value()), poll.templateGroup().name(), poll.templateGroup().description());
+        TemplateGroupKind kind = TemplateGroupKind.MANUAL;
+        if (poll.templateGroup().followsMembers()) {
+            kind = TemplateGroupKind.MEMBERS;
+        }
+        TemplateGroup group = new TemplateGroup(OpaqueIdCodec.encode("g", poll.templateGroup().id().value()), poll.templateGroup().name(), poll.templateGroup().description()).kind(kind);
         OffsetDateTime endsAt = null;
         if (poll.endsAt() != null) {
             endsAt = utcTimestamp(poll.endsAt());

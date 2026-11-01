@@ -7,6 +7,7 @@ export type ErrorMessageKey =
     | 'errors.forbidden'
     | 'errors.notFound'
     | 'errors.conflict'
+    | 'errors.catalogItemManaged'
     | 'errors.generic';
 
 export type FrontendError = {
@@ -40,7 +41,7 @@ export function problemError(problem: Partial<ProblemDetails>, status: number, r
         code: problem.code ?? `http_${status}`,
         detail: problem.detail ?? problem.title ?? null,
         retryable: status >= 500,
-        messageKey: messageKeyForStatus(status),
+        messageKey: messageKeyFor(status, problem.code),
         ...(problem.field && {field: problem.field}),
         ...(problem.rule && {rule: problem.rule}),
     }, undefined, retryAfterSeconds);
@@ -55,6 +56,11 @@ export function networkError(cause: unknown): ApiError {
         retryable: true,
         messageKey: 'errors.network'
     }, cause);
+}
+
+function messageKeyFor(status: number, code: string | undefined): ErrorMessageKey {
+    if (code === 'catalog-item-managed') return 'errors.catalogItemManaged';
+    return messageKeyForStatus(status);
 }
 
 function messageKeyForStatus(status: number): ErrorMessageKey {

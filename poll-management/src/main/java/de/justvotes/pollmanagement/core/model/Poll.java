@@ -1,5 +1,6 @@
 package de.justvotes.pollmanagement.core.model;
 
+import de.justvotes.pollmanagement.core.event.PollOptionAdded;
 import de.justvotes.pollmanagement.core.event.PollPublished;
 import de.justvotes.pollmanagement.core.exception.PollNotActiveException;
 import de.justvotes.pollmanagement.core.model.VoteOutcome.Status;
@@ -14,7 +15,7 @@ public final class Poll {
     private final String createdBy;
     private final Instant createdAt;
     private final TemplateGroup templateGroup;
-    private final List<Option> templateSnapshotOptions;
+    private List<Option> templateSnapshotOptions;
     private final List<Vote> votes;
     private Visibility visibility;
     private State state;
@@ -181,6 +182,30 @@ public final class Poll {
         return current;
     }
 
+    /**
+     * Appends a new member as option to a poll that follows the members group, keeping all options and votes.
+     */
+    public Optional<PollOptionAdded> addMemberOption(String identity, Instant at) {
+        String text = requiredText(identity, "A member identity must not be blank.");
+        boolean open = state == State.DRAFT || state == State.ACTIVE;
+        boolean ended = endsAt != null && !at.isBefore(endsAt);
+        boolean present = options.stream().anyMatch(option -> normalize(option.text()).equals(normalize(text)));
+        if (!templateGroup.followsMembers() || !open || ended || present) {
+            return Optional.empty();
+        }
+        Option added = new Option(options.stream().mapToInt(Option::number).max().orElse(0) + 1, text);
+        options = append(options, added);
+        templateSnapshotOptions = append(templateSnapshotOptions,
+                new Option(templateSnapshotOptions.stream().mapToInt(Option::number).max().orElse(0) + 1, text));
+        return Optional.of(new PollOptionAdded(id, added.number(), added.text(), at));
+    }
+
+    private static List<Option> append(List<Option> options, Option option) {
+        List<Option> extended = new ArrayList<>(options);
+        extended.add(option);
+        return List.copyOf(extended);
+    }
+
     public Poll replaceOptions(List<String> optionTexts) {
         if (state != State.DRAFT) {
             throw new IllegalStateException("Poll options can only be changed in a draft.");
@@ -312,7 +337,14 @@ public final class Poll {
         }
     }
 
-    public record TemplateGroup(TemplateGroupId id, String name, String description) {
+    /**
+     * The snapshot of the source group; {@code followsMembers} marks polls that receive new members as options.
+     */
+    public record TemplateGroup(TemplateGroupId id, String name, String description, boolean followsMembers) {
+        public TemplateGroup(TemplateGroupId id, String name, String description) {
+            this(id, name, description, false);
+        }
+
         public TemplateGroup {
             if (id == null) {
                 throw new IllegalArgumentException("A poll must have a template group.");

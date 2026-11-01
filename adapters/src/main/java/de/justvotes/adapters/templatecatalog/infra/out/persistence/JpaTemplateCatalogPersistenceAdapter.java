@@ -6,6 +6,7 @@ import de.justvotes.templatecatalog.core.model.OptionTemplateGroup.OptionTemplat
 import de.justvotes.templatecatalog.core.ports.out.OptionTemplateRepository;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -28,6 +29,11 @@ public final class JpaTemplateCatalogPersistenceAdapter implements OptionTemplat
     }
 
     @Override
+    public Optional<OptionTemplate> findByMemberIdentity(String identity) {
+        return templates.findByMemberIdentityKey(identity.toLowerCase(Locale.ROOT)).map(this::template);
+    }
+
+    @Override
     public List<OptionTemplate> findAll() {
         return templates.findAll().stream().map(this::template).toList();
     }
@@ -41,6 +47,7 @@ public final class JpaTemplateCatalogPersistenceAdapter implements OptionTemplat
             entity = templates.findById(template.id().value()).orElseThrow();
         }
         entity.rename(template.name());
+        entity.representMember(template.memberIdentity().map(identity -> identity.toLowerCase(Locale.ROOT)).orElse(null));
         return template(templates.save(entity));
     }
 
@@ -53,7 +60,8 @@ public final class JpaTemplateCatalogPersistenceAdapter implements OptionTemplat
         Set<OptionTemplateGroupId> groupReferences = entity.groups().stream()
                 .map(group -> OptionTemplateGroupId.of(group.id()))
                 .collect(Collectors.toUnmodifiableSet());
-        return new OptionTemplate(OptionTemplateId.of(entity.id()), entity.name(), groupReferences);
+        String memberIdentity = Optional.ofNullable(entity.memberIdentityKey()).map(key -> entity.name()).orElse(null);
+        return new OptionTemplate(OptionTemplateId.of(entity.id()), entity.name(), groupReferences, memberIdentity);
     }
 
 }

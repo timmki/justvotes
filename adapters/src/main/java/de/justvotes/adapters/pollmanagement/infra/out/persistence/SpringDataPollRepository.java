@@ -21,6 +21,7 @@ public interface SpringDataPollRepository extends JpaRepository<PollEntity, Stri
                    p.templateGroupId as templateGroupId,
                    p.templateGroupName as templateGroupName,
                    p.templateGroupDescription as templateGroupDescription,
+                   p.followsMembers as followsMembers,
                    option.number as optionNumber,
                    option.text as optionText,
                    snapshot.number as templateSnapshotOptionNumber,
@@ -33,7 +34,7 @@ public interface SpringDataPollRepository extends JpaRepository<PollEntity, Stri
             where p.visibility = 'public'
               and p.state in ('active', 'expired')
             group by p.id, p.title, p.visibility, p.state, p.createdAt, p.endsAt,
-                     p.templateGroupId, p.templateGroupName, p.templateGroupDescription,
+                     p.templateGroupId, p.templateGroupName, p.templateGroupDescription, p.followsMembers,
                      option.number, option.text, snapshot.number, snapshot.text
             order by p.createdAt asc, p.id asc, option.number asc, snapshot.number asc
             """)
@@ -42,6 +43,8 @@ public interface SpringDataPollRepository extends JpaRepository<PollEntity, Stri
     List<PollEntity> findAllByVisibilityAndState(String visibility, String state);
 
     List<PollEntity> findAllByState(String state);
+
+    List<PollEntity> findAllByFollowsMembersAndStateIn(int followsMembers, List<String> states);
 
     Optional<PollEntity> findByVotesId(Integer voteId);
 }

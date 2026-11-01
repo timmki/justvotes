@@ -11,6 +11,8 @@ public interface OptionTemplateRepository {
 
     Optional<OptionTemplate> findByNormalizedName(String normalizedName);
 
+    Optional<OptionTemplate> findByMemberIdentity(String identity);
+
     List<OptionTemplate> findAll();
 
     OptionTemplate save(OptionTemplate template);

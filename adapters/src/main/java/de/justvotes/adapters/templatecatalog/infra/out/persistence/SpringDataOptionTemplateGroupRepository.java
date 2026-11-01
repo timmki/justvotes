@@ -12,4 +12,6 @@ public interface SpringDataOptionTemplateGroupRepository extends JpaRepository<O
     Optional<OptionTemplateGroupEntity> findByNormalizedName(@Param("name") String normalizedName);
 
     List<OptionTemplateGroupEntity> findAllByTemplatesId(Long templateId);
+
+    Optional<OptionTemplateGroupEntity> findByKind(String kind);
 }

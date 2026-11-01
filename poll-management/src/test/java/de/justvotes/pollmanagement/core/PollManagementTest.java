@@ -21,7 +21,9 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PollManagementTest {
     @Test
@@ -53,6 +55,42 @@ class PollManagementTest {
         assertThrows(IllegalArgumentException.class, () -> management.replaceDraftOptions(poll.id(), List.of(" Ja ", "ja")));
         management.replaceDraftOptions(poll.id(), List.of("Nein"));
         assertEquals(List.of("Ja"), poll.templateSnapshotOptions().stream().map(Option::text).toList());
+    }
+
+    @Test
+    void marksPollsFromTheMembersGroupAsFollowingMembersAndRejectsAnEmptyMembersGroup() {
+        PollManagement members = new PollManagement(new InMemoryPollRepository(),
+                groupId -> new TemplateGroupSnapshot(groupId, "Alle Mitglieder", "", List.of("anna"), true), event -> {
+        }, Instant::now);
+        PollManagement manual = new PollManagement(new InMemoryPollRepository(),
+                groupId -> new TemplateGroupSnapshot(groupId, "Gremium", "", List.of("Ja")), event -> {
+        }, Instant::now);
+        PollManagement emptyMembers = new PollManagement(new InMemoryPollRepository(),
+                groupId -> new TemplateGroupSnapshot(groupId, "Alle Mitglieder", "", List.of(), true), event -> {
+        }, Instant::now);
+
+        assertTrue(members.createDraft("Dienst", TemplateGroupId.of(1), "anna").templateGroup().followsMembers());
+        assertFalse(manual.createDraft("Wahl", TemplateGroupId.of(2), "anna").templateGroup().followsMembers());
+        assertThrows(IllegalArgumentException.class, () -> emptyMembers.createDraft("Dienst", TemplateGroupId.of(1), "anna"));
+    }
+
+    @Test
+    void addsAJoiningMemberToOpenPollsFollowingMembersAndRecordsTheAddition() {
+        List<PollDomainEvent> events = new ArrayList<>();
+        InMemoryPollRepository repository = new InMemoryPollRepository();
+        PollManagement management = new PollManagement(repository,
+                groupId -> new TemplateGroupSnapshot(groupId, "Alle Mitglieder", "", List.of("anna"), true), events::add, Instant::now);
+        Poll draft = management.createDraft("Dienst", TemplateGroupId.of(1), "anna");
+
+        management.memberJoined("bert");
+        management.memberJoined("bert");
+
+        Poll stored = repository.findById(draft.id()).orElseThrow();
+        assertEquals(List.of("anna", "bert"), stored.options().stream().map(Option::text).toList());
+        assertEquals(1, events.size());
+        assertEquals("PollOptionAdded", events.get(0).eventType());
+        assertEquals("System", events.get(0).actorId());
+        assertEquals("bert", events.get(0).selection());
     }
 
     @Test
@@ -160,6 +198,15 @@ class PollManagementTest {
         @Override
         public List<Poll> findAllPublicActive() {
             if (poll != null && poll.isPubliclyVisible()) {
+                return List.of(poll);
+            }
+            return List.of();
+        }
+
+        @Override
+        public List<Poll> findAllFollowingMembers() {
+            if (poll != null && poll.templateGroup().followsMembers()
+                    && (poll.state() == State.DRAFT || poll.state() == State.ACTIVE)) {
                 return List.of(poll);
             }
             return List.of();

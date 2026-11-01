@@ -16,6 +16,9 @@ import de.justvotes.accountmanagement.core.model.Role;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -31,6 +34,32 @@ class InvitationManagementTest {
     private final RecordingMailer mailer = new RecordingMailer();
     private final InvitationManagement management = new InvitationManagement(invitations, accounts, hasher,
             new SequentialTokens(), mailer, clock);
+
+    @Test
+    void reportsTheNewMemberOnceAfterTheAccountIsStored() {
+        List<String> joined = new ArrayList<>();
+        InvitationManagement reporting = new InvitationManagement(invitations, accounts, hasher,
+                new SequentialTokens(), mailer, clock, identity -> {
+            assertTrue(accounts.existsByIdentityKey(identity.toLowerCase(Locale.ROOT)));
+            joined.add(identity);
+        });
+        IssuedInvitation issued = reporting.invite("anna@example.test");
+
+        reporting.accept(issued.token().value(), "Anna", PASSWORD);
+
+        assertEquals(List.of("Anna"), joined);
+    }
+
+    @Test
+    void failsTheAcceptanceWhenTheNewMemberCannotBeHandedOn() {
+        InvitationManagement failing = new InvitationManagement(invitations, accounts, hasher,
+                new SequentialTokens(), mailer, clock, identity -> {
+            throw new IllegalStateException("members group missing");
+        });
+        IssuedInvitation issued = failing.invite("anna@example.test");
+
+        assertThrows(IllegalStateException.class, () -> failing.accept(issued.token().value(), "Anna", PASSWORD));
+    }
 
     @Test
     void invitationRequiresAvailableDelivery() {

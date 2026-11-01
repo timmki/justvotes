@@ -1,5 +1,6 @@
 package de.justvotes.templatecatalog.core.model;
 
+import de.justvotes.templatecatalog.core.exception.CatalogItemManagedException;
 import de.justvotes.templatecatalog.core.model.OptionTemplate.OptionTemplateId;
 
 import java.util.Collections;
@@ -10,6 +11,7 @@ public final class OptionTemplateGroup {
     private final OptionTemplateGroupId id;
     private final Set<OptionTemplateId> templateReferences;
     private String name;
+    private final TemplateGroupKind kind;
     private String description;
 
     public OptionTemplateGroup(String name, String description) {
@@ -17,7 +19,12 @@ public final class OptionTemplateGroup {
     }
 
     public OptionTemplateGroup(OptionTemplateGroupId id, String name, String description, Set<OptionTemplateId> templateReferences) {
+        this(id, name, description, templateReferences, TemplateGroupKind.MANUAL);
+    }
+
+    public OptionTemplateGroup(OptionTemplateGroupId id, String name, String description, Set<OptionTemplateId> templateReferences, TemplateGroupKind kind) {
         this.id = id;
+        this.kind = kind;
         this.name = validateName(name);
         if (description == null) {
             this.description = "";
@@ -39,26 +46,55 @@ public final class OptionTemplateGroup {
         return description;
     }
 
+    public TemplateGroupKind kind() {
+        return kind;
+    }
+
+    public boolean managed() {
+        return kind == TemplateGroupKind.MEMBERS;
+    }
+
     public Set<OptionTemplateId> templateReferences() {
         return Collections.unmodifiableSet(templateReferences);
     }
 
     public OptionTemplateGroup addTemplate(OptionTemplateId templateId) {
+        requireUnmanaged();
         templateReferences.add(templateId);
         return this;
     }
 
     public OptionTemplateGroup removeTemplate(OptionTemplateId templateId) {
+        requireUnmanaged();
         templateReferences.remove(templateId);
         return this;
     }
 
+    /**
+     * Adds a member's template; only the automatic synchronisation of the members group calls this.
+     */
+    public OptionTemplateGroup addMember(OptionTemplateId templateId) {
+        if (!managed()) {
+            throw new IllegalStateException("Only the members group holds member templates.");
+        }
+        templateReferences.add(templateId);
+        return this;
+    }
+
     public OptionTemplateGroup rename(String name) {
+        requireUnmanaged();
         this.name = validateName(name);
         return this;
     }
 
+    public void requireUnmanaged() {
+        if (managed()) {
+            throw new CatalogItemManagedException("Template group", id.value());
+        }
+    }
+
     public OptionTemplateGroup description(String description) {
+        requireUnmanaged();
         if (description == null) {
             this.description = "";
         } else {

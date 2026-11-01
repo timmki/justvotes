@@ -19,6 +19,8 @@ public interface PollSummaryProjection {
 
     String getTemplateGroupDescription();
 
+    Integer getFollowsMembers();
+
     Integer getOptionNumber();
 
     String getOptionText();

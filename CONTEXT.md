@@ -56,6 +56,18 @@ _Avoid_: Poll-Gruppe, Optionsliste
 Eine global benannte, wiederverwendbare Vorlage für eine Poll-Option.
 _Avoid_: Option, Poll-Option
 
+**Mitgliedergruppe**:
+Die einzige, vom System gepflegte Vorlagengruppe „Alle Mitglieder“. Sie enthält
+für jede Identität genau eine Optionsvorlage und lässt sich nicht manuell
+bearbeiten.
+_Avoid_: automatische Vorlagengruppe, Alle-Gruppe
+
+**Mitlaufender Poll**:
+Ein Poll aus der Mitgliedergruppe. Solange er `draft` oder `active` ist, erhält
+er neue Mitglieder als zusätzliche Option am Ende; bestehende Optionen und
+Stimmen bleiben unverändert.
+_Avoid_: dynamischer Poll, Live-Poll
+
 **Vorlagengruppenmitgliedschaft**:
 Die Zuordnung einer Optionsvorlage zu einer Vorlagengruppe. Sie wird durch die
 Vorlagengruppe verwaltet; die Optionsvorlage kennt die Gruppe nur über deren
@@ -64,7 +76,8 @@ _Avoid_: eingebettete Vorlage, gemeinsame Entität
 
 **Poll-Snapshot**:
 Der unveränderliche, beim Anlegen übernommene Stand der Vorlagengruppe und
-ihrer Optionen eines Polls.
+ihrer Optionen eines Polls. Einzige Ausnahme sind mitlaufende Polls (siehe
+[ADR 0001](docs/adr/0001-mitlaufende-polls-der-mitgliedergruppe.md)).
 _Avoid_: Live-Referenz auf den Katalog
 
 **Poll-Lebenszyklus**:

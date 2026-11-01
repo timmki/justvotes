@@ -70,6 +70,7 @@ export type PollDomainEventProjectionEntry = {
     label: string;
     optionLabel: string | null;
     hasOption: boolean;
+    reasonLabel: string | null;
 };
 
 export type PollDomainEventProjection = {
@@ -87,6 +88,7 @@ export function projectPollDomainEvents(entries: AuditEntry[], t: (key: Translat
                 label: auditEventLabel(entry.event, t),
                 optionLabel,
                 hasOption: entry.selection != null || entry.optionNumber != null,
+                reasonLabel: auditReasonLabel(entry, t),
             };
         }),
     };
@@ -101,6 +103,7 @@ const auditEventTranslationKeys: Record<AuditEventType, TranslationKey> = {
     PollReopened: 'audit.pollReopened',
     PollSoftDeleted: 'audit.pollSoftDeleted',
     PollRestored: 'audit.pollRestored',
+    PollOptionAdded: 'audit.pollOptionAdded',
     VoteCast: 'audit.voteCast',
     VoteReplaced: 'audit.voteReplaced',
     VoteWithdrawn: 'audit.voteWithdrawn',
@@ -110,6 +113,11 @@ const auditEventTranslationKeys: Record<AuditEventType, TranslationKey> = {
 function auditEventLabel(event: AuditEntry['event'], t: (key: TranslationKey) => string) {
     if (!Object.prototype.hasOwnProperty.call(auditEventTranslationKeys, event)) return t('audit.unknownEvent');
     return t(auditEventTranslationKeys[event as AuditEventType]);
+}
+
+function auditReasonLabel(entry: AuditEntry, t: (key: TranslationKey) => string) {
+    if (entry.event === 'PollOptionAdded' && entry.reason === 'member-joined') return t('audit.memberJoined');
+    return entry.reason ?? null;
 }
 
 function auditOptionLabel(entry: AuditEntry, t: (key: TranslationKey) => string) {

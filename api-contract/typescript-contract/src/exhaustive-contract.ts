@@ -61,6 +61,7 @@ export function describeAuditEvent(value: AuditEventType): string {
         case AuditEventType.PollReopened:
         case AuditEventType.PollSoftDeleted:
         case AuditEventType.PollRestored:
+        case AuditEventType.PollOptionAdded:
         case AuditEventType.VoteCast:
         case AuditEventType.VoteReplaced:
         case AuditEventType.VoteWithdrawn:
@@ -81,6 +82,7 @@ export function describeAuditEntry(value: AuditEntry): string {
         case AuditEventType.PollReopened:
         case AuditEventType.PollSoftDeleted:
         case AuditEventType.PollRestored:
+        case AuditEventType.PollOptionAdded:
         case AuditEventType.VoteCast:
         case AuditEventType.VoteReplaced:
         case AuditEventType.VoteWithdrawn:

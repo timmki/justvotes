@@ -3,6 +3,7 @@ package de.justvotes.adapters.templatecatalog.infra.out.persistence;
 import de.justvotes.templatecatalog.core.model.OptionTemplate.OptionTemplateId;
 import de.justvotes.templatecatalog.core.model.OptionTemplateGroup.OptionTemplateGroupId;
 import de.justvotes.templatecatalog.core.model.OptionTemplateGroup;
+import de.justvotes.templatecatalog.core.model.TemplateGroupKind;
 import de.justvotes.templatecatalog.core.ports.out.OptionTemplateGroupRepository;
 
 import java.util.List;
@@ -41,6 +42,11 @@ public final class JpaOptionTemplateGroupPersistenceAdapter implements OptionTem
     }
 
     @Override
+    public Optional<OptionTemplateGroup> findMembersGroup() {
+        return groups.findByKind(TemplateGroupKind.MEMBERS.name()).map(this::group);
+    }
+
+    @Override
     public OptionTemplateGroup save(OptionTemplateGroup group) {
         OptionTemplateGroupEntity entity;
         if (group.id().isNew()) {
@@ -65,6 +71,7 @@ public final class JpaOptionTemplateGroupPersistenceAdapter implements OptionTem
         Set<OptionTemplateId> templateReferences = entity.templates().stream()
                 .map(template -> OptionTemplateId.of(template.id()))
                 .collect(Collectors.toUnmodifiableSet());
-        return new OptionTemplateGroup(OptionTemplateGroupId.of(entity.id()), entity.name(), entity.description(), templateReferences);
+        return new OptionTemplateGroup(OptionTemplateGroupId.of(entity.id()), entity.name(), entity.description(), templateReferences,
+                TemplateGroupKind.valueOf(entity.kind()));
     }
 }

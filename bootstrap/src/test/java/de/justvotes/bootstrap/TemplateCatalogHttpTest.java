@@ -14,6 +14,7 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 import java.nio.file.Path;
+import java.util.List;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -115,6 +116,28 @@ class TemplateCatalogHttpTest {
         ResponseEntity<String> duplicateGroupAfterDelete = admin.post(baseUrl + "/groups", "{\"name\":\"gremium b\",\"description\":\"\"}");
         assertEquals(409, duplicateGroupAfterDelete.getStatusCode().value());
         assertNoStore(duplicateGroupAfterDelete);
+    }
+
+    @Test
+    void providesTheProtectedMembersGroup() {
+        String baseUrl = "http://localhost:" + port + "/api/v1/admin/template-catalog";
+        AuthenticatedAdmin admin = login();
+
+        ResponseEntity<String> groups = admin.get(baseUrl + "/groups");
+        Matcher members = Pattern.compile("\\{\"id\":\"([^\"]+)\",\"name\":\"Alle Mitglieder\",\"description\":\"[^\"]*\",\"kind\":\"members\"}")
+                .matcher(groups.getBody());
+        assertTrue(members.find(), groups.getBody());
+        String membersId = members.group(1);
+        String templateId = createdId(admin.post(baseUrl + "/templates", "{\"name\":\"Kassenwart\"}"));
+
+        for (ResponseEntity<String> rejected : List.of(
+                admin.patch(baseUrl + "/groups/" + membersId, "{\"name\":\"Andere\"}"),
+                admin.delete(baseUrl + "/groups/" + membersId),
+                admin.put(baseUrl + "/groups/" + membersId + "/templates/" + templateId))) {
+            assertEquals(409, rejected.getStatusCode().value());
+            assertTrue(rejected.getBody().contains("\"code\":\"catalog-item-managed\""), rejected.getBody());
+        }
+        assertTrue(admin.get(baseUrl + "/templates").getBody().contains("\"name\":\"Kassenwart\",\"managed\":false"));
     }
 
     @Test

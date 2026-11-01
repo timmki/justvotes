@@ -5,6 +5,7 @@ import de.justvotes.api.v1.model.GroupInput;
 import de.justvotes.api.v1.model.Name;
 import de.justvotes.api.v1.model.Template;
 import de.justvotes.api.v1.model.TemplateGroup;
+import de.justvotes.api.v1.model.TemplateGroupKind;
 import de.justvotes.api.v1.server.TemplatesApi;
 import de.justvotes.templatecatalog.core.model.OptionTemplate;
 import de.justvotes.templatecatalog.core.model.OptionTemplateGroup;
@@ -16,6 +17,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Locale;
 
 @RestController
 public class TemplateCatalogController implements TemplatesApi {
@@ -28,11 +30,12 @@ public class TemplateCatalogController implements TemplatesApi {
     }
 
     private static Template template(OptionTemplate template) {
-        return new Template(OpaqueIdCodec.encode("t", template.id().value()), template.name());
+        return new Template(OpaqueIdCodec.encode("t", template.id().value()), template.name()).managed(template.managed());
     }
 
     private static TemplateGroup group(OptionTemplateGroup group) {
-        return new TemplateGroup(OpaqueIdCodec.encode("g", group.id().value()), group.name(), group.description());
+        return new TemplateGroup(OpaqueIdCodec.encode("g", group.id().value()), group.name(), group.description())
+                .kind(TemplateGroupKind.fromValue(group.kind().name().toLowerCase(Locale.ROOT)));
     }
 
     private static <T> ResponseEntity<T> noStore(T body) {

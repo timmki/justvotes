@@ -28,12 +28,12 @@ function AuditDetail({projection}: { projection: PollDomainEventProjection }) {
         <section className="data-card audit-sheet" aria-label={t('audit.timeline')}>
             <div className="audit-sheet-heading"><div><p className="eyebrow">{t('audit.timeline')}</p><h2>{t('audit.title')}</h2></div>
                 <p className="audit-count">{projection.count} {t('audit.events')}</p></div>
-            <ol className="audit-timeline" aria-label={t('audit.timeline')}>{projection.entries.map(({entry, label, optionLabel, hasOption}, index) => <li className="audit-entry" key={`${entry.occurredAt}-${entry.event}-${index}`}><article>
+            <ol className="audit-timeline" aria-label={t('audit.timeline')}>{projection.entries.map(({entry, label, optionLabel, hasOption, reasonLabel}, index) => <li className="audit-entry" key={`${entry.occurredAt}-${entry.event}-${index}`}><article>
                 <div className="audit-entry-heading"><h3>{label}</h3></div><dl className="audit-entry-meta"><div><dt>{t('audit.actor')}</dt><dd>{entry.actor}</dd></div><div><dt>{t('audit.occurredAt')}</dt><dd>
                     <time dateTime={entry.occurredAt}>{formatTimestamp(entry.occurredAt, locale)}</time></dd></div></dl>
                 {hasOption && <p className="audit-entry-detail"><strong>{t('audit.option')}:</strong> {optionLabel}</p>}
                 {entry.userID != null && <p className="audit-entry-detail"><strong>{t('audit.identity')}:</strong> {entry.userID}</p>}
-                {entry.reason != null && <p className="audit-entry-detail"><strong>{t('audit.reason')}:</strong> {entry.reason}</p>}
+                {reasonLabel != null && <p className="audit-entry-detail"><strong>{t('audit.reason')}:</strong> {reasonLabel}</p>}
                 {entry.votedAt != null && <p className="audit-entry-detail"><strong>{t('audit.votedAt')}:</strong> <time dateTime={entry.votedAt}>
                     {formatTimestamp(entry.votedAt, locale)}</time></p>}
             </article></li>)}</ol>

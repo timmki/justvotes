@@ -41,7 +41,7 @@ function TemplateManager({templates}: { templates: CatalogTemplate[] }) {
     const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
     const currentPage = Math.min(page, pageCount - 1);
     const visible = filtered.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
-    const visibleIds = visible.map((template) => template.id);
+    const visibleIds = visible.filter((template) => !template.managed).map((template) => template.id);
     const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selected.has(id));
 
     useEffect(() => {
@@ -197,10 +197,10 @@ function TemplateManager({templates}: { templates: CatalogTemplate[] }) {
         {visible.length !== 0 &&
             <ul className="data-list catalog-list">{visible.map((template) => <li key={template.id}>
                 <label><input type="checkbox" checked={selected.has(template.id)}
-                              onChange={() => toggleSelection(template.id)}
+                              onChange={() => toggleSelection(template.id)} disabled={template.managed}
                               aria-label={`${t('admin.selectTemplate')} ${template.name}`}/>
-                    <strong>{template.name}</strong></label>
-                <div className="catalog-item-actions">{renameId === template.id &&
+                    <strong>{template.name}</strong>{template.managed && <ManagedBadge/>}</label>
+                {!template.managed && <div className="catalog-item-actions">{renameId === template.id &&
                     <form onSubmit={renameTemplate}><input aria-label={`${t('admin.renameTemplate')} ${template.name}`}
                                                            value={renameValue}
                                                            onChange={(event) => setRenameValue(event.target.value)}
@@ -213,7 +213,7 @@ function TemplateManager({templates}: { templates: CatalogTemplate[] }) {
                     <button className="text-button destructive-button" type="button" disabled={busy} onClick={() => {
                         void deleteTemplates([template]);
                     }}>{t('admin.delete')}</button>
-                </div>
+                </div>}
             </li>)}</ul>}
         <Pagination page={currentPage} pageCount={pageCount} onPageChange={setPage}/>
     </section>;
@@ -418,9 +418,10 @@ function GroupManager({groups, templates, activeGroup, groupTemplatesQuery, onSe
                 let className = 'group-choice';
                 if (group.id === activeGroup?.id) className += ' active';
                 return <button className={className} key={group.id} type="button"
-                               onClick={() => onSelectGroup(group.id)}>{group.name}</button>;
+                               onClick={() => onSelectGroup(group.id)}>{groupName(group, t)}{group.kind === 'members' && <ManagedBadge/>}</button>;
             })}</div>
-            {activeGroup && <>
+            {activeGroup?.kind === 'members' && <MembersGroupDetail groupTemplatesQuery={groupTemplatesQuery}/>}
+            {activeGroup && activeGroup.kind !== 'members' && <>
                 <div className="catalog-actions">
                     <form onSubmit={renameGroup}><label htmlFor="group-rename">{t('admin.renameGroup')}</label><input
                         id="group-rename" value={renameValue || activeGroup.name}
@@ -461,6 +462,31 @@ function GroupManager({groups, templates, activeGroup, groupTemplatesQuery, onSe
             </>}
         </>}
     </section>;
+}
+
+function ManagedBadge() {
+    const {t} = useI18n();
+    return <span className="managed-badge">{t('admin.managedBadge')}</span>;
+}
+
+function MembersGroupDetail({groupTemplatesQuery}: {
+    groupTemplatesQuery: ReturnType<typeof catalogQueries.useCatalogGroupTemplates>
+}) {
+    const {t} = useI18n();
+    return <>
+        <p className="form-status">{t('admin.membersGroupHint')}</p>
+        <QueryState query={groupTemplatesQuery}>{(members) => <>
+            <h4>{t('admin.memberships')}</h4>
+            {members.length === 0 && <RouteState status="empty"/>}
+            {members.length !== 0 && <ul className="data-list catalog-list">{members.map((member) =>
+                <li key={member.id}>{member.name}</li>)}</ul>}
+        </>}</QueryState>
+    </>;
+}
+
+export function groupName(group: CatalogGroup, t: (key: 'admin.membersGroupName') => string) {
+    if (group.kind === 'members') return t('admin.membersGroupName');
+    return group.name;
 }
 
 function frontendError(cause: unknown) {
