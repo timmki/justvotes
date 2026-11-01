@@ -103,9 +103,9 @@ test('the administrator only sees the administration', async ({page}) => {
     await expect(page.getByRole('navigation', {name: 'Admin-Navigation'})).toBeVisible();
     await expect(page.getByRole('navigation', {name: 'Hauptnavigation'})).toHaveCount(0);
     await page.getByRole('link', {name: 'Konten'}).click();
-    await expect(page.getByRole('heading', {name: 'Konten', level: 3, exact: true})).toBeVisible();
+    await expect(page.getByRole('heading', {name: 'Konten', level: 1, exact: true})).toBeVisible();
     await page.getByRole('link', {name: 'Einladungen'}).click();
-    await expect(page.getByRole('heading', {name: 'Person einladen', level: 4})).toBeVisible();
+    await expect(page.getByRole('heading', {name: 'Person einladen', level: 2})).toBeVisible();
     expect(await seriousViolations(page)).toEqual([]);
 });
 

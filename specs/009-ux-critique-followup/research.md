@@ -47,9 +47,11 @@ Frontend umgesetzt wird.
 - **Alternatives considered**: Formular nur einklappen – lässt das Missverständnis bestehen;
   automatische Weiterleitung zur Ergebnisseite – verhindert den Zugriff auf Metadaten und
   Prüfprotokoll und überrascht über geteilte Links.
-- **Edge case**: Läuft die Abstimmung während der Ansicht ab, liefert der bestehende Fehler beim
-  Absenden die Meldung; zusätzlich wird bei diesem Fehlercode die Poll-Abfrage invalidiert, sodass
-  die Seite in die geschlossene Darstellung wechselt.
+- **Edge case**: Läuft die Abstimmung während der Ansicht ab, antwortet das Backend auf die
+  Stimmabgabe mit `409` und Problem-Code `poll-not-active`
+  (`adapters/…/ApiExceptionHandler.java`, `PollNotActiveException`). Das Frontend zeigt die
+  bestehende Fehlermeldung und invalidiert bei `error.code === 'poll-not-active'` zusätzlich
+  `queryKeys.poll(pollId)`, sodass die Seite in die geschlossene Darstellung wechselt.
 
 ## R4 – Kompakte Administrations-Abstimmungsliste
 
@@ -67,9 +69,8 @@ Frontend umgesetzt wird.
 - **Alternatives considered**: Natives `<details>` – kann nicht zuverlässig von außen geöffnet
   werden, ohne den Zustand zu duplizieren; eigene Detailseite pro Abstimmung – neue Route, in
   der Spec ausdrücklich verworfen.
-- **Open check**: Ob `apiClient.createPoll` die angelegte Abstimmung zurückgibt, wird bei der
-  Umsetzung geprüft; falls nicht, wird nach dem Invalidieren die neueste Abstimmung mit passendem
-  Titel aufgeklappt.
+- **Geklärt**: `apiClient.createPoll` liefert die angelegte `Poll` zurück
+  (`frontend/src/shared/api/client.ts:217`); ihre ID wird direkt aufgeklappt.
 
 ## R5 – Einheitliche Formulare
 
@@ -87,6 +88,11 @@ Frontend umgesetzt wird.
 - **Alternatives considered**: Nur CSS vereinheitlichen – behebt fehlende Labels und
   Fehlerzuordnung nicht.
 - **Note**: Auswahlfelder ohne Pflichtcharakter (Filter, Sortierung) bleiben sofort wirksam.
+- **Ausnahme Stimmabgabe**: Die Regel „Primäraktion nicht vorab sperren“ gilt für
+  Eingabeformulare. Die Stimmabgabe auf der Abstimmungsseite ist kein Eingabeformular, sondern
+  eine Auswahl mit Bestätigung; ihr Verhalten aus Spec 004/005 bleibt unverändert („Stimme
+  abgeben“ erscheint nur bzw. ist nur auslösbar, wenn eine andere als die aktuelle Option markiert
+  ist). FR-019 der Spec ist entsprechend einzugrenzen (Analysebefund H1).
 
 ## R6 – Begriffe, gefährliche Aktionen und Bestätigungen
 
@@ -97,6 +103,11 @@ Frontend umgesetzt wird.
   `{name}`, `{count}`), die wie bereits bei Konten und Einladungen per `replace` gefüllt werden.
   Gefährliche Aktionen stehen in einer eigenen Gruppe `.action-group-danger` am Ende der
   Aktionsleiste (abgesetzt durch Abstand und Trennlinie), mit Lösch-Icon und rotem Rahmen.
+- **Umkehrbarkeit im Text**: Weil „Löschen“ bei Abstimmungen wiederherstellbar, bei
+  Vorlagengruppen und Optionsvorlagen aber endgültig ist, nennt jede Lösch-Bestätigung die
+  Umkehrbarkeit ausdrücklich (ui-contract §5, Regel für „Löschen“). Alternative „Endgültig
+  löschen“ auch für Vorlagengruppen verworfen: Dort gibt es keine wiederherstellbare Variante,
+  der Zusatz „Endgültig“ würde einen Gegensatz suggerieren, den es nicht gibt.
 - **Rationale**: Bestehende `window.confirm`-Abfragen bleiben (Spec-Annahme); nur Text und
   Anordnung ändern sich. Interne Bezeichner (`softDelete`) bleiben, da sie nicht sichtbar sind.
 - **Alternatives considered**: Eigener Bestätigungsdialog – größerer Umbau, nicht Teil der
@@ -108,7 +119,9 @@ Frontend umgesetzt wird.
   unter „Neueste öffentliche Abstimmungen“. `PublicPollCard`: Datum mit Präfix „Erstellt“, bzw.
   „Endet“/„Endete“, je nachdem welches Datum die Karte zeigt. Ergebnisseite: Optionsname als
   Text, zusätzlicher Link „Stimmen ansehen“ zur bestehenden Optionsroute nur bei
-  `votes > 0`. Kennzahl-Kachel-Labels mindestens 14 px. Profil-Zeitpunkte über das gemeinsame
+  `option.voteCount > 0`. Kennzahl-Kachel-Labels mindestens 14 px – auf Startseite,
+  Stimmen-Übersicht der Administration **und** Ergebnisseite (`.result-summary`, „Gesamtstimmen“,
+  „Höchster Anteil“) sowie Optionsseite (`.option-summary`). Profil-Zeitpunkte über das gemeinsame
   `formatTimestamp`.
 - **Rationale**: Reine Darstellungsänderungen mit vorhandenen Daten und Routen.
 
@@ -119,6 +132,20 @@ Frontend umgesetzt wird.
   `invitation`-Unterbereiche) verlieren Rahmen und Schatten und werden durch `<h2>`,
   Abstände und Trennlinien gegliedert. Die einzelnen Abstimmungen in der Liste sind Zeilen mit
   Trennlinie, keine Karten.
+- **Ergebnisseite**: Die Optionen (`.result-option`) stehen heute als Karten in der
+  Ergebniskarte. Sie werden zu Zeilen mit Trennlinie; nur die Gewinner-Option behält eine
+  hervorgehobene Fläche mit Akzentrand (keine zweite Kartenebene, sondern Hervorhebung).
+  Die Kennzahlen-Kacheln (`.result-summary`) bleiben als flache Flächen ohne Rahmen/Schatten.
+  Damit gilt FR-032 auf allen geprüften Seiten, nicht nur in der Administration (Analysebefund C1).
+
+## R10 – Kopfzeilenpfad in der Administration (Präzisierung zu R2)
+
+- **Decision**: „Administration“ wird im Kopf nicht verlinkt, weil es keine eigene Seite gibt
+  (`/admin` leitet auf `/admin/votes`). Es nutzt dieselbe Schrift, Farbe und Position wie der
+  verlinkte Zurück-Pfad der User-Seiten, aber ohne Chevron-Pfeil und ohne Link-Hover. US1 AS3 ist
+  in der Spec entsprechend als „gleiche Optik, nicht verlinkt“ zu lesen (Analysebefund I1).
+- **Alternatives considered**: Link auf `/admin/votes` – irreführend, weil „Administration“ dann
+  wie eine Übersichtsseite wirkt, aber nur einen Bereich öffnet.
 
 ## R9 – Tests
 

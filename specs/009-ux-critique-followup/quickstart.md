@@ -34,3 +34,8 @@ ohne Verstöße für fehlende Labels und Textkontrast.
 | 8 | Sprache auf EN umschalten und Szenarien 1, 2, 7 wiederholen | alle neuen Texte englisch | FR-030 |
 | 9 | Startseite ohne aktive Abstimmung, Ergebnisseite | Überschrift vor Erklärung, ein „Alle Abstimmungen anzeigen“, „Stimmen ansehen“ nur bei Stimmen > 0 | US6, [UI §6](contracts/ui-contract.md) |
 | 10 | Seiten aus 1–9 bei 375 px Breite | kein horizontales Scrollen, Fokus sichtbar | FR-031 |
+| 11 | Aktive Abstimmung: Option wählen, die bereits die eigene Stimme ist | „Stimme abgeben“ nicht auslösbar (Verhalten aus Spec 004/005 unverändert) | FR-019-Ausnahme |
+| 12 | Aktive Abstimmung offen lassen, als Administrator den Ablauf in die Vergangenheit legen bzw. archivieren, dann als User abstimmen | Fehlermeldung an der Option, danach geschlossene Darstellung mit Hinweis | US2 Edge Case |
+| 13 | Ergebnisseite | Optionen als Zeilen, keine Karte in der Karte; Kachel-Labels ≥ 14 px | FR-029, FR-032 |
+| 14 | Als Administrator: in Liste mit zehn Abstimmungen eine bestimmte finden, aufklappen, archivieren (Stoppuhr) | unter 20 Sekunden | SC-004 |
+| 15 | Als Administrator „Stimme entfernen“ öffnen | Dialog nennt Abstimmungstitel und Identität | US5 AS5 |

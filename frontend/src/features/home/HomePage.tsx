@@ -29,12 +29,12 @@ function HomeDiscovery({polls}: {polls: PublicPoll[]}) {
         <section className="home-featured" aria-label={t('common.featuredPoll')}>
             <div className="home-featured-heading">
                 <p className="eyebrow">{t('common.featuredPoll')}</p>
-                <p>{featuredPoll && t('common.featuredPollDescription')}{!featuredPoll && t('common.noActivePollText')}</p>
+                {featuredPoll && <p>{t('common.featuredPollDescription')}</p>}
             </div>
             {featuredPoll && <PublicPollCard poll={featuredPoll} featured/>}
             {!featuredPoll && <div className="featured-fallback">
                 <h2>{t('common.noActivePoll')}</h2>
-                <Link className="text-link" to="/polls">{t('common.viewAllPolls')}</Link>
+                <p>{t('common.noActivePollText')}</p>
             </div>}
         </section>
         <dl className="discovery-stats" aria-label={t('common.discoveryMetrics')}>

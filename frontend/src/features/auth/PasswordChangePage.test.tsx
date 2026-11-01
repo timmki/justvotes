@@ -22,6 +22,23 @@ function renderPage() {
 }
 
 describe('PasswordChangePage', () => {
+    it('keeps the button usable and reports empty fields at the field (spec 009)', async () => {
+        signIn(userSession('alice'));
+        const change = vi.spyOn(apiClient, 'changePassword');
+        renderPage();
+        const button = screen.getByRole('button', {name: 'Passwort speichern'});
+        expect(button).toBeEnabled();
+
+        fireEvent.click(button);
+
+        expect(change).not.toHaveBeenCalled();
+        for (const label of ['Aktuelles Passwort', 'Neues Passwort', 'Neues Passwort wiederholen']) {
+            expect(screen.getByLabelText(label)).toHaveAttribute('aria-invalid', 'true');
+        }
+        expect(screen.getAllByText('Bitte fülle dieses Feld aus.')).toHaveLength(3);
+        await vi.waitFor(() => expect(screen.getByLabelText('Aktuelles Passwort')).toHaveFocus());
+    });
+
     it('changes the password and confirms it', async () => {
         signIn(userSession('alice'));
         const change = vi.spyOn(apiClient, 'changePassword').mockResolvedValue(undefined);

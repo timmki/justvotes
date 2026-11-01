@@ -58,7 +58,7 @@ function ResultsDetail({results, identity, locale}: { results: PollResults; iden
 
     return <div className="result-layout">
         <section className="data-card results-card" aria-label={t('polls.resultSheet')}>
-            <div className="results-heading"><div><p className="results-date"><time dateTime={results.createdAt}>{formatTimestamp(results.createdAt, locale)}</time></p>
+            <div className="results-heading"><div><p className="results-date">{t('polls.createdPrefix')} <time dateTime={results.createdAt}>{formatTimestamp(results.createdAt, locale)}</time></p>
                 <h3>{results.title}</h3></div><PollStateBadge state={results.state}/></div>
             <dl className="result-summary">
                 <div><dt>{t('polls.totalVotes')}</dt><dd>{results.totalVotes}</dd></div>
@@ -71,10 +71,13 @@ function ResultsDetail({results, identity, locale}: { results: PollResults; iden
                 if (isWinner(option, results.options, results.totalVotes)) className += ' winner';
                 if (current) className += ' current';
                 return <li className={className} key={option.number}>
-                    <div className="result-option-heading"><Link to={`/poll/results/${encodeURIComponent(results.id)}/option/${option.number}`}>{option.text}</Link>
+                    <div className="result-option-heading"><span className="result-option-name">{option.text}</span>
                         {isWinner(option, results.options, results.totalVotes) && <strong>{winnerLabel}</strong>}</div>
                     <div className="result-option-progress" aria-hidden="true"><span style={{width: `${optionPercentage}%`}}/></div>
                     <div className="result-option-meta"><span>{optionPercentage} %</span><span>{formatVoteCount(option.voteCount, locale, t)}</span></div>
+                    {option.voteCount > 0 && <Link className="text-link result-option-votes"
+                        to={`/poll/results/${encodeURIComponent(results.id)}/option/${option.number}`}
+                        aria-label={`${t('polls.viewVotes')}: ${option.text}`}>{t('polls.viewVotes')}</Link>}
                     {current && <small>{t('polls.yourVote')}</small>}
                 </li>;
             })}</ol>

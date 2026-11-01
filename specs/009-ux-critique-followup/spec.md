@@ -44,8 +44,9 @@ doppelter Bereichstitel im Inhalt verbleibt.
    „Konten sperren, entsperren und Einmalpasswörter vergeben.“), und der Text „Anmeldung und
    Verwaltung.“ kommt nirgends mehr vor.
 3. **Given** ein geöffneter Administrationsbereich, **When** die Kopfzeile angezeigt wird,
-   **Then** zeigt sie den Pfad „Administration › Bereichsname“ in derselben Darstellung wie
-   der Zurück-Pfad der User-Seiten.
+   **Then** zeigt sie den Pfad „Administration › Bereichsname“ in derselben Optik wie der
+   Zurück-Pfad der User-Seiten; „Administration“ ist dabei nicht verlinkt, weil es keine eigene
+   Seite ist.
 4. **Given** ein geöffneter Administrationsbereich, **When** der Inhalt angezeigt wird,
    **Then** wiederholt keine Karte direkt unter der Überschrift denselben Bereichsnamen als
    eigene Überschrift.
@@ -203,7 +204,10 @@ abbrechen.
    Person im selben Format wie andere Zeitpunkte der Anwendung, ohne „UTC“.
 4. **Given** eine Gruppe von Aktionen mit mindestens einer gefährlichen Aktion, **When** sie
    angezeigt wird, **Then** steht die gefährliche Aktion räumlich abgesetzt am Ende der
-   Gruppe und ist zusätzlich zur Farbe durch eine eigene Darstellung erkennbar.
+   Gruppe und ist zusätzlich zur Farbe durch eine eigene Darstellung erkennbar. Gefährliche
+   Aktionen sind: Löschen und Endgültig löschen (Abstimmung), Löschen (Vorlagengruppe),
+   Ausgewählte löschen (Optionsvorlagen), Sperren (Konto), Widerrufen (Einladung) und Stimme
+   entfernen.
 5. **Given** eine gefährliche Aktion, **When** sie ausgelöst wird, **Then** nennt die
    Bestätigung das betroffene Objekt (Abstimmungstitel, Konto-E-Mail, Name der Optionsvorlage
    oder Vorlagengruppe, bei Stimmen Abstimmung und Identität), und Abbrechen ändert nichts.
@@ -279,7 +283,8 @@ einer abgelaufenen Abstimmung als User prüfen.
 - **FR-004**: Inhaltskarten direkt unter der Überschrift MUST NOT den Bereichsnamen als
   eigene Überschrift wiederholen.
 - **FR-005**: Der Dokumenttitel MUST auf allen Seiten den Seitennamen und „JustVotes“
-  enthalten.
+  enthalten. Ausnahme ist die Startseite, deren Überschrift nur für Screenreader sichtbar ist:
+  Sie ist die Anwendung selbst, ihr Dokumenttitel lautet nur „JustVotes“.
 
 **Nicht aktive Abstimmung (US2)**
 
@@ -318,7 +323,9 @@ einer abgelaufenen Abstimmung als User prüfen.
 - **FR-018**: Jedes Formular MUST genau eine gefüllt dargestellte Primäraktion haben.
 - **FR-019**: Primäraktionen MUST NOT wegen leerer oder ungültiger Eingaben gesperrt sein;
   Fehler MUST beim Absenden am jeweiligen Feld gemeldet werden, und der Fokus MUST auf das
-  erste fehlerhafte Feld springen.
+  erste fehlerhafte Feld springen. Die Regel gilt für Eingabeformulare; die Stimmabgabe auf der
+  Abstimmungsseite behält ihr Verhalten aus Spec 004/005 („Stimme abgeben“ ist nur auslösbar,
+  wenn eine von der aktuellen Stimme abweichende Option markiert ist).
 - **FR-020**: Während des Absendens MUST die Primäraktion gesperrt sein und einen
   Ladezustand zeigen.
 - **FR-021**: Auswahlkreise und Optionstext MUST durch einen sichtbaren Abstand getrennt sein.

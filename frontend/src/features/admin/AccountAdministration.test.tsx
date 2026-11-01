@@ -29,6 +29,7 @@ describe('AccountAdministration', () => {
         expect(within(rows[1]).queryByRole('button')).toBeNull();
         expect(within(rows[2]).getByText('anna@example.test')).toBeVisible();
         expect(within(rows[2]).getByRole('button', {name: 'Sperren'})).toBeVisible();
+        expect(within(rows[2]).getByRole('button', {name: 'Sperren'}).closest('.action-group-danger')).not.toBeNull();
         expect(within(rows[2]).getByRole('button', {name: 'Einmalpasswort setzen'})).toBeVisible();
     });
 

@@ -8,7 +8,10 @@ import {QueryState} from '../../shared/ui/QueryState';
 import {RouteState} from '../../shared/ui/RouteState';
 import {useCastVoteMutation, frontendError, voteFeedback} from './pollCommands';
 import {DataPage, notFoundError} from './pollPageShared';
-import {currentOptionNumberFromResults, isResultsUnavailable, classifyResultsRelease, pollStateTranslationKey, type Poll, type PollResults} from './pollProjections';
+import {queryClient} from '../../shared/api/queryClient';
+import {queryKeys} from '../../shared/api/queryKeys';
+import {currentOptionNumberFromResults, isResultsUnavailable, classifyResultsRelease, type Poll, type PollResults} from './pollProjections';
+import {ClosedOptionList, PollClosedNotice} from './PollClosedNotice';
 import {usePollQuery, usePollResultsQuery} from './pollQueries';
 import {formatTimestamp, formatVoteCount} from './pollFormatters';
 import {PollFactLine} from './PollFactLine';
@@ -66,6 +69,10 @@ function PollDetail({poll}: { poll: Poll }) {
         onError: (cause) => {
             setMutationError(frontendError(cause));
             setVoteSettled('failed');
+            // The poll ended while the page was open: reload it so the page switches to the closed view (spec 009).
+            if (cause instanceof ApiError && cause.frontend.code === 'poll-not-active') {
+                void queryClient.invalidateQueries({queryKey: queryKeys.poll(poll.id)});
+            }
         },
     });
 
@@ -112,9 +119,18 @@ function PollDetail({poll}: { poll: Poll }) {
         if (submitEnabled && selectedOptionNumber !== null) mutation.mutate(selectedOptionNumber);
     }
 
+    const active = poll.state === 'active';
+    let resultsError = false;
+    if (resultsQuery.isError && !isResultsUnavailable(resultsQuery.error)) resultsError = true;
+
     return <div className="poll-layout">
         <section className="data-card poll-detail-card">
-            <form className="poll-vote-form-wrapper" onSubmit={submitVote}>
+            {!active && <>
+                <PollClosedNotice poll={poll} resultsAvailable={resultsLinkAvailable} resultsPending={resultsQuery.isPending}/>
+                {resultsError && <ResultsState poll={poll} query={resultsQuery} forbiddenBeforeVote={false}/>}
+                <ClosedOptionList poll={poll} currentOptionNumber={currentOptionNumber}/>
+            </>}
+            {active && <form className="poll-vote-form-wrapper" onSubmit={submitVote}>
             <fieldset ref={fieldsetRef} className="poll-vote-form" disabled={!canVote || mutation.isPending}>
                 <legend>{t('polls.vote')}</legend>
                 <div className="poll-option-list">{sortedOptions.map((option) => {
@@ -130,12 +146,11 @@ function PollDetail({poll}: { poll: Poll }) {
                                           onSelect={() => selectOption(option.number)}/>;
                 })}</div>
             </fieldset>
-            </form>
-            {poll.state !== 'active' && <p className="poll-notice">{t('polls.voteUnavailable')} ({t(pollStateTranslationKey(poll.state))}{poll.endsAt && `, ${formatTimestamp(poll.endsAt, locale)}`})</p>}
-            <p className="poll-feedback" role="status">{feedback}</p>
-            <ResultsState poll={poll} query={resultsQuery} forbiddenBeforeVote={resultForbiddenBeforeVote}/>
-            <p className="poll-detail-links"><>{resultsLinkAvailable && <Link className="text-link"
-                to={`/poll/results/${encodeURIComponent(poll.id)}`}>{t('polls.results')}</Link>}{resultsLinkAvailable && ' | '}<Link className="text-link"
+            </form>}
+            {active && <p className="poll-feedback" role="status">{feedback}</p>}
+            {active && <ResultsState poll={poll} query={resultsQuery} forbiddenBeforeVote={resultForbiddenBeforeVote}/>}
+            <p className="poll-detail-links"><>{active && resultsLinkAvailable && <Link className="text-link"
+                to={`/poll/results/${encodeURIComponent(poll.id)}`}>{t('polls.results')}</Link>}{active && resultsLinkAvailable && ' | '}<Link className="text-link"
                 to={`/poll/audit/${encodeURIComponent(poll.id)}`}>{t('audit.title')}</Link></></p>
         </section>
         <aside className="poll-metadata" aria-label={t('polls.metadata')}>

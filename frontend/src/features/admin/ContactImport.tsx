@@ -7,6 +7,7 @@ import {queryClient} from '../../shared/api/queryClient';
 import {queryKeys} from '../../shared/api/queryKeys';
 import {useI18n} from '../../shared/i18n/I18nProvider';
 import type {TranslationKey} from '../../shared/i18n/translations';
+import {FormField} from '../../shared/ui/FormField';
 
 type ContactImportEntry = components['schemas']['ContactImportEntry'];
 type ContactImportOutcome = components['schemas']['ContactImportOutcome'];
@@ -143,28 +144,37 @@ export function ContactImport() {
     if (send.isPending) status = t('admin.contactImportSending');
 
     return <section className="login-form contact-import" aria-labelledby={`${fileId}-title`}>
-        <h4 id={`${fileId}-title`}>{t('admin.contactImportTitle')}</h4>
+        <h2 id={`${fileId}-title`}>{t('admin.contactImportTitle')}</h2>
         <p className="form-hint">{t('admin.contactImportDescription')}</p>
         {!preview && !result && <>
-            <label htmlFor={fileId}>{t('admin.contactImportFile')}</label>
-            <input key={fileKey} id={fileId} type="file" accept=".vcf,text/vcard,text/x-vcard"
-                   disabled={read.isPending || deliveryUnavailable} onChange={(event) => void chooseFile(event)}/>
+            <FormField id={fileId} label={t('admin.contactImportFile')}>
+                <input key={fileKey} type="file" accept=".vcf,text/vcard,text/x-vcard"
+                       disabled={read.isPending || deliveryUnavailable} onChange={(event) => void chooseFile(event)}/>
+            </FormField>
         </>}
         <p className="form-status" role="status">{status}</p>
         <p className="form-error" role="alert">{error && t(error)}</p>
         {preview && <ContactPreview preview={preview} selected={selected} allSelected={allSelected}
                                     onToggle={toggle} onToggleAll={toggleAll}/>}
         {preview && <div className="contact-import-actions">
-            <label htmlFor={localeId}>{t('admin.inviteLocale')}</label>
-            <select id={localeId} value={invitationLocale}
-                    onChange={(event) => setInvitationLocale(localeOf(event.target.value))}>
-                <option value="de">Deutsch</option>
-                <option value="en">English</option>
-            </select>
+            <FormField id={localeId} label={t('admin.inviteLocale')}>
+                <select value={invitationLocale} onChange={(event) => setInvitationLocale(localeOf(event.target.value))}>
+                    <option value="de">Deutsch</option>
+                    <option value="en">English</option>
+                </select>
+            </FormField>
             <div className="contact-import-buttons">
-                <button className="primary-button" type="button" disabled={selected.size === 0 || send.isPending}
+                <button className="primary-button" type="button" disabled={send.isPending}
                         aria-busy={send.isPending}
-                        onClick={() => send.mutate(preview.contacts.filter((entry) => selected.has(entry.position)))}>
+                        onClick={() => {
+                            // The button stays usable; an empty selection is explained instead (spec 009, FR-019).
+                            if (selected.size === 0) {
+                                setError('admin.contactImportNothingSelected');
+                                return;
+                            }
+                            setError(null);
+                            send.mutate(preview.contacts.filter((entry) => selected.has(entry.position)));
+                        }}>
                     {send.isPending && <span className="button-spinner" aria-hidden="true"/>}
                     {t('admin.contactImportConfirm').replace('{count}', String(selected.size))}
                 </button>
@@ -192,7 +202,7 @@ function ContactPreview({preview, selected, allSelected, onToggle, onToggleAll}:
         unreadable = t('admin.contactImportUnreadable').replace('{count}', String(preview.unreadableEntries));
     }
     return <div className="contact-import-preview">
-        <h5>{t('admin.contactImportPreview')}</h5>
+        <h3>{t('admin.contactImportPreview')}</h3>
         {unreadable && <p className="session-notice" role="status">{unreadable}</p>}
         <div className="select-all">
             <input id={selectAllId} type="checkbox" checked={allSelected} onChange={onToggleAll}
@@ -236,7 +246,7 @@ function ImportSummary({result, onAnother}: {result: ContactImportResult; onAnot
             {t('admin.contactImportDeliveryFailed').replace('{count}', String(result.deliveryFailed))}
         </p>}
         {skipped.length > 0 && <>
-            <h5>{t('admin.contactImportSkipped')}</h5>
+            <h3>{t('admin.contactImportSkipped')}</h3>
             <ul className="contact-import-skipped">{skipped.map((entry) => <li key={entry.email}>
                 <span>{entry.email}</span> – {entry.reason && t(REASON_KEYS[entry.reason])}
             </li>)}</ul>

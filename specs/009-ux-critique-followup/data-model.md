@@ -2,7 +2,7 @@
 
 Diese Feature ändert keine fachlichen Daten, keinen HTTP-Vertrag und kein Datenbankschema.
 Alle benötigten Werte liegen in den bestehenden Schemas vor (`Poll.state`, `Poll.visibility`,
-`Poll.endsAt`, `Poll.totalVotes`, `PollResults.options[].votes`). Neu sind nur Ableitungen und
+`Poll.endsAt`, `Poll.totalVotes`, `PollResults.options[].voteCount`). Neu sind nur Ableitungen und
 lokaler UI-Zustand im Frontend.
 
 ## Abgeleitete Darstellungswerte
@@ -29,7 +29,12 @@ lokaler UI-Zustand im Frontend.
 | ausstehend | Text „Ergebnisse werden geprüft …“ (bestehender Schlüssel) |
 
 ### ResultOptionAction (Ergebnisseite)
-- „Stimmen ansehen“ wird nur angezeigt, wenn `option.votes > 0`.
+- „Stimmen ansehen“ wird nur angezeigt, wenn `option.voteCount > 0`.
+
+### PollClosedTransition (Abstimmungsseite, aktiv → nicht aktiv)
+- Stimmabgabe schlägt mit Problem-Code `poll-not-active` (HTTP 409) fehl → bestehende
+  Fehlermeldung an der Option **und** Invalidierung von `queryKeys.poll(pollId)`; nach dem
+  Neuladen gilt die Darstellung für `expired`/`archived` aus der Tabelle oben.
 
 ## Lokaler UI-Zustand
 
@@ -51,3 +56,7 @@ lokaler UI-Zustand im Frontend.
 |---|---|
 | bereit | gefüllt, bedienbar – auch bei leeren Feldern |
 | sendet | gesperrt, `aria-busy`, Ladeanzeige |
+
+Gilt für Eingabeformulare. **Nicht** für die Stimmabgabe auf der Abstimmungsseite: deren
+Schaltfläche „Stimme abgeben“ bleibt wie in Spec 004/005 nur bei einer von der aktuellen Stimme
+abweichenden Auswahl auslösbar.

@@ -25,7 +25,7 @@ export function PublicPollCard({poll, featured = false}: {poll: PublicPoll; feat
             <PollStateBadge state={poll.state} id={stateId}/>
             <span>{formatVoteCount(poll.totalVotes, locale, t)}</span>
             <span>{t('polls.createdBy')} {t('common.admin')}</span>
-            <time dateTime={poll.createdAt}>{formatTimestamp(poll.createdAt, locale)}</time>
+            <span>{t('polls.createdPrefix')} <time dateTime={poll.createdAt}>{formatTimestamp(poll.createdAt, locale)}</time></span>
             <span className="poll-card-arrow"><ChevronRightIcon/></span>
         </span>
     </Link>;

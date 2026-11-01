@@ -10,6 +10,7 @@ import {useI18n} from '../../shared/i18n/I18nProvider';
 import type {TranslationKey} from '../../shared/i18n/translations';
 import {RouteState} from '../../shared/ui/RouteState';
 import {formatTimestamp} from '../polls/pollFormatters';
+import {LockIcon} from '../../shared/ui/Icons';
 
 export type AccountSummary = components['schemas']['AccountSummary'];
 type AccountAction = 'lock' | 'unlock' | 'oneTimePassword';
@@ -49,7 +50,6 @@ export function AccountAdministration() {
     if (query.isError) return <RouteState status="error" error={frontendError(query.error)} onRetry={() => void query.refetch()}/>;
 
     return <section className="admin-panel account-administration">
-        <h3>{t('admin.accounts')}</h3>
         {oneTimePassword && <OneTimePasswordNotice name={oneTimePassword.name} password={oneTimePassword.password}
                                                    onClose={() => setOneTimePassword(null)}/>}
         {error && <p className="form-error" role="alert">{t(error.messageKey)}</p>}
@@ -87,12 +87,14 @@ function AccountRow({account, pending, onAction}: {
             {account.passwordChangeRequired && <span className="status-badge">{t('admin.passwordChangePending')}</span>}
         </span></td>
         <td className="admin-table-actions">{account.role === 'user' && <>
-            {account.status === 'active' && <button className="text-button" type="button" disabled={pending}
-                                                    onClick={() => onAction(account, 'lock')}>{t('admin.lockAccount')}</button>}
             {account.status === 'locked' && <button className="text-button" type="button" disabled={pending}
                                                     onClick={() => onAction(account, 'unlock')}>{t('admin.unlockAccount')}</button>}
             <button className="text-button" type="button" disabled={pending}
                     onClick={() => onAction(account, 'oneTimePassword')}>{t('admin.oneTimePassword')}</button>
+            {account.status === 'active' && <span className="action-group-danger">
+                <button className="secondary-button destructive-button" type="button" disabled={pending}
+                        onClick={() => onAction(account, 'lock')}><LockIcon/>{t('admin.lockAccount')}</button>
+            </span>}
         </>}</td>
     </tr>;
 }
@@ -111,7 +113,7 @@ function OneTimePasswordNotice({name, password, onClose}: {name: string; passwor
     let copyLabel = t('admin.copy');
     if (copied) copyLabel = t('admin.copied');
     return <div className="one-time-password" role="alert">
-        <h4>{t('admin.oneTimePasswordTitle')}</h4>
+        <h2>{t('admin.oneTimePasswordTitle')}</h2>
         <p>{t('admin.oneTimePasswordText').replace('{name}', name)}</p>
         <p><code className="one-time-password-value">{password}</code></p>
         <div className="account-panel-actions">

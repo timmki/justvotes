@@ -820,16 +820,6 @@ main {
     resize: vertical;
 }
 
-.catalog-filter-input {
-    width: 100%;
-    min-height: 2.75rem;
-    padding: .6rem .75rem;
-    border: 1px solid var(--separator);
-    border-radius: .7rem;
-    color: inherit;
-    background: var(--raised);
-}
-
 .form-status {
     margin: 0;
     color: var(--muted);
@@ -837,7 +827,7 @@ main {
     font-weight: 600;
 }
 
-.catalog-filter-input:focus-visible, .catalog-form input:focus-visible, .catalog-form textarea:focus-visible, .catalog-form select:focus-visible, .catalog-actions input:focus-visible, .catalog-list input:focus-visible {
+.catalog-form input:focus-visible, .catalog-form textarea:focus-visible, .catalog-form select:focus-visible, .catalog-actions input:focus-visible, .catalog-list input:focus-visible {
     outline: 3px solid var(--focus-ring);
     outline-offset: 2px;
 }
@@ -3558,7 +3548,7 @@ html.menu-open {
     background: var(--surface);
 }
 
-.one-time-password h4,
+.one-time-password h2,
 .one-time-password p {
     margin: 0;
 }
@@ -3573,7 +3563,7 @@ html.menu-open {
     margin-bottom: 1.25rem;
 }
 
-.invite-form h4 {
+.invite-form h2 {
     margin: 0;
 }
 
@@ -3585,8 +3575,8 @@ html.menu-open {
     max-width: 100%;
 }
 
-.contact-import-preview h5,
-.contact-import-summary h5 {
+.contact-import-preview h3,
+.contact-import-summary h3 {
     margin: 1rem 0 .5rem;
 }
 
@@ -3652,4 +3642,483 @@ html.menu-open {
     border-radius: var(--radius-pill);
     color: var(--accent-text);
     font-size: var(--font-size-0-78);
+}
+
+/* Spec 009: one look for every labelled field (FormField) and for dangerous actions. */
+.form-field {
+    display: grid;
+    gap: .35rem;
+    min-width: 0;
+}
+
+.form-field > label, .login-form label, .catalog-form label, .expiry-form label {
+    font-size: .85rem;
+    font-weight: 700;
+}
+
+.form-field > input:not([type='checkbox']):not([type='radio']), .form-field > select, .form-field > textarea {
+    width: 100%;
+    min-width: 0;
+    min-height: 2.9rem;
+    padding: .65rem .8rem;
+    border: 1px solid var(--separator);
+    border-radius: .7rem;
+    color: inherit;
+    background: var(--raised);
+    font: inherit;
+}
+
+.form-field > textarea, .form-field > textarea::placeholder, .catalog-form textarea, .catalog-form textarea::placeholder {
+    font: inherit;
+    resize: vertical;
+}
+
+.form-field > input:focus-visible, .form-field > select:focus-visible, .form-field > textarea:focus-visible {
+    outline: 3px solid var(--focus-ring);
+    outline-offset: 2px;
+}
+
+.form-field > input[aria-invalid='true'], .form-field > select[aria-invalid='true'], .form-field > textarea[aria-invalid='true'] {
+    border-color: var(--danger);
+}
+
+.field-hint {
+    margin: 0;
+    color: var(--muted);
+    font-size: .85rem;
+}
+
+.field-error {
+    margin: 0;
+    color: var(--danger);
+    font-size: .85rem;
+    font-weight: 600;
+}
+
+.action-group-danger {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .55rem;
+    margin-inline-start: auto;
+    padding-inline-start: .8rem;
+    border-inline-start: 1px solid var(--separator);
+}
+
+.action-group-danger .secondary-button, .action-group-danger .destructive-button {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    border-color: var(--danger);
+    color: var(--danger);
+}
+
+.action-group-danger svg {
+    width: 1.05rem;
+    height: 1.05rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+@media (max-width: 40rem) {
+    .action-group-danger {
+        flex-basis: 100%;
+        margin-inline-start: 0;
+        padding-inline-start: 0;
+        padding-top: .7rem;
+        border-inline-start: 0;
+        border-top: 1px solid var(--separator);
+    }
+}
+
+/* Spec 009 US1: the area name is the page title; sections inside an area start at h2. */
+.admin-panel h2 {
+    margin: 0;
+    font-size: 1.05rem;
+}
+
+.admin-panel h3 {
+    font-size: .95rem;
+}
+
+.header-parent, .header-parent:hover {
+    color: var(--muted);
+    cursor: default;
+}
+
+.header-parent::after {
+    content: '›';
+    margin-inline: .35rem;
+}
+
+/* Spec 009 US2: a poll that takes no more votes leads with why, then the way to its results. */
+.poll-closed-notice {
+    display: grid;
+    gap: .6rem;
+    justify-items: start;
+    margin-bottom: 1.25rem;
+    padding: 1rem 1.1rem;
+    border: 1px solid var(--separator);
+    border-inline-start: .25rem solid var(--accent-text);
+    border-radius: var(--radius-control);
+    background: var(--raised);
+}
+
+.poll-closed-notice p {
+    margin: 0;
+    font-weight: 600;
+}
+
+.poll-closed-notice .primary-button {
+    margin-top: 0;
+}
+
+.poll-closed-notice .poll-closed-results-state {
+    color: var(--muted);
+    font-weight: 500;
+}
+
+.closed-option-list h2 {
+    margin: 0 0 .6rem;
+    font-size: 1rem;
+}
+
+.closed-option-list ul {
+    display: grid;
+    gap: 0;
+    margin: 0 0 1rem;
+    padding: 0;
+    list-style: none;
+}
+
+.closed-option-list li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: .5rem;
+    padding: .65rem .2rem;
+    border-bottom: 1px solid var(--separator);
+    color: var(--fg);
+    overflow-wrap: anywhere;
+}
+
+.closed-option-list li:last-child {
+    border-bottom: 0;
+}
+
+.closed-option-list li strong {
+    font-weight: 600;
+}
+
+.closed-option-list li.current {
+    padding-inline-start: .75rem;
+    box-shadow: inset .25rem 0 var(--accent-text);
+}
+
+.closed-option-list li small {
+    color: var(--accent-text);
+    font-weight: 700;
+}
+
+/* Spec 009 US3: polls are collapsed rows with their key facts; the body opens on demand. */
+.admin-toolbar .primary-button {
+    margin-top: 0;
+}
+
+.poll-admin-list {
+    gap: 0;
+}
+
+.poll-admin-card {
+    gap: .75rem;
+    padding: .2rem 0 .8rem;
+    border: 0;
+    border-bottom: 1px solid var(--separator);
+    border-radius: 0;
+    background: transparent;
+}
+
+.poll-admin-card:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+}
+
+.poll-admin-heading {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    justify-content: stretch;
+    gap: .1rem;
+}
+
+.poll-admin-title {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.poll-admin-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    width: 100%;
+    min-height: 2.75rem;
+    padding: .3rem .25rem;
+    border: 0;
+    border-radius: var(--radius-control);
+    color: inherit;
+    background: transparent;
+    font: inherit;
+    font-weight: 700;
+    text-align: start;
+    cursor: pointer;
+}
+
+.poll-admin-toggle span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.poll-admin-toggle:hover {
+    background: var(--raised);
+}
+
+.poll-admin-toggle:focus-visible {
+    outline: 3px solid var(--focus-ring);
+    outline-offset: 2px;
+}
+
+.poll-admin-toggle svg {
+    flex: none;
+    width: 1.2rem;
+    height: 1.2rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    transition: transform 150ms ease;
+}
+
+.poll-admin-toggle[aria-expanded='true'] svg {
+    transform: rotate(90deg);
+}
+
+.poll-admin-heading .poll-admin-meta {
+    margin: 0;
+    padding-inline: .25rem;
+    overflow-wrap: anywhere;
+}
+
+.poll-admin-body {
+    display: grid;
+    gap: 1rem;
+    padding: .25rem .25rem 0;
+}
+
+.poll-admin-body[hidden] {
+    display: none;
+}
+
+.poll-admin-options {
+    padding: 0;
+    border: 0;
+    background: transparent;
+}
+
+.poll-admin-options h3, .poll-admin-actions h3 {
+    margin: 0;
+    font-size: .9rem;
+}
+
+.poll-admin-actions h3 {
+    flex-basis: 100%;
+}
+
+.form-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .8rem;
+}
+
+.form-actions .primary-button, .form-actions .text-button {
+    margin-top: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .poll-admin-toggle svg { transition: none; }
+}
+
+/* Spec 009 US4: a visible gap between the radio and its option text (a later reset removed the margin). */
+.poll-option {
+    column-gap: var(--space-0-7);
+}
+
+/* Spec 009 US4: rows that combine fields and a button align at the field, not at the label. */
+.catalog-form-row > .form-field {
+    flex: 1 1 12rem;
+}
+
+.catalog-form-row > .primary-button, .catalog-form-row > .secondary-button {
+    margin-top: 0;
+    align-self: end;
+}
+
+.catalog-form > .primary-button {
+    margin-top: 0;
+}
+
+.group-rename-form {
+    flex: 1 1 18rem;
+}
+
+.admin-vote-filter {
+    display: grid;
+    gap: .8rem;
+}
+
+.invite-form .form-field, .contact-import .form-field {
+    margin-bottom: .2rem;
+}
+
+.expiry-form .form-field {
+    flex: 1 1 14rem;
+}
+
+.expiry-form .secondary-button {
+    align-self: end;
+}
+
+.login-form button:disabled, .primary-button:disabled {
+    cursor: progress;
+}
+
+/* Spec 009 US6: tile labels stay readable (at least 14px) on every page. */
+.discovery-stats dt, .vote-stat-grid dt, .result-summary dt, .option-summary dt {
+    font-size: .875rem;
+    line-height: 1.3;
+}
+
+.result-option-name {
+    min-width: 0;
+    font-weight: 800;
+    overflow-wrap: anywhere;
+}
+
+.result-option-votes {
+    justify-self: start;
+    font-size: .85rem;
+    font-weight: 700;
+}
+
+/* Spec 009 FR-032: one card level. Results are rows inside the results card; the winner keeps an accent surface. */
+.result-list {
+    gap: 0;
+}
+
+.result-option {
+    padding: .85rem .4rem;
+    border: 0;
+    border-bottom: 1px solid var(--separator);
+    border-radius: 0;
+    background: transparent;
+}
+
+.result-option:last-child {
+    border-bottom: 0;
+}
+
+.result-option.winner {
+    padding-inline: .75rem;
+    border: 0;
+    border-inline-start: .25rem solid var(--accent-text);
+    border-radius: var(--radius-control);
+    background: var(--raised);
+}
+
+.result-option.current {
+    box-shadow: none;
+}
+
+.result-summary > div {
+    border: 0;
+    box-shadow: none;
+}
+
+/* Inside an administration area there is one card; sections are separated by headings and lines. */
+.admin-panel .login-form, .admin-panel .contact-import {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.admin-panel .contact-import {
+    margin-top: .5rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--separator);
+}
+
+.admin-panel > .catalog-form + .catalog-form, .admin-panel > .catalog-form + .form-field {
+    padding-top: 1rem;
+    border-top: 1px solid var(--separator);
+}
+
+.create-poll-panel {
+    margin-bottom: 1rem;
+}
+
+.admin-vote-list {
+    gap: 0;
+}
+
+.admin-vote-item {
+    padding: .85rem .2rem;
+    border: 0;
+    border-bottom: 1px solid var(--separator);
+    border-radius: 0;
+    background: transparent;
+}
+
+.admin-vote-item:last-child {
+    border-bottom: 0;
+}
+
+/* Spec 009 FR-032: inside an administration area the narrow account and invitation rows are separated by lines,
+   not drawn as cards within the area's card. */
+@container admin-table (max-width: 44rem) {
+    .admin-panel .admin-card-table tbody {
+        gap: 0;
+    }
+
+    .admin-panel .admin-card-table tr {
+        padding: .85rem .2rem;
+        border: 0;
+        border-bottom: 1px solid var(--separator);
+        border-radius: 0;
+    }
+
+    .admin-panel .admin-card-table tr:last-child {
+        border-bottom: 0;
+    }
+}
+
+/* Spec 009 US4: the poll list filters use the shared field look; label colour and size match all other forms. */
+.poll-filter-fields .form-field {
+    flex: 0 1 12rem;
+    min-width: 9rem;
+}
+
+.poll-filter-fields .form-field > label {
+    color: inherit;
+    font-size: .85rem;
+}
+
+.poll-filter-fields .form-field > select, .poll-filter-fields .form-field > input {
+    border-radius: var(--radius-control);
 }

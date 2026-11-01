@@ -1,6 +1,6 @@
 # Implementation Plan: UX-Nacharbeiten aus der Design-Kritik
 
-**Branch**: `009-ux-critique-followup` (noch nicht angelegt; Arbeitsstand derzeit `main`) | **Date**: 2026-11-01 | **Spec**: [spec.md](spec.md)
+**Branch**: `009-ux-critique-followup` | **Date**: 2026-11-01 (überarbeitet nach `/speckit-analyze`) | **Spec**: [spec.md](spec.md)
 
 **Input**: Feature specification from `specs/009-ux-critique-followup/spec.md`
 
@@ -16,6 +16,30 @@ verständliche Beschriftungen, abgesetzte gefährliche Aktionen und Bestätigung
 Objektnamen (US5); kleinere Korrekturen auf Startseite, Karten und Ergebnisseite (US6).
 Die Umsetzung bleibt vollständig im Frontend; HTTP-Vertrag, Domäne und Schema sind nicht
 betroffen ([research.md](research.md)).
+
+### Überarbeitung nach `/speckit-analyze`
+
+| Befund | Entscheidung | Artefakt |
+|---|---|---|
+| H1 – FR-019 vs. Stimmabgabe aus Spec 004 | Regel gilt nur für Eingabeformulare; Stimmabgabe bleibt unverändert | research R5, data-model, ui-contract §4, quickstart #11 |
+| C1 – FR-032 nur in Administration | Ergebnisseite ebenfalls ohne Karte in Karte | research R8, ui-contract §6, quickstart #13 |
+| C2 – Kachel-Labels Ergebnisseite | Ergebnis- und Optionsseite einbezogen | research R7, ui-contract §6 |
+| U1 – Stimme-entfernen-Dialog | Dialog nennt Abstimmungstitel und Identität | ui-contract §5, quickstart #15 |
+| U2 – Fehlercode Ablauf während Ansicht | `poll-not-active` (HTTP 409) | research R3, data-model, quickstart #12 |
+| I1 – Admin-Pfad „gleiche Darstellung“ | gleiche Optik, nicht verlinkt | research R10 |
+| A2 – SC-004 ohne Prüfung | manuelle Stoppuhr-Prüfung | quickstart #14 |
+| Korrektur | Feld heißt `voteCount`, nicht `votes` | data-model, research R7 |
+
+### Zweite Überarbeitung (nach zweitem `/speckit-analyze`)
+
+| Befund | Entscheidung | Artefakt |
+|---|---|---|
+| T1 – „Löschen“ doppeldeutig | Bestätigungstext nennt immer die Umkehrbarkeit; Vorlagengruppe: „Diese Aktion kann nicht rückgängig gemacht werden.“ | ui-contract §5, research R6 |
+| I4 – veralteter Offen-Hinweis | ersetzt durch diese Tabelle | plan.md |
+
+`tasks.md` hat T1 übernommen (T043, T046). `spec.md` ist nachgezogen: FR-019 gilt nur für
+Eingabeformulare (H1), US1 AS3 nennt „gleiche Optik, nicht verlinkt“ (I1), US5 AS4 zählt die
+gefährlichen Aktionen einschließlich „Einladung widerrufen“ auf (S1). Keine offenen Punkte.
 
 ## Technical Context
 
@@ -55,8 +79,10 @@ Nachladen (Daten liegen in `adminPolls` vor)
 | Zusatz: Terminologie | „Löschen“/„Endgültig löschen“ ohne neue Fachbegriffe; „Optionsvorlage“, „Vorlagengruppe“, „Stimme“, „Identität“ bleiben | ✅ |
 | Workflow: keine unnötigen Abhängigkeiten | Kein Head-Manager, keine UI-Bibliothek | ✅ |
 
-**Post-Design-Recheck**: Nach Phase 1 unverändert erfüllt; keine Abweichungen, Complexity
-Tracking entfällt.
+**Post-Design-Recheck** (nach Überarbeitung): weiterhin erfüllt. Die Ausnahme für die
+Stimmabgabe erhält bestehendes, getestetes Verhalten (Prinzip V, keine Regression); der
+Fehlercode `poll-not-active` wird nur gelesen, der Vertrag bleibt unverändert (Prinzip II).
+Keine Abweichungen, Complexity Tracking entfällt.
 
 ## Project Structure
 
@@ -89,7 +115,8 @@ frontend/
     │   ├── ui/
     │   │   ├── PageFrame.tsx             # ruft useDocumentTitle
     │   │   ├── useDocumentTitle.ts       # neu
-    │   │   └── FormField.tsx             # neu
+    │   │   ├── FormField.tsx             # neu
+    │   │   └── formValidation.ts         # neu: focusFirstInvalid
     │   └── i18n/translations.ts          # neue/geänderte Schlüssel de/en
     └── features/
         ├── admin/
@@ -104,7 +131,7 @@ frontend/
         │   ├── PollClosedNotice.tsx      # neu
         │   ├── PollOptionRow.tsx         # Abstand Auswahlkreis/Text
         │   ├── PublicPollCard.tsx        # Datumspräfix
-        │   └── ResultsPages.tsx          # Optionsname als Text, „Stimmen ansehen“
+        │   └── ResultsPages.tsx          # Optionsname als Text, „Stimmen ansehen“, Optionen als Zeilen
         ├── home/HomePage.tsx             # Reihenfolge, ein Link
         ├── auth/LoginPage.tsx, PasswordChangePage.tsx, InvitationPage.tsx  # FormField, Validierung beim Absenden
         └── profile/ProfilePage.tsx       # Spaltennamen, lokale Zeit

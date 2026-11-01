@@ -1,6 +1,6 @@
 import {useMutation} from '@tanstack/react-query';
-import {type FormEvent, useEffect, useState} from 'react';
-import {Link, useNavigate} from 'react-router-dom';
+import {type FormEvent, useEffect, useRef, useState} from 'react';
+import {Link, useLocation, useNavigate} from 'react-router-dom';
 import type {components} from '../../shared/api/generated/justvotes';
 import {apiClient} from '../../shared/api/client';
 import {ApiError, type FrontendError} from '../../shared/api/errors';
@@ -10,6 +10,10 @@ import {useApiQuery} from '../../shared/api/useApiQuery';
 import {useI18n} from '../../shared/i18n/I18nProvider';
 import {QueryState} from '../../shared/ui/QueryState';
 import {RouteState} from '../../shared/ui/RouteState';
+import {ChevronRightIcon, TrashIcon} from '../../shared/ui/Icons';
+import {formatVoteCount} from '../polls/pollFormatters';
+import {FormField} from '../../shared/ui/FormField';
+import {focusFirstInvalid} from '../../shared/ui/formValidation';
 import {catalogQueries} from './catalogQueries';
 import {groupName} from './TemplateCatalog';
 
@@ -39,21 +43,78 @@ const actionMatrix: Record<PollState, readonly PollAction[]> = {
     deleted: ['restore', 'permanentDelete'],
 };
 
+const visibleOptionLimit = 10;
+
+/**
+ * A compact list: every poll is one collapsed row with its key facts; options and actions open on demand.
+ * New polls are created in a panel opened by "New poll" (spec 009, US3).
+ */
 export function AdminPolls() {
     const {t} = useI18n();
+    const {pathname} = useLocation();
     const query = useApiQuery(queryKeys.adminPolls, () => apiClient.getAdminPolls());
+    const [expandedPollIds, setExpandedPollIds] = useState<ReadonlySet<string>>(() => new Set());
+    const [createOpen, setCreateOpen] = useState(pathname === '/admin/create');
+    const newPollButtonRef = useRef<HTMLButtonElement>(null);
+    const returnFocusToNewPoll = useRef(false);
+
+    useEffect(() => {
+        if (createOpen || !returnFocusToNewPoll.current) return;
+        returnFocusToNewPoll.current = false;
+        newPollButtonRef.current?.focus();
+    }, [createOpen]);
+
+    function toggle(pollId: string) {
+        setExpandedPollIds((current) => {
+            const next = new Set(current);
+            if (next.has(pollId)) next.delete(pollId);
+            else next.add(pollId);
+            return next;
+        });
+    }
+
+    function forget(pollId: string) {
+        setExpandedPollIds((current) => {
+            const next = new Set(current);
+            next.delete(pollId);
+            return next;
+        });
+    }
+
+    function closeCreate() {
+        returnFocusToNewPoll.current = true;
+        setCreateOpen(false);
+    }
+
+    function created(poll: Poll) {
+        setExpandedPollIds((current) => new Set(current).add(poll.id));
+        closeCreate();
+    }
+
     return <>
-        <CreatePoll/>
+        <div className="admin-toolbar">
+            <button ref={newPollButtonRef} className="primary-button" type="button" aria-expanded={createOpen}
+                    onClick={() => setCreateOpen(true)} disabled={createOpen}>{t('admin.newPoll')}</button>
+        </div>
+        {createOpen && <CreatePoll onCreated={created} onCancel={closeCreate}/>}
         <QueryState query={query}>{(polls) => <section className="admin-panel">
-            <h3>{t('admin.polls')}</h3>{polls.length === 0 && <RouteState status="empty"/>}
+            {polls.length === 0 && <p className="stale-state">{t('admin.noPolls')}</p>}
             {polls.length !== 0 &&
-            <ul className="poll-admin-list">{polls.map((poll) => <PollAdministrationCard key={poll.id} poll={poll}/>)}</ul>}
+            <ul className="poll-admin-list">{polls.map((poll) => <PollAdministrationCard key={poll.id} poll={poll}
+                expanded={expandedPollIds.has(poll.id)} onToggle={() => toggle(poll.id)}
+                onRemoved={() => forget(poll.id)}/>)}</ul>}
         </section>}</QueryState>
     </>;
 }
 
-function PollAdministrationCard({poll}: { poll: Poll }) {
+function PollAdministrationCard({poll, expanded, onToggle, onRemoved}: {
+    poll: Poll;
+    expanded: boolean;
+    onToggle: () => void;
+    onRemoved: () => void;
+}) {
     const {t, locale} = useI18n();
+    const [showAllOptions, setShowAllOptions] = useState(false);
     const [editingOptions, setEditingOptions] = useState(false);
     const [optionDraft, setOptionDraft] = useState(() => poll.options.map((option) => option.text).join('\n'));
     const [optionsInvalid, setOptionsInvalid] = useState(false);
@@ -62,7 +123,10 @@ function PollAdministrationCard({poll}: { poll: Poll }) {
         mutationFn: (request: PollMutation) => executePollMutation(poll.id, request),
         onSuccess: async (updated) => {
             if (updated) updatePollCache(updated);
-            else queryClient.setQueryData<Poll[]>(queryKeys.adminPolls, (current) => current?.filter((candidate) => candidate.id !== poll.id));
+            else {
+                queryClient.setQueryData<Poll[]>(queryKeys.adminPolls, (current) => current?.filter((candidate) => candidate.id !== poll.id));
+                onRemoved();
+            }
             setEditingOptions(false);
             setError(null);
             await Promise.all([
@@ -94,8 +158,10 @@ function PollAdministrationCard({poll}: { poll: Poll }) {
     }
 
     function requestAction(action: Exclude<PollAction, 'publish' | 'changeExpiry'>) {
-        if (action === 'softDelete' && !window.confirm(t('admin.confirmSoftDelete'))) return;
-        if (action === 'permanentDelete' && (!window.confirm(t('admin.confirmPermanentDelete')) || !window.confirm(t('admin.confirmPermanentDeleteAgain')))) return;
+        const title = () => poll.title;
+        if (action === 'softDelete' && !window.confirm(t('admin.confirmSoftDelete').replace('{title}', title))) return;
+        if (action === 'permanentDelete' && (!window.confirm(t('admin.confirmPermanentDelete').replace('{title}', title))
+            || !window.confirm(t('admin.confirmPermanentDeleteAgain')))) return;
         mutation.mutate({action});
     }
 
@@ -103,13 +169,24 @@ function PollAdministrationCard({poll}: { poll: Poll }) {
     if (poll.visibility === 'public') visibilityKey = 'admin.public';
     let reopenTitle: string | undefined;
     if (actions.includes('reopen') && !canReopen) reopenTitle = t('admin.reopenNeedsFutureExpiry');
-    return <li className="poll-admin-card">
+    let expiry = t('admin.noExpiry');
+    if (poll.endsAt) expiry = t('admin.expiresAt').replace('{date}', formatDate(poll.endsAt, locale));
+    let visibleOptions = poll.options;
+    if (!showAllOptions) visibleOptions = poll.options.slice(0, visibleOptionLimit);
+    const hiddenOptionCount = poll.options.length - visibleOptions.length;
+    const bodyId = `poll-admin-body-${poll.id}`;
+    let rowClassName = 'poll-admin-card';
+    if (expanded) rowClassName += ' expanded';
+    return <li className={rowClassName}>
         <div className="poll-admin-heading">
-            <div><h4>{poll.title}</h4><p
-                className="poll-admin-meta">{t(visibilityKey)} · {t(stateTranslationKey(poll.state))} · {poll.endsAt && formatDate(poll.endsAt, locale)}{!poll.endsAt && t('admin.noExpiry')}</p>
-             </div></div>
-        <section className="poll-admin-options" aria-labelledby={`options-${poll.id}`}><h5
-                id={`options-${poll.id}`}>{t('admin.currentOptions')}</h5>{editingOptions &&
+            <h2 className="poll-admin-title"><button className="poll-admin-toggle" type="button" aria-expanded={expanded}
+                                                      aria-controls={bodyId} onClick={onToggle}>
+                <span>{poll.title}</span><ChevronRightIcon/></button></h2>
+            <p className="poll-admin-meta">{t(visibilityKey)} · {t(stateTranslationKey(poll.state))} · {expiry} · {formatVoteCount(poll.totalVotes, locale, t)}</p>
+        </div>
+        <div id={bodyId} className="poll-admin-body" hidden={!expanded}>
+        <section className="poll-admin-options" aria-labelledby={`options-${poll.id}`}><h3
+                id={`options-${poll.id}`}>{t('admin.currentOptions')}</h3>{editingOptions &&
                 <form className="catalog-form" onSubmit={submitOptions}><label
                     htmlFor={`options-edit-${poll.id}`}>{t('admin.optionsInput')}</label><textarea
                     id={`options-edit-${poll.id}`} rows={5} value={optionDraft} onChange={(event) => {
@@ -123,13 +200,15 @@ function PollAdministrationCard({poll}: { poll: Poll }) {
                                 disabled={mutation.isPending}>{t('forms.cancel')}</button>
                     </div>
                 </form>}{!editingOptions && <>
-                    <ol className="poll-options">{poll.options.map((option) => <li key={option.number}
+                    <ol className="poll-options">{visibleOptions.map((option) => <li key={option.number}
                                                                                    value={option.number}>{option.text}</li>)}</ol>
+                    {hiddenOptionCount > 0 && <button className="text-button" type="button" onClick={() => setShowAllOptions(true)}>
+                        {t('admin.showAllOptions').replace('{count}', String(poll.options.length))}</button>}
                     {poll.state === 'draft' && <button className="secondary-button" type="button" onClick={() => {
                         setOptionsInvalid(false);
                         setEditingOptions(true);
                     }}>{t('admin.editOptions')}</button>}</>}</section>
-        <div className="poll-admin-actions"><h5>{t('admin.actions')}</h5>{actions.includes('publish') &&
+        <div className="poll-admin-actions"><h3>{t('admin.actions')}</h3>{actions.includes('publish') &&
             <ExpiryForm key={`${poll.id}-publish`} inputId={`${poll.id}-publish-expiry`} label={t('admin.publish')}
                         submitLabel={t('admin.publish')}
                         onSubmit={(endsAt) => mutation.mutate({action: 'publish', endsAt})}
@@ -146,20 +225,23 @@ function PollAdministrationCard({poll}: { poll: Poll }) {
                     disabled={mutation.isPending}>{t('admin.restoreFromArchive')}</button>}{actions.includes('reopen') &&
             <button className="secondary-button" type="button" onClick={() => requestAction('reopen')}
                     disabled={mutation.isPending || !canReopen}
-                    title={reopenTitle}>{t('admin.reopen')}</button>}{actions.includes('softDelete') &&
-            <button className="secondary-button destructive-button" type="button"
-                    onClick={() => requestAction('softDelete')}
-                    disabled={mutation.isPending}>{t('admin.softDelete')}</button>}{actions.includes('restore') &&
+                    title={reopenTitle}>{t('admin.reopen')}</button>}{actions.includes('restore') &&
             <button className="secondary-button" type="button" onClick={() => requestAction('restore')}
-                    disabled={mutation.isPending}>{t('admin.restore')}</button>}{actions.includes('permanentDelete') &&
-            <button className="secondary-button destructive-button" type="button"
-                    onClick={() => requestAction('permanentDelete')}
-                    disabled={mutation.isPending}>{t('admin.permanentDelete')}</button>}</div>
+                    disabled={mutation.isPending}>{t('admin.restore')}</button>}
+            {(actions.includes('softDelete') || actions.includes('permanentDelete')) && <div className="action-group-danger">
+                {actions.includes('softDelete') && <button className="secondary-button destructive-button" type="button"
+                        onClick={() => requestAction('softDelete')}
+                        disabled={mutation.isPending}><TrashIcon/>{t('admin.softDelete')}</button>}
+                {actions.includes('permanentDelete') && <button className="secondary-button destructive-button" type="button"
+                        onClick={() => requestAction('permanentDelete')}
+                        disabled={mutation.isPending}><TrashIcon/>{t('admin.permanentDelete')}</button>}
+            </div>}</div>
         {error && <p className="form-error" role="alert">{t(error.messageKey)}</p>}
         <p className="poll-admin-links"><Link
             to={`/poll/${encodeURIComponent(poll.id)}`}>{t('admin.openPoll')}</Link> · <Link
             to={`/poll/results/${encodeURIComponent(poll.id)}`}>{t('polls.results')}</Link> · <Link
             to={`/poll/audit/${encodeURIComponent(poll.id)}`}>{t('audit.title')}</Link></p>
+        </div>
     </li>;
 }
 
@@ -174,6 +256,11 @@ function ExpiryForm({inputId, label, initialValue, submitLabel, onSubmit, pendin
     const {t} = useI18n();
     const [value, setValue] = useState(() => toDateTimeLocal(initialValue));
     const [invalid, setInvalid] = useState(false);
+    const formRef = useRef<HTMLFormElement>(null);
+
+    useEffect(() => {
+        if (invalid) focusFirstInvalid(formRef.current);
+    }, [invalid]);
 
     function submit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -186,23 +273,32 @@ function ExpiryForm({inputId, label, initialValue, submitLabel, onSubmit, pendin
         onSubmit(endsAt);
     }
 
-    return <form className="expiry-form" onSubmit={submit}><label htmlFor={inputId}>{label}</label><input id={inputId}
-                                                                                                          type="datetime-local"
-                                                                                                          value={value}
-                                                                                                          onChange={(event) => {
-                                                                                                              setValue(event.target.value);
-                                                                                                              setInvalid(false);
-                                                                                                          }} required/>
-        <button className="secondary-button" type="submit"
-                disabled={pending || !isFutureDate(value)}>{submitLabel}</button>
-        {invalid && <span className="form-error" role="alert">{t('admin.invalidExpiry')}</span>}</form>;
+    let error: string | null = null;
+    if (invalid) error = t('admin.invalidExpiry');
+    return <form ref={formRef} className="expiry-form" onSubmit={submit} noValidate>
+        <FormField id={inputId} label={label} error={error}>
+            <input type="datetime-local" value={value} required onChange={(event) => {
+                setValue(event.target.value);
+                setInvalid(false);
+            }}/>
+        </FormField>
+        <button className="secondary-button" type="submit" disabled={pending}>{submitLabel}</button>
+    </form>;
 }
 
-export function CreatePoll() {
+/**
+ * The form behind "New poll". Missing fields are reported at the field on submit; only sending locks the button.
+ */
+export function CreatePoll({onCreated, onCancel}: { onCreated: (poll: Poll) => void; onCancel: () => void }) {
     const {t} = useI18n();
     const navigate = useNavigate();
+    const {pathname} = useLocation();
+    const formRef = useRef<HTMLFormElement>(null);
+    const titleRef = useRef<HTMLInputElement>(null);
     const [title, setTitle] = useState('');
     const [groupId, setGroupId] = useState('');
+    const [titleMissing, setTitleMissing] = useState(false);
+    const [groupMissing, setGroupMissing] = useState(false);
     const [error, setError] = useState<FrontendError | null>(null);
     const groupsQuery = catalogQueries.useCatalogGroups();
     const groups = groupsQuery.data ?? [];
@@ -210,22 +306,43 @@ export function CreatePoll() {
     const availableGroups = groups.filter((_, index) => (membershipQueries[index]?.data?.length ?? 0) > 0);
     const membershipError = membershipQueries.find((query) => query.isError)?.error;
     const membershipPending = membershipQueries.some((query) => query.isPending);
+    const formShown = !groupsQuery.isPending && !groupsQuery.isError && !membershipError && !membershipPending;
     const mutation = useMutation({
         mutationFn: () => apiClient.createPoll({title: title.trim(), templateGroupId: groupId}),
-        onSuccess: async () => {
+        onSuccess: async (poll) => {
             await Promise.all([queryClient.invalidateQueries({queryKey: queryKeys.adminPolls}), queryClient.invalidateQueries({queryKey: queryKeys.publicPolls})]);
-            navigate('/admin/polls');
+            if (pathname === '/admin/create') navigate('/admin/polls');
+            onCreated(poll);
         },
         onError: (cause) => setError(frontendError(cause)),
     });
 
+    useEffect(() => {
+        if (formShown) titleRef.current?.focus();
+    }, [formShown]);
+
+    useEffect(() => {
+        if (titleMissing || groupMissing) focusFirstInvalid(formRef.current);
+    }, [titleMissing, groupMissing]);
+
     function submit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        if (!groupId || !availableGroups.some((group) => group.id === groupId)) return;
+        const missingTitle = !title.trim();
+        const missingGroup = !groupId || !availableGroups.some((group) => group.id === groupId);
+        setTitleMissing(missingTitle);
+        setGroupMissing(missingGroup);
+        if (missingTitle || missingGroup) {
+            focusFirstInvalid(formRef.current);
+            return;
+        }
         setError(null);
         mutation.mutate();
     }
 
+    let titleError: string | null = null;
+    if (titleMissing) titleError = t('forms.requiredField');
+    let groupError: string | null = null;
+    if (groupMissing) groupError = t('forms.requiredField');
     return <QueryState query={groupsQuery}>{() => {
         if (membershipError) {
             let error: FrontendError | undefined;
@@ -233,18 +350,33 @@ export function CreatePoll() {
             return <RouteState status="error" error={error}/>;
         }
         if (membershipPending) return <RouteState status="loading"/>;
-        return <section className="admin-panel"><h3>{t('admin.createPoll')}</h3>{availableGroups.length === 0 &&
+        return <section className="admin-panel create-poll-panel" aria-labelledby="create-poll-heading">
+            <h2 id="create-poll-heading">{t('admin.newPoll')}</h2>{availableGroups.length === 0 &&
             <p className="stale-state">{t('admin.noNonEmptyGroups')}</p>}
-            <form className="login-form" onSubmit={submit}><label
-                htmlFor="poll-title">{t('admin.pollTitle')}</label><input id="poll-title" required value={title}
-                                                                          onChange={(event) => setTitle(event.target.value)}/><label
-                htmlFor="poll-group">{t('admin.templateGroup')}</label><select id="poll-group" required value={groupId}
-                                                                               onChange={(event) => setGroupId(event.target.value)}>
-                <option value="">{t('admin.selectGroup')}</option>
-                {availableGroups.map((group) => <option key={group.id} value={group.id}>{groupName(group, t)}</option>)}</select>
-                <button className="primary-button" type="submit"
-                        aria-busy={mutation.isPending} disabled={mutation.isPending || availableGroups.length === 0 || !groupId}>{mutation.isPending && <span className="button-spinner" aria-hidden="true"/>}{mutation.isPending && t('common.saving')}{!mutation.isPending && t('forms.submit')}</button>
-                {error && <p className="form-error" role="alert">{t(error.messageKey)}</p>}</form>
+            <form ref={formRef} className="catalog-form" onSubmit={submit} noValidate>
+                <FormField id="poll-title" label={t('admin.pollTitle')} error={titleError}>
+                    <input ref={titleRef} required value={title} onChange={(event) => {
+                        setTitle(event.target.value);
+                        setTitleMissing(false);
+                    }}/>
+                </FormField>
+                <FormField id="poll-group" label={t('admin.templateGroup')} error={groupError}>
+                    <select required value={groupId} onChange={(event) => {
+                        setGroupId(event.target.value);
+                        setGroupMissing(false);
+                    }}>
+                        <option value="">{t('admin.selectGroup')}</option>
+                        {availableGroups.map((group) => <option key={group.id} value={group.id}>{groupName(group, t)}</option>)}
+                    </select>
+                </FormField>
+                <div className="form-actions">
+                    <button className="primary-button" type="submit" aria-busy={mutation.isPending}
+                            disabled={mutation.isPending}>{mutation.isPending && <span className="button-spinner" aria-hidden="true"/>}{mutation.isPending && t('common.saving')}{!mutation.isPending && t('forms.submit')}</button>
+                    <button className="text-button" type="button" onClick={onCancel}
+                            disabled={mutation.isPending}>{t('forms.cancel')}</button>
+                </div>
+                {error && <p className="form-error" role="alert">{t(error.messageKey)}</p>}
+            </form>
         </section>;
     }}</QueryState>;
 }
@@ -291,10 +423,6 @@ function parseFutureDate(value: string) {
     const date = new Date(value);
     if (Number.isNaN(date.getTime()) || date.getTime() <= Date.now()) return null;
     return date.toISOString();
-}
-
-function isFutureDate(value: string) {
-    return parseFutureDate(value) !== null;
 }
 
 function toDateTimeLocal(value?: string | null) {

@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest';
-import {fireEvent, screen} from '@testing-library/react';
+import {fireEvent, screen, waitFor} from '@testing-library/react';
 import {describe, expect, it, vi} from 'vitest';
 import {apiClient, sessionCoordinator} from '../../shared/api/client';
 import {problemError} from '../../shared/api/errors';
@@ -57,12 +57,27 @@ describe('LoginPage', () => {
         sessionCoordinator.consumeReturnRoute();
     });
 
-    it('keeps submit disabled until both fields are filled', () => {
+    it('keeps submit usable and reports missing fields at the field (spec 009)', async () => {
+        const login = vi.spyOn(apiClient, 'login');
         renderPollTest('/login', <LoginPage/>);
-        expect(screen.getByRole('button', {name: 'Anmelden'})).toBeDisabled();
-        fireEvent.change(screen.getByLabelText('E-Mail-Adresse'), {target: {value: 'alice@example.test'}});
-        expect(screen.getByRole('button', {name: 'Anmelden'})).toBeDisabled();
-        fireEvent.change(screen.getByLabelText('Passwort'), {target: {value: 'x'}});
-        expect(screen.getByRole('button', {name: 'Anmelden'})).toBeEnabled();
+        const button = screen.getByRole('button', {name: 'Anmelden'});
+        expect(button).toBeEnabled();
+
+        fireEvent.click(button);
+
+        expect(login).not.toHaveBeenCalled();
+        const email = screen.getByLabelText('E-Mail-Adresse');
+        const password = screen.getByLabelText('Passwort');
+        expect(email).toHaveAttribute('aria-invalid', 'true');
+        expect(password).toHaveAttribute('aria-invalid', 'true');
+        expect(email).toHaveAccessibleDescription('Bitte fülle dieses Feld aus.');
+        await waitFor(() => expect(email).toHaveFocus());
+
+        fireEvent.change(email, {target: {value: 'alice@example.test'}});
+        fireEvent.click(button);
+        expect(email).not.toHaveAttribute('aria-invalid', 'true');
+        expect(password).toHaveAttribute('aria-invalid', 'true');
+        await waitFor(() => expect(password).toHaveFocus());
+        expect(login).not.toHaveBeenCalled();
     });
 });

@@ -302,7 +302,7 @@ describe('app shell', () => {
         vi.spyOn(apiClient, 'getAdminPolls').mockResolvedValue([]);
         renderApp('/admin/polls');
 
-        expect(await screen.findByRole('heading', {name: 'Abstimmungen', level: 3})).toBeVisible();
+        expect(await screen.findByRole('heading', {name: 'Abstimmungen', level: 1})).toBeVisible();
         const navigations = screen.getAllByRole('navigation', {name: 'Admin-Navigation'});
         expect(navigations).toHaveLength(1);
         expect(navigations[0]).toHaveClass('sidebar-navigation');
@@ -317,12 +317,24 @@ describe('app shell', () => {
         expect(screen.queryByRole('link', {name: 'JustVotes'})).toBeNull();
     });
 
+    it('shows the administration path with the area name in the header', async () => {
+        signIn(adminSession());
+        vi.spyOn(apiClient, 'getAccounts').mockResolvedValue([]);
+        renderApp('/admin/accounts');
+
+        expect(await screen.findByRole('heading', {name: 'Konten', level: 1})).toBeVisible();
+        const header = document.querySelector('.header-context') as HTMLElement;
+        expect(within(header).getByText('Administration')).toBeVisible();
+        expect(within(header).queryByRole('link', {name: 'Administration'})).toBeNull();
+        expect(within(header).getByText('Konten')).toHaveClass('header-title');
+    });
+
     it('marks votes as current for the admin root route', async () => {
         signIn(adminSession());
         vi.spyOn(apiClient, 'getAdminVotes').mockResolvedValue({votes: [], page: 0, size: 50, totalElements: 0});
         renderApp('/admin');
 
-        expect(await screen.findByRole('heading', {name: 'Stimmen', level: 3})).toBeVisible();
+        expect(await screen.findByRole('heading', {name: 'Stimmen', level: 1})).toBeVisible();
         const sidebar = screen.getAllByRole('navigation', {name: 'Admin-Navigation'})
             .find((navigation) => navigation.classList.contains('sidebar-navigation'));
         expect(sidebar).toBeDefined();
@@ -334,7 +346,7 @@ describe('app shell', () => {
         vi.spyOn(apiClient, 'getAdminPolls').mockResolvedValue([]);
         renderApp('/admin/polls');
 
-        expect(await screen.findByRole('heading', {name: 'Abstimmungen', level: 3})).toBeVisible();
+        expect(await screen.findByRole('heading', {name: 'Abstimmungen', level: 1})).toBeVisible();
         fireEvent.click(screen.getByRole('button', {name: 'English anzeigen'}));
 
         const adminNavigation = screen.getAllByRole('navigation', {name: 'Administration navigation'})
@@ -350,7 +362,7 @@ describe('app shell', () => {
         signIn(adminSession());
         vi.spyOn(apiClient, 'getAdminVotes').mockResolvedValue({votes: [], page: 0, size: 50, totalElements: 0});
         const admin = renderApp('/polls');
-        expect(await screen.findByRole('heading', {name: 'Stimmen', level: 3})).toBeVisible();
+        expect(await screen.findByRole('heading', {name: 'Stimmen', level: 1})).toBeVisible();
         admin.unmount();
 
         signIn(userSession('alice'));

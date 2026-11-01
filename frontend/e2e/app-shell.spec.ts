@@ -357,7 +357,7 @@ test('casts and replaces a public poll vote only after submitting', async ({ pag
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
 });
 
-test('disables voting for an expired poll and safely handles private or missing polls', async ({ page }) => {
+test('replaces voting for an expired poll with a notice and safely handles private or missing polls', async ({ page }) => {
   await mockApi(page, async (route) => {
     const request = route.request();
     const url = request.url();
@@ -401,9 +401,9 @@ test('disables voting for an expired poll and safely handles private or missing 
 
   await page.goto('/poll/p_expired');
   await expect(page.getByRole('heading', { name: 'Expired browser poll', level: 1 })).toBeVisible();
-  await expect(page.getByText(/Diese Abstimmung ist nicht mehr aktiv.*abgelaufen/)).toBeVisible();
-  await expect(page.getByRole('radio', { name: 'Yes' })).toBeDisabled();
-  await expect(page.getByRole('link', { name: 'Abstimmung - Ergebnisse' })).toBeVisible();
+  await expect(page.getByText('Diese Abstimmung ist abgelaufen. Eine Stimmabgabe ist nicht mehr möglich.')).toBeVisible();
+  await expect(page.getByRole('radio', { name: 'Yes' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Ergebnisse ansehen' })).toBeVisible();
 
   await page.goto('/poll/p_private');
   await expect(page.getByRole('heading', { name: 'Seite nicht gefunden', level: 3 })).toBeVisible();
@@ -604,7 +604,7 @@ test('zeigt null Prozent und Gleichstände in Poll-Ergebnissen', async ({ page }
   await page.goto('/poll/results/p_tie_results');
   await expect(page.locator('.result-option strong')).toHaveText(['Gleichstand', 'Gleichstand']);
   await expect(page.getByRole('complementary', { name: 'Aktueller Spitzenstand' })).toContainText('Alpha, Zulu');
-  await expect(page.locator('.result-option-heading a')).toHaveText(['Alpha', 'Zulu', 'Beta', 'Zebra']);
+  await expect(page.locator('.result-option-name')).toHaveText(['Alpha', 'Zulu', 'Beta', 'Zebra']);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
 });
 
@@ -677,15 +677,15 @@ test('signs the administrator in, restores the active admin area after reload, a
   await page.getByLabel('Passwort').fill('secret');
   await page.getByRole('button', { name: 'Anmelden' }).click();
 
-  await expect(page.getByRole('heading', { name: 'Stimmen', level: 3 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Stimmen', level: 1 })).toBeVisible();
   await page.goto('/admin/polls');
   await page.goto('/admin');
-  await expect(page.getByRole('heading', { name: 'Stimmen', level: 3 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Stimmen', level: 1 })).toBeVisible();
   await expect(page.locator('.sidebar-navigation').getByRole('link', { name: 'Abstimmungen' })).toBeVisible();
   await expect(page.locator('.sidebar-navigation').getByRole('link')).toHaveCount(6);
   await expect(page.locator('.sidebar-navigation').getByRole('link', { name: 'Stimmen' })).toHaveAttribute('aria-current', 'page');
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'Stimmen', level: 3 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Stimmen', level: 1 })).toBeVisible();
   await page.setViewportSize({ width: 320, height: 720 });
   await page.getByRole('button', { name: 'Menü', exact: true }).click();
   const mobileNavigation = page.locator('.mobile-menu-navigation');
@@ -750,11 +750,12 @@ test('removes an administrative vote through the browser flow', async ({ page })
   const adminVote = page.locator('.admin-vote-list').getByText('Browser poll').locator('..');
   await expect(adminVote).toBeVisible();
   await expect(adminVote).not.toContainText('p_v1_browser');
-  await expect(page.getByText('Aktuelle Stimmen').locator('..')).toContainText('1');
+  await expect(page.getByText('Aktuelle Stimmen', { exact: true }).locator('..')).toContainText('1');
   await page.getByRole('button', { name: 'Stimme entfernen' }).click();
 
   const dialog = page.getByRole('dialog');
-  await expect(dialog.getByRole('button', { name: 'Stimme entfernen' })).toBeDisabled();
+  await expect(dialog.getByRole('button', { name: 'Stimme entfernen' })).toBeEnabled();
+  await expect(dialog).toContainText('Die Stimme von alice in „Browser poll“ wird entfernt.');
   await dialog.getByRole('textbox', { name: 'Begründung' }).fill('  Browser test  ');
   await dialog.getByRole('button', { name: 'Stimme entfernen' }).click();
 
@@ -791,7 +792,7 @@ test('shows login on session expiry and restores the previous admin route', asyn
   });
 
   await page.goto('/admin/polls');
-  await expect(page.getByRole('heading', { name: 'Abstimmungen', level: 3 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Abstimmungen', level: 1 })).toBeVisible();
   expired = true;
   await page.getByRole('link', { name: 'Vorlagengruppen' }).click();
   await page.getByRole('link', { name: 'Abstimmungen' }).click();
@@ -803,7 +804,7 @@ test('shows login on session expiry and restores the previous admin route', asyn
   await page.getByLabel('Passwort').fill('secret');
   await page.getByRole('button', { name: 'Anmelden' }).click();
 
-  await expect(page.getByRole('heading', { name: 'Abstimmungen', level: 3 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Abstimmungen', level: 1 })).toBeVisible();
   await expect(page.locator('.sidebar-navigation').getByRole('link', { name: 'Abstimmungen' })).toHaveAttribute('aria-current', 'page');
 });
 
@@ -856,7 +857,8 @@ test('runs an admin poll through publication, expiry, archive, restore and destr
   await page.getByLabel('Abstimmungs-Titel').fill(lifecycleTitle);
   await page.getByLabel('Vorlagengruppe').selectOption('g_v1_lifecycle');
   await page.getByRole('button', { name: 'Speichern' }).click();
-  await expect(page.getByRole('heading', { name: lifecycleTitle, level: 4 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: lifecycleTitle, level: 2 })).toBeVisible();
+  await expect(page.getByRole('button', { name: lifecycleTitle })).toHaveAttribute('aria-expanded', 'true');
   await expect(page.locator('.poll-admin-card')).not.toContainText('p_v1_lifecycle');
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
 
@@ -867,10 +869,10 @@ test('runs an admin poll through publication, expiry, archive, restore and destr
   await expect(page.getByText('archiviert')).toBeVisible();
   await page.getByRole('button', { name: 'Aus Archiv wiederherstellen' }).click();
   await expect(page.getByText('abgelaufen')).toBeVisible();
-  await page.getByRole('button', { name: 'Soft löschen' }).click();
+  await page.getByRole('button', { name: 'Löschen', exact: true }).click();
   await expect(page.getByText('gelöscht')).toBeVisible();
-  await page.getByRole('button', { name: 'Permanent löschen' }).click();
-  await expect(page.getByText('Noch keine Daten vorhanden')).toBeVisible();
+  await page.getByRole('button', { name: 'Endgültig löschen' }).click();
+  await expect(page.getByText('Noch keine Abstimmungen.')).toBeVisible();
 });
 
 test('keeps the template catalog usable at 320px with long names', async ({ page }) => {
