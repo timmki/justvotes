@@ -8,6 +8,8 @@ import {queryKeys} from '../../shared/api/queryKeys';
 import {useApiQuery} from '../../shared/api/useApiQuery';
 import {useI18n} from '../../shared/i18n/I18nProvider';
 import {RouteState} from '../../shared/ui/RouteState';
+import {FormField} from '../../shared/ui/FormField';
+import {TrashIcon} from '../../shared/ui/Icons';
 import {useDialogFocusTrap} from '../../shared/ui/useDialogFocusTrap';
 
 type AdminVote = components['schemas']['AdminVote'];
@@ -120,7 +122,6 @@ export function AdminVotes() {
         emptyText = t('voteAdmin.noMatchesText');
     }
     return <section ref={panelRef} className="admin-panel">
-        <h3>{t('admin.votes')}</h3>
         <dl className="vote-stat-grid">
             <div>
                 <dt>{t('voteAdmin.currentVotes')}</dt>
@@ -137,10 +138,12 @@ export function AdminVotes() {
         </dl>
         <p className="stats-scope">{t('voteAdmin.statsAllPages')}</p>
         <div className="admin-vote-filter">
-            <label htmlFor="admin-vote-search">{t('voteAdmin.searchVotes')}</label>
-            <input id="admin-vote-search" type="search" value={search} onChange={(event) => { setSearch(event.target.value); setPage(0); }}/>
-            <label htmlFor="admin-vote-poll-filter">{t('voteAdmin.pollFilter')}</label>
-            <select id="admin-vote-poll-filter" value={pollFilter} onChange={(event) => { setPollFilter(event.target.value); setPage(0); }}><option value="">{t('voteAdmin.allPolls')}</option>{pollOptions.map(([pollId, title]) => <option key={pollId} value={pollId}>{title}</option>)}</select>
+            <FormField id="admin-vote-search" label={t('voteAdmin.searchVotes')}>
+                <input type="search" value={search} onChange={(event) => { setSearch(event.target.value); setPage(0); }}/>
+            </FormField>
+            <FormField id="admin-vote-poll-filter" label={t('voteAdmin.pollFilter')}>
+                <select value={pollFilter} onChange={(event) => { setPollFilter(event.target.value); setPage(0); }}><option value="">{t('voteAdmin.allPolls')}</option>{pollOptions.map(([pollId, title]) => <option key={pollId} value={pollId}>{title}</option>)}</select>
+            </FormField>
         </div>
         {visibleVotes.length === 0 && <RouteState status="empty" title={emptyTitle} text={emptyText}/>}
         {visibleVotes.length !== 0 &&
@@ -150,8 +153,10 @@ export function AdminVotes() {
                     <strong>{vote.poll.title}</strong><span>{t('voteAdmin.option')} {vote.option.number}: {vote.option.text}</span><span>{vote.userID}</span><span>{t('voteAdmin.voteId')}: {vote.voteId}</span>
                     <time dateTime={vote.votedAt}>{formatDate(vote.votedAt, locale)}</time>
                 </div>
-                <button className="secondary-button destructive-button" type="button" onClick={(event) => openRemoval(vote, event.currentTarget)}
-                        disabled={removeMutation.isPending}>{t('voteAdmin.removeVote')}</button>
+                <div className="action-group-danger">
+                    <button className="secondary-button destructive-button" type="button" onClick={(event) => openRemoval(vote, event.currentTarget)}
+                            disabled={removeMutation.isPending}><TrashIcon/>{t('voteAdmin.removeVote')}</button>
+                </div>
             </li>)}</ul>}
         {filteredPageCount > 1 && <nav className="admin-pagination" aria-label={t('voteAdmin.votePagination')}>
             <button className="text-button" type="button" onClick={() => setPage((current) => current - 1)}
@@ -186,29 +191,32 @@ function VoteRemovalDialog({vote, error, pending, onCancel, onConfirm}: {
         const trimmed = reason.trim();
         if (!trimmed) {
             setInvalid(true);
+            event.currentTarget.querySelector<HTMLTextAreaElement>('textarea')?.focus();
             return;
         }
         setInvalid(false);
         onConfirm(trimmed);
     }
 
+    let reasonError: string | null = null;
+    if (invalid) reasonError = t('voteAdmin.removalReasonRequired');
     return <div className="modal-backdrop">
         <div ref={dialogRef} className="identity-dialog admin-vote-dialog" role="dialog" aria-modal="true" tabIndex={-1}
              aria-labelledby="admin-vote-removal-heading" aria-describedby="admin-vote-removal-warning">
-            <h3 id="admin-vote-removal-heading">{t('voteAdmin.removeVoteTitle')}</h3>
+            <h2 id="admin-vote-removal-heading">{t('voteAdmin.removeVoteTitle')}</h2>
             <p id="admin-vote-removal-warning">{vote.poll.title}: {vote.option.text} ({vote.userID})</p>
-            <p>{t('voteAdmin.removeVoteWarning')}</p>
-            <form className="catalog-form" onSubmit={submit}>
-                <label htmlFor="admin-vote-removal-reason">{t('voteAdmin.removalReason')}</label>
-                <textarea id="admin-vote-removal-reason" rows={4} required value={reason} onChange={(event) => {
-                    setReason(event.target.value);
-                    setInvalid(false);
-                }}/>
-                {invalid && <p className="form-error" role="alert">{t('voteAdmin.removalReasonRequired')}</p>}
+            <p>{t('voteAdmin.removeVoteWarning').replace('{identity}', () => vote.userID).replace('{title}', () => vote.poll.title)}</p>
+            <form className="catalog-form" onSubmit={submit} noValidate>
+                <FormField id="admin-vote-removal-reason" label={t('voteAdmin.removalReason')} error={reasonError}>
+                    <textarea rows={4} required value={reason} onChange={(event) => {
+                        setReason(event.target.value);
+                        setInvalid(false);
+                    }}/>
+                </FormField>
                 {error && <p className="form-error" role="alert">{t(error.messageKey)}</p>}
                 <div className="identity-actions">
                     <button className="primary-button" type="submit"
-                            aria-busy={pending} disabled={pending || !reason.trim()}>{pending && <span className="button-spinner" aria-hidden="true"/>}{t('voteAdmin.removeVote')}</button>
+                            aria-busy={pending} disabled={pending}>{pending && <span className="button-spinner" aria-hidden="true"/>}{t('voteAdmin.removeVote')}</button>
                     <button className="text-button" type="button" onClick={onCancel}
                             disabled={pending}>{t('forms.cancel')}</button>
                 </div>

@@ -83,7 +83,10 @@ describe('ContactImport', () => {
         const selectAll = await screen.findByRole('checkbox', {name: 'Alle einladbaren Kontakte auswählen'});
         expect(selectAll).toBeChecked();
         fireEvent.click(selectAll);
-        expect(screen.getByRole('button', {name: '0 einladen'})).toBeDisabled();
+        const none = screen.getByRole('button', {name: '0 einladen'});
+        expect(none).toBeEnabled();
+        fireEvent.click(none);
+        expect(screen.getByRole('alert')).toHaveTextContent('Wähle mindestens einen Kontakt aus.');
         fireEvent.click(selectAll);
         expect(screen.getByRole('button', {name: '3 einladen'})).toBeEnabled();
     });

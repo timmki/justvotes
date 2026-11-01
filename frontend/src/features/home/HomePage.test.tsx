@@ -94,7 +94,11 @@ describe('HomePage discovery', () => {
 
         renderHome();
 
-        expect(await screen.findByText('Keine aktive Abstimmung')).toBeVisible();
+        const heading = await screen.findByRole('heading', {name: 'Keine aktive Abstimmung'});
+        expect(heading).toBeVisible();
+        const explanation = screen.getByText('Aktuell gibt es keine aktive öffentliche Abstimmung.');
+        expect(heading.compareDocumentPosition(explanation) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(screen.getAllByRole('link', {name: 'Alle Abstimmungen anzeigen'})).toHaveLength(1);
         expect(screen.getByText('Aktive öffentliche Abstimmungen').parentElement).toHaveTextContent('0');
         expect(screen.getByText('Öffentliche Abstimmungen gesamt').parentElement).toHaveTextContent('1');
         expect(screen.getByText('Öffentliche Stimmen').parentElement).toHaveTextContent('5');

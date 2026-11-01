@@ -1,5 +1,5 @@
 import {useMutation} from '@tanstack/react-query';
-import {type FormEvent, useState} from 'react';
+import {type FormEvent, useEffect, useRef, useState} from 'react';
 import type {components} from '../../shared/api/generated/justvotes';
 import {apiClient} from '../../shared/api/client';
 import {ApiError, type FrontendError} from '../../shared/api/errors';
@@ -9,6 +9,9 @@ import {useApiQuery} from '../../shared/api/useApiQuery';
 import {useI18n} from '../../shared/i18n/I18nProvider';
 import type {TranslationKey} from '../../shared/i18n/translations';
 import {RouteState} from '../../shared/ui/RouteState';
+import {FormField} from '../../shared/ui/FormField';
+import {focusFirstInvalid} from '../../shared/ui/formValidation';
+import {TrashIcon} from '../../shared/ui/Icons';
 import {formatTimestamp} from '../polls/pollFormatters';
 import {ContactImport} from './ContactImport';
 
@@ -29,6 +32,8 @@ export function InvitationAdministration() {
     const [invitationLocale, setInvitationLocale] = useState<InvitationLocale>(locale);
     const [message, setMessage] = useState<string | null>(null);
     const [error, setError] = useState<TranslationKey | null>(null);
+    const [emailProblem, setEmailProblem] = useState<TranslationKey | null>(null);
+    const formRef = useRef<HTMLFormElement>(null);
     const invite = useMutation({
         mutationFn: () => apiClient.createInvitation({email: email.trim(), locale: invitationLocale}),
         onSuccess: async (created) => {
@@ -58,9 +63,24 @@ export function InvitationAdministration() {
         onError: (cause) => setError(invitationError(cause)),
     });
 
+    useEffect(() => {
+        if (emailProblem) focusFirstInvalid(formRef.current);
+    }, [emailProblem]);
+
     function submit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        if (email.trim()) invite.mutate();
+        // The button stays usable; an empty or malformed address is reported at the field (spec 009).
+        const trimmed = email.trim();
+        if (!trimmed) {
+            setEmailProblem('forms.requiredField');
+            return;
+        }
+        if (!trimmed.includes('@')) {
+            setEmailProblem('admin.invalidEmail');
+            return;
+        }
+        setEmailProblem(null);
+        invite.mutate();
     }
 
     function revoke(invitation: InvitationSummary) {
@@ -68,22 +88,28 @@ export function InvitationAdministration() {
         change.mutate({invitation, action: 'revoke'});
     }
 
+    let emailProblemText: string | null = null;
+    if (emailProblem) emailProblemText = t(emailProblem);
     let inviteLabel = t('admin.invite');
     if (invite.isPending) inviteLabel = t('admin.inviting');
 
     return <section className="admin-panel invitation-administration">
-        <h3>{t('admin.invitations')}</h3>
-        <form className="login-form invite-form" onSubmit={submit} noValidate>
-            <h4>{t('admin.inviteTitle')}</h4>
-            <label htmlFor="invite-email">{t('admin.inviteEmail')}</label>
-            <input id="invite-email" type="email" autoComplete="off" required value={email}
-                   aria-invalid={error === 'admin.emailAlreadyInvited'} onChange={(event) => setEmail(event.target.value)}/>
-            <label htmlFor="invite-locale">{t('admin.inviteLocale')}</label>
-            <select id="invite-locale" value={invitationLocale} onChange={(event) => setInvitationLocale(localeValue(event.target.value))}>
-                <option value="de">Deutsch</option>
-                <option value="en">English</option>
-            </select>
-            <button className="primary-button" type="submit" disabled={invite.isPending || !email.trim()} aria-busy={invite.isPending}>
+        <form ref={formRef} className="login-form invite-form" onSubmit={submit} noValidate>
+            <h2>{t('admin.inviteTitle')}</h2>
+            <FormField id="invite-email" label={t('admin.inviteEmail')} error={emailProblemText}>
+                <input type="email" autoComplete="off" required value={email}
+                       aria-invalid={error === 'admin.emailAlreadyInvited'} onChange={(event) => {
+                    setEmail(event.target.value);
+                    setEmailProblem(null);
+                }}/>
+            </FormField>
+            <FormField id="invite-locale" label={t('admin.inviteLocale')}>
+                <select value={invitationLocale} onChange={(event) => setInvitationLocale(localeValue(event.target.value))}>
+                    <option value="de">Deutsch</option>
+                    <option value="en">English</option>
+                </select>
+            </FormField>
+            <button className="primary-button" type="submit" disabled={invite.isPending} aria-busy={invite.isPending}>
                 {invite.isPending && <span className="button-spinner" aria-hidden="true"/>}{inviteLabel}
             </button>
             <p className="form-status" role="status">{message}</p>
@@ -112,8 +138,10 @@ export function InvitationAdministration() {
                 <td className="admin-table-actions">{(invitation.status === 'open' || invitation.status === 'expired') && <>
                     <button className="text-button" type="button" disabled={change.isPending}
                             onClick={() => change.mutate({invitation, action: 'resend'})}>{t('admin.resendInvitation')}</button>
-                    <button className="text-button" type="button" disabled={change.isPending}
-                            onClick={() => revoke(invitation)}>{t('admin.revokeInvitation')}</button>
+                    <span className="action-group-danger">
+                        <button className="secondary-button destructive-button" type="button" disabled={change.isPending}
+                                onClick={() => revoke(invitation)}><TrashIcon/>{t('admin.revokeInvitation')}</button>
+                    </span>
                 </>}</td>
             </tr>)}</tbody>
         </table></div>}

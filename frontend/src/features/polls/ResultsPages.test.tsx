@@ -45,3 +45,25 @@ describe('ResultsPages vote labels', () => {
         expect(meta.some((text) => text.includes('2 Stimmen'))).toBe(true);
     });
 });
+
+describe('ResultsPages option links (spec 009, US6)', () => {
+    it('shows option names as text and links only options with votes to their voters', async () => {
+        vi.spyOn(apiClient, 'getPollResults').mockResolvedValue({
+            id: 'poll-1', title: 'Team-Ausflug', visibility: 'public', state: 'expired',
+            createdAt: '2026-08-01T10:00:00Z', endsAt: null, totalVotes: 1,
+            options: [
+                {number: 1, text: 'Ja', voteCount: 1, votes: []},
+                {number: 2, text: 'Nein', voteCount: 0, votes: []},
+            ],
+        });
+        mockSession(userSession('not-a-voter'));
+
+        renderPollTest('/poll/results/poll-1', <Routes><Route path="/poll/results/:pollId" element={<ResultsPage/>}/></Routes>);
+
+        expect(await screen.findByText('Nein')).toBeVisible();
+        expect(screen.queryByRole('link', {name: 'Ja'})).toBeNull();
+        expect(screen.getByRole('link', {name: 'Stimmen ansehen: Ja'})).toHaveAttribute('href', '/poll/results/poll-1/option/1');
+        expect(screen.queryByRole('link', {name: 'Stimmen ansehen: Nein'})).toBeNull();
+        expect(screen.getByText(/^Erstellt/)).toBeVisible();
+    });
+});

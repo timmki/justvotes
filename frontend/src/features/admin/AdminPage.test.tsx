@@ -32,6 +32,18 @@ afterEach(() => {
     vi.restoreAllMocks();
 });
 
+/** The page title renders at once; the area's panel only after its data has loaded. */
+async function findAdminPanel() {
+    await waitFor(() => expect(document.querySelector('.admin-panel')).not.toBeNull());
+}
+
+/** Opens the collapsed row of a poll in the admin list and returns it. */
+async function openPoll(title: string) {
+    const toggle = await screen.findByRole('button', {name: title});
+    if (toggle.getAttribute('aria-expanded') === 'false') fireEvent.click(toggle);
+    return toggle.closest('li') as HTMLElement;
+}
+
 function renderAdmin(initialEntry = '/admin') {
     return render(
         <MemoryRouter initialEntries={[initialEntry]}>
@@ -58,13 +70,133 @@ describe('AdminPage areas', () => {
 
         renderAdmin('/admin/votes');
 
-        expect(await screen.findByRole('heading', {name: 'Stimmen', level: 3})).toBeVisible();
+        expect(await screen.findByRole('heading', {name: 'Stimmen', level: 1})).toBeVisible();
+        await findAdminPanel();
         expect(screen.queryAllByRole('link')).toHaveLength(0);
         expect(screen.queryByLabelText('Benutzername')).toBeNull();
         expect(getAdminVotes).toHaveBeenCalledTimes(1);
         expect(getAdminPolls).not.toHaveBeenCalled();
         expect(getGroups).not.toHaveBeenCalled();
         expect(getTemplates).not.toHaveBeenCalled();
+    });
+});
+
+describe('AdminPage section titles', () => {
+    const sections = [
+        ['/admin/votes', 'Stimmen', 'Aktuelle Stimmen suchen und bei Bedarf entfernen.'],
+        ['/admin/polls', 'Abstimmungen', 'Abstimmungen anlegen, veröffentlichen und verwalten.'],
+        ['/admin/groups', 'Vorlagengruppen', 'Optionsvorlagen zu Gruppen für neue Abstimmungen zusammenstellen.'],
+        ['/admin/templates', 'Optionsvorlagen', 'Wiederverwendbare Optionen anlegen, umbenennen und löschen.'],
+        ['/admin/accounts', 'Konten', 'Konten sperren, entsperren und Einmalpasswörter vergeben.'],
+        ['/admin/invitations', 'Einladungen', 'Personen per E-Mail oder Kontaktdatei einladen.'],
+    ] as const;
+
+    it.each(sections)('names %s after its area', async (path, title, description) => {
+        mockSession(adminSession());
+        vi.spyOn(apiClient, 'getAdminVotes').mockResolvedValue({votes: [], page: 0, size: 50, totalElements: 0});
+        vi.spyOn(apiClient, 'getAdminPolls').mockResolvedValue([]);
+        vi.spyOn(apiClient, 'getGroups').mockResolvedValue([]);
+        vi.spyOn(apiClient, 'getTemplates').mockResolvedValue([]);
+        vi.spyOn(apiClient, 'getAccounts').mockResolvedValue([]);
+        vi.spyOn(apiClient, 'getInvitations').mockResolvedValue([]);
+
+        renderAdmin(path);
+
+        expect(await screen.findByRole('heading', {name: title, level: 1})).toBeVisible();
+        expect(screen.getByText(description)).toBeVisible();
+        expect(screen.queryByText('Anmeldung und Verwaltung.')).toBeNull();
+        expect(screen.queryByRole('heading', {name: 'Administration'})).toBeNull();
+        expect(screen.getAllByRole('heading', {name: title})).toHaveLength(1);
+        expect(document.title).toBe(`${title} · JustVotes`);
+    });
+});
+
+describe('Admin forms (spec 009, US4)', () => {
+    it('labels the new group fields and reports an empty name at the field', async () => {
+        mockSession(adminSession());
+        vi.spyOn(apiClient, 'getGroups').mockResolvedValue([]);
+        vi.spyOn(apiClient, 'getTemplates').mockResolvedValue([]);
+        const createGroup = vi.spyOn(apiClient, 'createGroup');
+
+        renderAdmin('/admin/groups');
+        await findAdminPanel();
+
+        expect(screen.getByLabelText('Beschreibung (optional)')).toBeVisible();
+        const name = screen.getByLabelText('Name');
+        const button = screen.getByRole('button', {name: 'Gruppe anlegen'});
+        expect(button).toBeEnabled();
+        fireEvent.click(button);
+        expect(createGroup).not.toHaveBeenCalled();
+        expect(name).toHaveAttribute('aria-invalid', 'true');
+        expect(name).toHaveAccessibleDescription('Bitte fülle dieses Feld aus.');
+        expect(name).toHaveFocus();
+    });
+
+    it('reports an empty template name at the field', async () => {
+        mockSession(adminSession());
+        vi.spyOn(apiClient, 'getTemplates').mockResolvedValue([]);
+        const createTemplate = vi.spyOn(apiClient, 'createTemplate');
+
+        renderAdmin('/admin/templates');
+        await findAdminPanel();
+
+        fireEvent.click(screen.getByRole('button', {name: 'Vorlage anlegen'}));
+        expect(createTemplate).not.toHaveBeenCalled();
+        expect(screen.getByLabelText('Neue Optionsvorlage')).toHaveAttribute('aria-invalid', 'true');
+        expect(screen.getByLabelText('Vorlagen filtern')).toHaveAccessibleDescription('* steht für beliebige Zeichen');
+    });
+
+    it('labels the inline template rename field and reports an empty name there', async () => {
+        mockSession(adminSession());
+        vi.spyOn(apiClient, 'getTemplates').mockResolvedValue([{id: 't_v1_ja', name: 'Ja'}]);
+        const renameTemplate = vi.spyOn(apiClient, 'renameTemplate');
+
+        renderAdmin('/admin/templates');
+        await findAdminPanel();
+        fireEvent.click(screen.getByRole('button', {name: 'Umbenennen'}));
+        const field = screen.getByLabelText('Vorlage umbenennen');
+        fireEvent.change(field, {target: {value: '   '}});
+        fireEvent.click(screen.getByRole('button', {name: 'Speichern'}));
+
+        expect(renameTemplate).not.toHaveBeenCalled();
+        expect(field).toHaveAttribute('aria-invalid', 'true');
+        expect(field).toHaveFocus();
+        expect(screen.getByRole('button', {name: 'Löschen: Ja'}).closest('.action-group-danger')).not.toBeNull();
+    });
+
+    it('reports an empty invitation address at the field', async () => {
+        mockSession(adminSession());
+        vi.spyOn(apiClient, 'getInvitations').mockResolvedValue([]);
+        const createInvitation = vi.spyOn(apiClient, 'createInvitation');
+
+        renderAdmin('/admin/invitations');
+        await findAdminPanel();
+
+        const button = screen.getByRole('button', {name: 'Einladen'});
+        expect(button).toBeEnabled();
+        fireEvent.click(button);
+        expect(createInvitation).not.toHaveBeenCalled();
+        const email = screen.getByLabelText('E-Mail-Adresse');
+        expect(email).toHaveAttribute('aria-invalid', 'true');
+        await waitFor(() => expect(email).toHaveFocus());
+    });
+
+    it('reports a missing title and group when saving a new poll', async () => {
+        mockSession(adminSession());
+        vi.spyOn(apiClient, 'getAdminPolls').mockResolvedValue([]);
+        vi.spyOn(apiClient, 'getGroups').mockResolvedValue([{id: 'g_v1_full', name: 'Full', description: ''}]);
+        vi.spyOn(apiClient, 'getTemplatesInGroup').mockResolvedValue([{id: 't_v1_one', name: 'One'}]);
+        const createPoll = vi.spyOn(apiClient, 'createPoll');
+
+        renderAdmin('/admin/polls');
+        fireEvent.click(await screen.findByRole('button', {name: 'Neue Abstimmung'}));
+        await screen.findByLabelText('Abstimmungs-Titel');
+        fireEvent.click(screen.getByRole('button', {name: 'Speichern'}));
+
+        expect(createPoll).not.toHaveBeenCalled();
+        expect(screen.getByLabelText('Abstimmungs-Titel')).toHaveAttribute('aria-invalid', 'true');
+        expect(screen.getByLabelText('Vorlagengruppe')).toHaveAttribute('aria-invalid', 'true');
+        await waitFor(() => expect(screen.getByLabelText('Abstimmungs-Titel')).toHaveFocus());
     });
 });
 
@@ -78,12 +210,13 @@ describe('AdminPage template catalog', () => {
 
         renderAdmin('/admin/templates');
 
-        expect(await screen.findByRole('heading', {name: 'Optionsvorlagen', level: 3})).toBeVisible();
+        expect(await screen.findByRole('heading', {name: 'Optionsvorlagen', level: 1})).toBeVisible();
+        await findAdminPanel();
         expect(screen.getAllByRole('listitem')).toHaveLength(20);
         fireEvent.click(screen.getByRole('button', {name: 'Weiter'}));
         expect(screen.getByText('Template 21')).toBeVisible();
         expect(screen.getAllByRole('listitem')).toHaveLength(1);
-        fireEvent.change(screen.getByLabelText('Vorlagen filtern (Glob)'), {target: {value: '*Template 2*'}});
+        fireEvent.change(screen.getByLabelText('Vorlagen filtern'), {target: {value: '*Template 2*'}});
         expect(screen.getByText('Template 2')).toBeVisible();
         expect(screen.getByText('Template 20')).toBeVisible();
     });
@@ -98,7 +231,8 @@ describe('AdminPage template catalog', () => {
 
         renderAdmin('/admin/templates');
 
-        await screen.findByRole('heading', {name: 'Optionsvorlagen', level: 3});
+        await screen.findByRole('heading', {name: 'Optionsvorlagen', level: 1});
+        await findAdminPanel();
         fireEvent.change(screen.getByLabelText('Mehrere Vorlagen (kommagetrennt)'), {target: {value: ' Alpha, , Beta, beta, Gamma, Delta, Epsilon, Zeta '}});
         fireEvent.click(screen.getByRole('button', {name: 'Importieren'}));
 
@@ -130,7 +264,8 @@ describe('AdminPage template catalog', () => {
 
         renderAdmin('/admin/templates');
 
-        await screen.findByRole('heading', {name: 'Optionsvorlagen', level: 3});
+        await screen.findByRole('heading', {name: 'Optionsvorlagen', level: 1});
+        await findAdminPanel();
         fireEvent.change(screen.getByLabelText('Mehrere Vorlagen (kommagetrennt)'), {target: {value: 'one, two, three, four, five'}});
         fireEvent.click(screen.getByRole('button', {name: 'Importieren'}));
         expect(await screen.findByText('Import-Ergebnis')).toBeVisible();
@@ -149,7 +284,8 @@ describe('AdminPage template catalog', () => {
 
         renderAdmin('/admin/templates');
 
-        await screen.findByRole('heading', {name: 'Optionsvorlagen', level: 3});
+        await screen.findByRole('heading', {name: 'Optionsvorlagen', level: 1});
+        await findAdminPanel();
         fireEvent.change(screen.getByLabelText('Neue Optionsvorlage'), {target: {value: 'Pending'}});
         fireEvent.click(screen.getByRole('button', {name: 'Vorlage anlegen'}));
 
@@ -173,12 +309,13 @@ describe('AdminPage template catalog', () => {
 
         renderAdmin('/admin/templates');
 
-        await screen.findByRole('heading', {name: 'Optionsvorlagen', level: 3});
+        await screen.findByRole('heading', {name: 'Optionsvorlagen', level: 1});
+        await findAdminPanel();
         fireEvent.change(screen.getByLabelText('Neue Optionsvorlage'), {target: {value: ' New Template '}});
         fireEvent.click(screen.getByRole('button', {name: 'Vorlage anlegen'}));
         await waitFor(() => expect(createTemplate).toHaveBeenCalledWith('New Template'));
         fireEvent.click(screen.getByRole('button', {name: 'Umbenennen'}));
-        fireEvent.change(screen.getByRole('textbox', {name: 'Vorlage umbenennen alpha'}), {target: {value: 'Renamed'}});
+        fireEvent.change(screen.getByRole('textbox', {name: 'Vorlage umbenennen'}), {target: {value: 'Renamed'}});
         fireEvent.click(screen.getByRole('button', {name: 'Speichern'}));
         await waitFor(() => expect(renameTemplate).toHaveBeenCalledWith('t_v1_existing', 'Renamed'));
     });
@@ -191,7 +328,8 @@ describe('AdminPage template catalog', () => {
 
         renderAdmin('/admin/templates');
 
-        await screen.findByRole('heading', {name: 'Optionsvorlagen', level: 3});
+        await screen.findByRole('heading', {name: 'Optionsvorlagen', level: 1});
+        await findAdminPanel();
         fireEvent.click(screen.getByRole('checkbox', {name: 'Vorlage auswählen alpha'}));
         fireEvent.click(screen.getByRole('button', {name: /Ausgewählte löschen/}));
 
@@ -212,7 +350,8 @@ describe('AdminPage template catalog', () => {
 
         renderAdmin('/admin/templates');
 
-        await screen.findByRole('heading', {name: 'Optionsvorlagen', level: 3});
+        await screen.findByRole('heading', {name: 'Optionsvorlagen', level: 1});
+        await findAdminPanel();
         fireEvent.click(screen.getByRole('checkbox', {name: 'Sichtbare auswählen'}));
         fireEvent.click(screen.getByRole('button', {name: 'Ausgewählte löschen (2)'}));
 
@@ -238,7 +377,8 @@ describe('AdminPage template catalog', () => {
 
         renderAdmin('/admin/templates');
 
-        await screen.findByRole('heading', {name: 'Optionsvorlagen', level: 3});
+        await screen.findByRole('heading', {name: 'Optionsvorlagen', level: 1});
+        await findAdminPanel();
         fireEvent.click(screen.getByRole('checkbox', {name: 'Vorlage auswählen Two'}));
         fireEvent.click(screen.getByRole('button', {name: 'Ausgewählte löschen (1)'}));
         await screen.findByText('Lösch-Ergebnis');
@@ -274,9 +414,9 @@ describe('AdminPage template catalog', () => {
         const anna = (await screen.findByRole('checkbox', {name: 'Vorlage auswählen Anna'})).closest('li') as HTMLElement;
         expect(anna).toHaveTextContent('Automatisch');
         expect(within(anna).getByRole('checkbox')).toBeDisabled();
-        expect(within(anna).queryByRole('button', {name: 'Löschen'})).not.toBeInTheDocument();
+        expect(within(anna).queryByRole('button', {name: 'Löschen: Anna'})).not.toBeInTheDocument();
         const ja = screen.getByRole('checkbox', {name: 'Vorlage auswählen Ja'}).closest('li') as HTMLElement;
-        expect(within(ja).getByRole('button', {name: 'Löschen'})).toBeVisible();
+        expect(within(ja).getByRole('button', {name: 'Löschen: Ja'})).toBeVisible();
     });
 
     it('adds and removes memberships without deleting the global template', async () => {
@@ -293,7 +433,8 @@ describe('AdminPage template catalog', () => {
 
         renderAdmin('/admin/groups');
 
-        expect(await screen.findByRole('heading', {name: 'Vorlagengruppen', level: 3})).toBeVisible();
+        expect(await screen.findByRole('heading', {name: 'Vorlagengruppen', level: 1})).toBeVisible();
+        await findAdminPanel();
         const one = await screen.findByRole('checkbox', {name: 'Vorlage auswählen One'});
         expect(one).toBeChecked();
         fireEvent.click(one);
@@ -322,7 +463,8 @@ describe('AdminPage template catalog', () => {
 
         renderAdmin('/admin/groups');
 
-        expect(await screen.findByRole('heading', {name: 'Vorlagengruppen', level: 3})).toBeVisible();
+        expect(await screen.findByRole('heading', {name: 'Vorlagengruppen', level: 1})).toBeVisible();
+        await findAdminPanel();
         const one = screen.getByRole('checkbox', {name: 'Vorlage auswählen One'});
         fireEvent.click(one);
         await waitFor(() => expect(assign).toHaveBeenCalledWith('g_v1_group', 't_v1_one'));
@@ -347,8 +489,9 @@ describe('AdminPage template catalog', () => {
 
         renderAdmin('/admin/groups');
 
-        expect(await screen.findByRole('heading', {name: 'Vorlagengruppen', level: 3})).toBeVisible();
-        const filter = screen.getByLabelText('Vorlagen filtern (Glob)');
+        expect(await screen.findByRole('heading', {name: 'Vorlagengruppen', level: 1})).toBeVisible();
+        await findAdminPanel();
+        const filter = screen.getByLabelText('Vorlagen filtern');
         fireEvent.change(filter, {target: {value: 'Board *'}});
         expect(screen.getByRole('checkbox', {name: 'Vorlage auswählen Board One'})).toBeVisible();
         expect(screen.queryByRole('checkbox', {name: 'Vorlage auswählen Other'})).toBeNull();
@@ -389,9 +532,10 @@ describe('AdminPage template catalog', () => {
 
         renderAdmin('/admin/groups');
 
-        await screen.findByRole('heading', {name: 'Vorlagengruppen', level: 3});
-        fireEvent.change(screen.getByLabelText('Neue Vorlagengruppe'), {target: {value: 'New Board'}});
-        fireEvent.change(screen.getByLabelText('Beschreibung'), {target: {value: 'New description'}});
+        await screen.findByRole('heading', {name: 'Vorlagengruppen', level: 1});
+        await findAdminPanel();
+        fireEvent.change(screen.getByLabelText('Name'), {target: {value: 'New Board'}});
+        fireEvent.change(screen.getByLabelText('Beschreibung (optional)'), {target: {value: 'New description'}});
         fireEvent.click(screen.getByRole('button', {name: 'Gruppe anlegen'}));
         await waitFor(() => expect(createGroup).toHaveBeenCalledWith({
             name: 'New Board',
@@ -413,7 +557,8 @@ describe('AdminPage template catalog', () => {
 
         renderAdmin('/admin/groups');
 
-        expect(await screen.findByRole('heading', {name: 'Template groups', level: 3})).toBeVisible();
+        expect(await screen.findByRole('heading', {name: 'Template groups', level: 1})).toBeVisible();
+        await findAdminPanel();
         expect(screen.getByLabelText('Rename group')).toBeVisible();
     });
 });
@@ -448,7 +593,8 @@ describe('Admin vote administration', () => {
 
         renderAdmin('/admin/votes');
 
-        expect(await screen.findByRole('heading', {name: 'Stimmen', level: 3})).toBeVisible();
+        expect(await screen.findByRole('heading', {name: 'Stimmen', level: 1})).toBeVisible();
+        await findAdminPanel();
         expect(screen.getByText('Aktuelle Stimmen').parentElement).toHaveTextContent('51');
         expect(screen.getByText('Betroffene Abstimmungen').parentElement).toHaveTextContent('2');
         expect(screen.getByText('Unterschiedliche Identitäten').parentElement).toHaveTextContent('2');
@@ -493,14 +639,22 @@ describe('Admin vote administration', () => {
         expect(vote).not.toHaveTextContent('p_v1_poll');
         expect(vote).toHaveTextContent('Option 1: Yes');
         expect(vote).toHaveTextContent('v_v1_vote');
-        fireEvent.click(within(vote as HTMLElement).getByRole('button', {name: 'Stimme entfernen'}));
+        const trigger = within(vote as HTMLElement).getByRole('button', {name: 'Stimme entfernen'});
+        expect(trigger.closest('.action-group-danger')).not.toBeNull();
+        fireEvent.click(trigger);
 
         const dialog = screen.getByRole('dialog');
         expect(dialog).toHaveTextContent('unveränderlich');
+        expect(dialog).toHaveTextContent('Die Stimme von alice in „A poll“ wird entfernt.');
         const submit = within(dialog).getByRole('button', {name: 'Stimme entfernen'});
-        expect(submit).toBeDisabled();
-        fireEvent.change(within(dialog).getByRole('textbox', {name: 'Begründung'}), {target: {value: '  Regelverstoß  '}});
         expect(submit).toBeEnabled();
+        fireEvent.click(submit);
+        expect(removeAdminVote).not.toHaveBeenCalled();
+        const reason = within(dialog).getByRole('textbox', {name: 'Begründung'});
+        expect(reason).toHaveAttribute('aria-invalid', 'true');
+        expect(reason).toHaveFocus();
+        fireEvent.change(reason, {target: {value: '  Regelverstoß  '}});
+        expect(reason).not.toHaveAttribute('aria-invalid', 'true');
         fireEvent.click(submit);
 
         await waitFor(() => expect(removeAdminVote).toHaveBeenCalledWith('v_v1_vote', 'Regelverstoß'));
@@ -633,6 +787,94 @@ function testPoll(state: TestPoll['state'], visibility?: TestPoll['visibility'])
     };
 }
 
+describe('Admin poll list (spec 009, US3)', () => {
+    it('shows every poll collapsed with its key facts', async () => {
+        mockSession(adminSession());
+        vi.spyOn(apiClient, 'getAdminPolls').mockResolvedValue([
+            {...testPoll('expired', 'public'), endsAt: '2026-10-31T18:50:00.000Z', totalVotes: 1},
+            testPoll('draft'),
+        ]);
+
+        renderAdmin('/admin/polls');
+
+        const expired = await screen.findByRole('button', {name: 'expired poll'});
+        expect(expired).toHaveAttribute('aria-expanded', 'false');
+        const row = expired.closest('li') as HTMLElement;
+        expect(row).toHaveTextContent(/öffentlich · abgelaufen · Ablauf .*31.*2026.* · 1 Stimme/);
+        expect(within(row).queryByText('Current yes')).not.toBeVisible();
+        const draftRow = screen.getByRole('button', {name: 'draft poll'}).closest('li') as HTMLElement;
+        expect(draftRow).toHaveTextContent('kein Ablauf gesetzt');
+        expect(draftRow).toHaveTextContent('0 Stimmen');
+    });
+
+    it('opens a poll with mouse or keyboard and shows options, actions and links', async () => {
+        mockSession(adminSession());
+        vi.spyOn(apiClient, 'getAdminPolls').mockResolvedValue([testPoll('expired')]);
+
+        renderAdmin('/admin/polls');
+
+        const toggle = await screen.findByRole('button', {name: 'expired poll'});
+        fireEvent.click(toggle);
+        expect(toggle).toHaveAttribute('aria-expanded', 'true');
+        const body = document.getElementById(toggle.getAttribute('aria-controls') ?? '') as HTMLElement;
+        expect(within(body).getByText('Current yes')).toBeVisible();
+        expect(within(body).getByRole('button', {name: 'Archivieren'})).toBeVisible();
+        expect(within(body).getByRole('link', {name: 'Prüfprotokoll'})).toBeVisible();
+        fireEvent.click(toggle);
+        expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    });
+
+    it('shortens long option lists to ten until all are requested', async () => {
+        mockSession(adminSession());
+        const options = Array.from({length: 12}, (_, index) => ({number: index + 1, text: `Option ${index + 1}`}));
+        vi.spyOn(apiClient, 'getAdminPolls').mockResolvedValue([{...testPoll('expired'), options}]);
+
+        renderAdmin('/admin/polls');
+
+        const row = await openPoll('expired poll');
+        expect(within(row).getByText('Option 10')).toBeVisible();
+        expect(within(row).queryByText('Option 11')).toBeNull();
+        fireEvent.click(within(row).getByRole('button', {name: 'Alle 12 Optionen anzeigen'}));
+        expect(within(row).getByText('Option 12')).toBeVisible();
+    });
+
+    it('keeps a poll open after an action', async () => {
+        mockSession(adminSession());
+        const getAdminPolls = vi.spyOn(apiClient, 'getAdminPolls').mockResolvedValue([testPoll('expired')]);
+        const archived = {...testPoll('archived'), id: testPoll('expired').id};
+        vi.spyOn(apiClient, 'archivePoll').mockImplementation(async () => {
+            getAdminPolls.mockResolvedValue([archived]);
+            return archived;
+        });
+
+        renderAdmin('/admin/polls');
+
+        const row = await openPoll('expired poll');
+        fireEvent.click(within(row).getByRole('button', {name: 'Archivieren'}));
+        expect(await screen.findByRole('button', {name: 'archived poll', expanded: true})).toBeVisible();
+    });
+
+    it('opens the new poll form with focus and returns focus on cancel', async () => {
+        mockSession(adminSession());
+        vi.spyOn(apiClient, 'getAdminPolls').mockResolvedValue([]);
+        vi.spyOn(apiClient, 'getGroups').mockResolvedValue([{id: 'g_v1_full', name: 'Full', description: ''}]);
+        vi.spyOn(apiClient, 'getTemplatesInGroup').mockResolvedValue([{id: 't_v1_one', name: 'One'}]);
+
+        renderAdmin('/admin/polls');
+
+        expect(await screen.findByText('Noch keine Abstimmungen.')).toBeVisible();
+        expect(screen.queryByLabelText('Abstimmungs-Titel')).toBeNull();
+        const newPoll = screen.getByRole('button', {name: 'Neue Abstimmung'});
+        fireEvent.click(newPoll);
+        const title = await screen.findByLabelText('Abstimmungs-Titel');
+        await waitFor(() => expect(title).toHaveFocus());
+        fireEvent.change(title, {target: {value: 'Draft'}});
+        fireEvent.click(screen.getByRole('button', {name: 'Abbrechen'}));
+        expect(screen.queryByLabelText('Abstimmungs-Titel')).toBeNull();
+        await waitFor(() => expect(newPoll).toHaveFocus());
+    });
+});
+
 describe('Admin poll lifecycle', () => {
     it('renders the exhaustive state/action matrix and current options', async () => {
         mockSession(adminSession());
@@ -647,23 +889,24 @@ describe('Admin poll lifecycle', () => {
 
         const rendered = renderAdmin('/admin/polls');
 
-        expect(await screen.findByRole('heading', {name: 'draft poll', level: 4})).toBeVisible();
+        await screen.findByRole('button', {name: 'draft poll'});
+        for (const toggle of screen.getAllByRole('button', {expanded: false}).filter((button) => button.classList.contains('poll-admin-toggle'))) fireEvent.click(toggle);
         const expectedActions: Record<string, string[]> = {
             'draft poll': ['Veröffentlichen'],
-            'active public poll': ['Privat schalten', 'Archivieren', 'Soft löschen'],
-            'active private poll': ['Archivieren', 'Soft löschen'],
-            'expired poll': ['Ablauf ändern', 'Archivieren', 'Wieder öffnen', 'Soft löschen'],
-            'archived poll': ['Aus Archiv wiederherstellen', 'Soft löschen'],
-            'deleted poll': ['Wiederherstellen', 'Permanent löschen'],
+            'active public poll': ['Privat schalten', 'Archivieren', 'Löschen'],
+            'active private poll': ['Archivieren', 'Löschen'],
+            'expired poll': ['Ablauf ändern', 'Archivieren', 'Wieder öffnen', 'Löschen'],
+            'archived poll': ['Aus Archiv wiederherstellen', 'Löschen'],
+            'deleted poll': ['Wiederherstellen', 'Endgültig löschen'],
         };
-        const allActions = ['Veröffentlichen', 'Privat schalten', 'Ablauf ändern', 'Archivieren', 'Aus Archiv wiederherstellen', 'Wieder öffnen', 'Soft löschen', 'Wiederherstellen', 'Permanent löschen'];
+        const allActions = ['Veröffentlichen', 'Privat schalten', 'Ablauf ändern', 'Archivieren', 'Aus Archiv wiederherstellen', 'Wieder öffnen', 'Löschen', 'Wiederherstellen', 'Endgültig löschen'];
         const cards = Array.from(rendered.container.querySelectorAll<HTMLElement>('.poll-admin-list > .poll-admin-card'));
         expect(cards).toHaveLength(6);
         expect(within(cards[0]).getByText('Current yes')).toBeVisible();
         expect(within(cards[0]).queryByText(/Snapshot description/)).toBeNull();
         expect(within(cards[0]).queryByText('Snapshot yes')).toBeNull();
         for (const card of cards) {
-            const title = within(card).getByRole('heading', {level: 4}).textContent ?? '';
+            const title = within(card).getByRole('heading', {level: 2}).textContent ?? '';
             for (const action of allActions) {
                 if (expectedActions[title].includes(action)) expect(within(card).getByRole('button', {name: action})).toBeVisible();
                 else expect(within(card).queryByRole('button', {name: action})).toBeNull();
@@ -682,12 +925,16 @@ describe('Admin poll lifecycle', () => {
 
         renderAdmin('/admin/polls');
 
-        const card = (await screen.findByRole('heading', {name: 'draft poll', level: 4})).closest('li');
+        const card = await openPoll('draft poll');
         expect(card).not.toBeNull();
         const scoped = within(card as HTMLElement);
-        expect(scoped.getByRole('button', {name: 'Veröffentlichen'})).toBeDisabled();
-        fireEvent.change(scoped.getByLabelText('Veröffentlichen'), {target: {value: '2099-01-01T12:00'}});
         expect(scoped.getByRole('button', {name: 'Veröffentlichen'})).toBeEnabled();
+        fireEvent.click(scoped.getByRole('button', {name: 'Veröffentlichen'}));
+        expect(publishPoll).not.toHaveBeenCalled();
+        expect(scoped.getByLabelText('Veröffentlichen')).toHaveAttribute('aria-invalid', 'true');
+        expect(scoped.getByLabelText('Veröffentlichen')).toHaveAccessibleDescription(/Zukunft/);
+        fireEvent.change(scoped.getByLabelText('Veröffentlichen'), {target: {value: '2099-01-01T12:00'}});
+        expect(scoped.getByLabelText('Veröffentlichen')).not.toHaveAttribute('aria-invalid', 'true');
         fireEvent.click(scoped.getByRole('button', {name: 'Optionen ersetzen'}));
         fireEvent.change(scoped.getByLabelText('Optionen, eine pro Zeile'), {target: {value: 'First\nSecond'}});
         fireEvent.click(scoped.getByRole('button', {name: 'Speichern'}));
@@ -703,7 +950,7 @@ describe('Admin poll lifecycle', () => {
 
         renderAdmin('/admin/polls');
 
-        const card = (await screen.findByRole('heading', {name: 'draft poll', level: 4})).closest('li');
+        const card = await openPoll('draft poll');
         const scoped = within(card as HTMLElement);
         fireEvent.click(scoped.getByRole('button', {name: 'Optionen ersetzen'}));
         const options = scoped.getByLabelText('Optionen, eine pro Zeile');
@@ -721,7 +968,7 @@ describe('Admin poll lifecycle', () => {
 
         renderAdmin('/admin/polls');
 
-        const card = (await screen.findByRole('heading', {name: 'expired poll', level: 4})).closest('li');
+        const card = await openPoll('expired poll');
         const scoped = within(card as HTMLElement);
         const expiry = scoped.getByLabelText('Ablauf ändern');
         fireEvent.change(expiry, {target: {value: '2099-01-01T12:00'}});
@@ -741,7 +988,7 @@ describe('Admin poll lifecycle', () => {
 
         vi.spyOn(apiClient, 'getAdminPolls').mockResolvedValue([testPoll('active')]);
         const active = renderAdmin('/admin/polls');
-        let card = (await screen.findByRole('heading', {name: 'active public poll', level: 4})).closest('li') as HTMLElement;
+        let card = await openPoll('active public poll');
         fireEvent.click(within(card).getByRole('button', {name: 'Privat schalten'}));
         await waitFor(() => expect(makePrivate).toHaveBeenCalledWith('p_v1_active_public'));
         active.unmount();
@@ -750,7 +997,7 @@ describe('Admin poll lifecycle', () => {
         const expiredPoll = {...testPoll('expired'), endsAt: '2099-01-01T00:00:00.000Z'};
         vi.spyOn(apiClient, 'getAdminPolls').mockResolvedValue([expiredPoll]);
         renderAdmin('/admin/polls');
-        card = (await screen.findByRole('heading', {name: 'expired poll', level: 4})).closest('li') as HTMLElement;
+        card = await openPoll('expired poll');
         fireEvent.change(within(card).getByLabelText('Ablauf ändern'), {target: {value: '2099-02-01T12:00'}});
         fireEvent.click(within(card).getByRole('button', {name: 'Ablauf ändern'}));
         await waitFor(() => expect(changeExpiry).toHaveBeenCalledWith('p_v1_expired_private', new Date('2099-02-01T12:00').toISOString()));
@@ -761,7 +1008,7 @@ describe('Admin poll lifecycle', () => {
         queryClient.clear();
         vi.spyOn(apiClient, 'getAdminPolls').mockResolvedValue([testPoll('deleted')]);
         renderAdmin('/admin/polls');
-        card = (await screen.findByRole('heading', {name: 'deleted poll', level: 4})).closest('li') as HTMLElement;
+        card = await openPoll('deleted poll');
         fireEvent.click(within(card).getByRole('button', {name: 'Wiederherstellen'}));
         await waitFor(() => expect(restore).toHaveBeenCalledWith('p_v1_deleted_private'));
     });
@@ -779,12 +1026,11 @@ describe('Admin poll lifecycle', () => {
         });
 
         renderAdmin('/admin/polls');
+        fireEvent.click(await screen.findByRole('button', {name: 'Neue Abstimmung'}));
 
         const select = await screen.findByLabelText('Vorlagengruppe');
         expect(within(select).queryByRole('option', {name: 'Empty'})).toBeNull();
         expect(within(select).getByRole('option', {name: 'Full'})).toBeVisible();
-        expect(screen.getByRole('button', {name: 'Speichern'})).toBeDisabled();
-        fireEvent.change(select, {target: {value: 'g_v1_full'}});
         expect(screen.getByRole('button', {name: 'Speichern'})).toBeEnabled();
     });
 
@@ -795,6 +1041,7 @@ describe('Admin poll lifecycle', () => {
         vi.spyOn(apiClient, 'getTemplatesInGroup').mockResolvedValue([{id: 't_v1_anna', name: 'Anna', managed: true}]);
 
         renderAdmin('/admin/polls');
+        fireEvent.click(await screen.findByRole('button', {name: 'Neue Abstimmung'}));
 
         const select = await screen.findByLabelText('Vorlagengruppe');
         expect(await within(select).findByRole('option', {name: 'Alle Mitglieder'})).toBeVisible();
@@ -809,6 +1056,7 @@ describe('Admin poll lifecycle', () => {
         vi.spyOn(apiClient, 'createPoll').mockRejectedValue(problemError({status: 409, code: 'poll_state_conflict'}, 409));
 
         renderAdmin('/admin/polls');
+        fireEvent.click(await screen.findByRole('button', {name: 'Neue Abstimmung'}));
 
         const title = await screen.findByLabelText('Abstimmungs-Titel');
         const group = screen.getByLabelText('Vorlagengruppe');
@@ -831,13 +1079,15 @@ describe('Admin poll lifecycle', () => {
         vi.spyOn(apiClient, 'getAdminPolls').mockResolvedValue([created]);
 
         renderAdmin('/admin/polls');
+        fireEvent.click(await screen.findByRole('button', {name: 'Neue Abstimmung'}));
 
         fireEvent.change(await screen.findByLabelText('Abstimmungs-Titel'), {target: {value: 'Created draft'}});
         fireEvent.change(screen.getByLabelText('Vorlagengruppe'), {target: {value: 'g_v1_full'}});
         fireEvent.click(screen.getByRole('button', {name: 'Speichern'}));
 
         await waitFor(() => expect(createPoll).toHaveBeenCalledWith({title: 'Created draft', templateGroupId: 'g_v1_full'}));
-        expect(await screen.findByRole('heading', {name: 'Created draft', level: 4})).toBeVisible();
+        expect(await screen.findByRole('button', {name: 'Created draft', expanded: true})).toBeVisible();
+        expect(screen.queryByRole('heading', {name: 'Neue Abstimmung'})).toBeNull();
         expect(screen.getByText('Current yes')).toBeVisible();
         expect(screen.queryByText('Snapshot yes')).toBeNull();
     });
@@ -851,12 +1101,52 @@ describe('Admin poll lifecycle', () => {
 
         const rendered = renderAdmin('/admin/polls');
 
-        await screen.findByRole('heading', {name: 'active public poll', level: 4});
+        fireEvent.click(await screen.findByRole('button', {name: 'active public poll'}));
+        fireEvent.click(screen.getByRole('button', {name: 'deleted poll'}));
         const cards = Array.from(rendered.container.querySelectorAll<HTMLElement>('.poll-admin-list > .poll-admin-card'));
-        fireEvent.click(within(cards[0]).getByRole('button', {name: 'Soft löschen'}));
-        fireEvent.click(within(cards[1]).getByRole('button', {name: 'Permanent löschen'}));
+        fireEvent.click(within(cards[0]).getByRole('button', {name: 'Löschen'}));
+        fireEvent.click(within(cards[1]).getByRole('button', {name: 'Endgültig löschen'}));
         await waitFor(() => expect(deletePoll).toHaveBeenCalledWith('p_v1_active_public'));
         await waitFor(() => expect(permanentlyDeletePoll).toHaveBeenCalledWith('p_v1_deleted_private'));
         expect(confirm).toHaveBeenCalledTimes(3);
+        expect(confirm).toHaveBeenNthCalledWith(1, 'Abstimmung „active public poll“ löschen? Sie kann wiederhergestellt werden.');
+        expect(confirm).toHaveBeenNthCalledWith(2, 'Abstimmung „deleted poll“ endgültig löschen? Diese Aktion kann nicht rückgängig gemacht werden.');
+        expect(confirm).toHaveBeenNthCalledWith(3, 'Bitte dauerhaftes Löschen ein zweites Mal bestätigen.');
+    });
+
+    it('places dangerous actions last in their own group and cancels without a request (spec 009, US5)', async () => {
+        mockSession(adminSession());
+        vi.spyOn(apiClient, 'getAdminPolls').mockResolvedValue([testPoll('expired')]);
+        const deletePoll = vi.spyOn(apiClient, 'deletePoll');
+        vi.spyOn(window, 'confirm').mockReturnValue(false);
+
+        renderAdmin('/admin/polls');
+
+        const row = await openPoll('expired poll');
+        const actions = row.querySelector('.poll-admin-actions') as HTMLElement;
+        const danger = actions.lastElementChild as HTMLElement;
+        expect(danger).toHaveClass('action-group-danger');
+        expect(within(danger).getByRole('button', {name: 'Löschen'})).toBeVisible();
+        expect(within(danger).queryByRole('button', {name: 'Archivieren'})).toBeNull();
+        fireEvent.click(within(danger).getByRole('button', {name: 'Löschen'}));
+        expect(deletePoll).not.toHaveBeenCalled();
+    });
+
+    it('names the group and says that deleting it cannot be undone', async () => {
+        mockSession(adminSession());
+        vi.spyOn(apiClient, 'getGroups').mockResolvedValue([{id: 'g_v1_board', name: 'Board', description: ''}]);
+        vi.spyOn(apiClient, 'getTemplates').mockResolvedValue([]);
+        vi.spyOn(apiClient, 'getTemplatesInGroup').mockResolvedValue([]);
+        const deleteGroup = vi.spyOn(apiClient, 'deleteGroup');
+        const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+
+        renderAdmin('/admin/groups');
+        await findAdminPanel();
+
+        const button = await screen.findByRole('button', {name: 'Löschen'});
+        expect(button.closest('.action-group-danger')).not.toBeNull();
+        fireEvent.click(button);
+        expect(confirm).toHaveBeenCalledWith('Vorlagengruppe „Board“ löschen? Diese Aktion kann nicht rückgängig gemacht werden.');
+        expect(deleteGroup).not.toHaveBeenCalled();
     });
 });

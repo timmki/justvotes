@@ -8,6 +8,7 @@ import {ChevronLeftIcon, CloseIcon, MenuIcon, MoonIcon, SunIcon} from '../shared
 import {useMediaQuery} from '../shared/ui/useMediaQuery';
 import {themeOptions, useTheme, type Theme} from './theme';
 import {getAppInitials} from '../shared/config/appConfig';
+import {adminSectionFromPath, adminSectionTitleKey} from '../features/admin/adminSections';
 
 type ShellNavigationMode = 'public' | 'admin' | null;
 
@@ -272,9 +273,10 @@ export function Header({navigation, session}: {
     return <header className="app-header">
         <div className="header-inner">
             <div className="header-context">
-                {context && <Link className="back-link" to={context.to}
+                {context && context.to && <Link className="back-link" to={context.to}
                                      onClick={() => { if (routeKind(location.pathname).kind === 'admin') sessionCoordinator.consumeReturnRoute(); }}>
                     <ChevronLeftIcon/><span>{context.label}</span></Link>}
+                {context && !context.to && <span className="back-link header-parent">{context.label}</span>}
                 <p className="header-title">{pageTitle(location.pathname, t)}</p>
             </div>
             {navigation === 'public' && <Link className="header-brand" to="/" aria-label={t('common.appName')}>
@@ -349,9 +351,14 @@ function isInside(event: Event, element: HTMLElement | null) {
     return event.composedPath().includes(element);
 }
 
-function routeContext(pathname: string, t: ReturnType<typeof useI18n>['t']) {
+/**
+ * The parent shown before the page title: a back link for user pages, plain text for the administration,
+ * which has no page of its own.
+ */
+function routeContext(pathname: string, t: ReturnType<typeof useI18n>['t']): {to?: string; label: string} | null {
     const route = routeKind(pathname);
-    if (route.kind === 'home' || route.kind === 'login' || route.kind === 'invitation' || route.kind === 'admin') return null;
+    if (route.kind === 'admin') return {label: t('admin.title')};
+    if (route.kind === 'home' || route.kind === 'login' || route.kind === 'invitation') return null;
     if (route.kind === 'polls') return {to: '/', label: t('common.home')};
     if (route.kind === 'results' || route.kind === 'option' || route.kind === 'audit') {
         let to = '/polls';
@@ -371,7 +378,7 @@ function pageTitle(pathname: string, t: ReturnType<typeof useI18n>['t']) {
         case 'results': return t('polls.results');
         case 'option': return t('polls.option');
         case 'audit': return t('audit.title');
-        case 'admin': return t('admin.title');
+        case 'admin': return t(adminSectionTitleKey(adminSectionFromPath(pathname)));
         case 'login': return t('auth.loginTitle');
         case 'invitation': return t('auth.invitationTitle');
         case 'password': return t('auth.passwordTitle');

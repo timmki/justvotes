@@ -47,3 +47,16 @@ export function CloseIcon() {
         <path d="m6 6 12 12M18 6 6 18"/>
     </svg>;
 }
+
+export function TrashIcon() {
+    return <svg aria-hidden="true" viewBox="0 0 24 24">
+        <path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>
+    </svg>;
+}
+
+export function LockIcon() {
+    return <svg aria-hidden="true" viewBox="0 0 24 24">
+        <rect x="5" y="11" width="14" height="10" rx="2"/>
+        <path d="M8 11V7a4 4 0 0 1 8 0v4"/>
+    </svg>;
+}

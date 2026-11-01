@@ -9,6 +9,7 @@ describe('personal vote projection', () => {
         expect(result.map(v => v.pollId)).toEqual(['c', 'a', 'b']);
         expect(input.map(v => v.poll.id)).toEqual(['b', 'a', 'c']);
         expect(result[0]).toMatchObject({title: 'Transport', option: 'Train', optionNumber: 2, state: 'profile.active'});
-        expect(result[0].timestamp).toContain('UTC');
+        expect(result[0].timestamp).not.toContain('UTC');
+        expect(result[0].timestamp).toBe(new Intl.DateTimeFormat('en', {dateStyle: 'medium', timeStyle: 'short'}).format(new Date('2026-02-01T00:00:00Z')));
     });
 });

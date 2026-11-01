@@ -31,6 +31,24 @@ function fill(identity: string, password: string, repeat = password) {
 }
 
 describe('InvitationPage', () => {
+    it('keeps the button usable and reports empty passwords at the field (spec 009)', async () => {
+        signIn(null);
+        vi.spyOn(apiClient, 'inspectInvitation').mockResolvedValue(preview);
+        const accept = vi.spyOn(apiClient, 'acceptInvitation');
+        renderPollTest('/invitation', <InvitationPage/>);
+        await screen.findByText('anna@example.test');
+        fireEvent.change(screen.getByLabelText('Anzeigename'), {target: {value: 'Anna'}});
+        const button = screen.getByRole('button', {name: 'Konto anlegen'});
+        expect(button).toBeEnabled();
+
+        fireEvent.click(button);
+
+        expect(accept).not.toHaveBeenCalled();
+        expect(screen.getByLabelText('Neues Passwort')).toHaveAttribute('aria-invalid', 'true');
+        expect(screen.getByLabelText('Neues Passwort wiederholen')).toHaveAttribute('aria-invalid', 'true');
+        await vi.waitFor(() => expect(screen.getByLabelText('Neues Passwort')).toHaveFocus());
+    });
+
     it('moves the token out of the address bar and completes the account', async () => {
         signIn(null);
         const inspect = vi.spyOn(apiClient, 'inspectInvitation').mockResolvedValue(preview);

@@ -1,5 +1,6 @@
 import type {components} from '../../shared/api/generated/justvotes';
 import type {Locale, TranslationKey} from '../../shared/i18n/translations';
+import {formatTimestamp} from '../polls/pollFormatters';
 
 export type PersonalVote = components['schemas']['PersonalVote'];
 const stateKeys: Record<PersonalVote['poll']['state'], TranslationKey> = {
@@ -19,6 +20,7 @@ export function projectPersonalVotes(votes: PersonalVote[], locale: Locale, t: (
         option: vote.option.text,
         optionNumber: vote.option.number,
         votedAt: vote.votedAt,
-        timestamp: new Intl.DateTimeFormat(locale, {dateStyle: 'medium', timeStyle: 'long', timeZone: 'UTC'}).format(new Date(vote.votedAt)),
+        // Local time in the application's common format (spec 009, FR-023).
+        timestamp: formatTimestamp(vote.votedAt, locale),
     }));
 }

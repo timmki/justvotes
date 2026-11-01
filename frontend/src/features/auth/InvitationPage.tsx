@@ -7,6 +7,8 @@ import {queryKeys} from '../../shared/api/queryKeys';
 import {useApiQuery} from '../../shared/api/useApiQuery';
 import {useI18n} from '../../shared/i18n/I18nProvider';
 import type {TranslationKey} from '../../shared/i18n/translations';
+import {FormField} from '../../shared/ui/FormField';
+import {focusFirstInvalid} from '../../shared/ui/formValidation';
 import {PageFrame} from '../../shared/ui/PageFrame';
 import {RouteState} from '../../shared/ui/RouteState';
 import {formatTimestamp} from '../polls/pollFormatters';
@@ -101,8 +103,9 @@ function InvitationForm({token, t}: {token: string; t: ReturnType<typeof useI18n
     const [invalidField, setInvalidField] = useState<InvalidField>(null);
     const identityRef = useRef<HTMLInputElement>(null);
     const [unusable, setUnusable] = useState(false);
-    const identityHintId = useId();
-    const policyId = useId();
+    const [passwordMissing, setPasswordMissing] = useState(false);
+    const [repeatMissing, setRepeatMissing] = useState(false);
+    const formRef = useRef<HTMLFormElement>(null);
     const errorId = useId();
 
     if (preview.isPending) return <p className="poll-notice" role="status">{t('auth.invitationChecking')}</p>;
@@ -116,12 +119,22 @@ function InvitationForm({token, t}: {token: string; t: ReturnType<typeof useI18n
 
     async function submit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
+        // Required passwords are reported at their field; the button is never locked before sending (spec 009).
+        const missingPassword = !password;
+        const missingRepeat = !repeatPassword;
+        setPasswordMissing(missingPassword);
+        setRepeatMissing(missingRepeat);
         const invalid = identityProblem(identity.trim());
         if (invalid) {
             reject(invalid);
             return;
         }
         setInvalidField(null);
+        if (missingPassword || missingRepeat) {
+            setError(null);
+            window.setTimeout(() => focusFirstInvalid(formRef.current));
+            return;
+        }
         if (passwordLength(password) < MIN_PASSWORD_LENGTH) {
             setError('auth.passwordTooShort');
             return;
@@ -154,27 +167,37 @@ function InvitationForm({token, t}: {token: string; t: ReturnType<typeof useI18n
     if (pending) submitLabel = t('auth.creatingAccount');
     let describedBy: string | undefined;
     if (error) describedBy = errorId;
-    let identityDescribedBy = identityHintId;
-    if (invalidField === 'identity') identityDescribedBy = `${errorId} ${identityHintId}`;
-    return <form className="login-form" onSubmit={submit} noValidate aria-describedby={describedBy}>
+    const identityInvalid = invalidField === 'identity';
+    let identityDescribedBy: string | undefined;
+    if (identityInvalid) identityDescribedBy = errorId;
+    let passwordError: string | null = null;
+    if (passwordMissing) passwordError = t('forms.requiredField');
+    let repeatError: string | null = null;
+    if (repeatMissing) repeatError = t('forms.requiredField');
+    return <form ref={formRef} className="login-form" onSubmit={submit} noValidate aria-describedby={describedBy}>
         <p>{t('auth.invitationFor')} <strong>{preview.data.email}</strong> · {t('auth.invitationValidUntil')} <time
             dateTime={preview.data.expiresAt}>{formatTimestamp(preview.data.expiresAt, locale)}</time></p>
-        <label htmlFor="invitation-email">{t('auth.email')}</label>
-        <input id="invitation-email" type="email" autoComplete="username" readOnly value={preview.data.email}/>
-        <label htmlFor="invitation-identity">{t('auth.identity')}</label>
-        <input id="invitation-identity" required value={identity} ref={identityRef}
-               aria-describedby={identityDescribedBy}
-               aria-invalid={invalidField === 'identity'} onChange={(event) => setIdentity(event.target.value)}/>
-        <p id={identityHintId} className="form-hint">{t('auth.identityHint')}</p>
-        <label htmlFor="invitation-password">{t('auth.newPassword')}</label>
-        <input id="invitation-password" type="password" autoComplete="new-password" required value={password}
-               aria-describedby={policyId} onChange={(event) => setPassword(event.target.value)}/>
-        <p id={policyId} className="form-hint">{t('auth.passwordPolicy')}</p>
-        <label htmlFor="invitation-repeat">{t('auth.repeatPassword')}</label>
-        <input id="invitation-repeat" type="password" autoComplete="new-password" required value={repeatPassword}
-               aria-invalid={error === 'auth.passwordsDiffer'} onChange={(event) => setRepeatPassword(event.target.value)}/>
-        <button className="primary-button" type="submit" aria-busy={pending}
-                disabled={pending || !identity.trim() || !password || !repeatPassword}>
+        <FormField id="invitation-email" label={t('auth.email')}>
+            <input type="email" autoComplete="username" readOnly value={preview.data.email}/>
+        </FormField>
+        <FormField id="invitation-identity" label={t('auth.identity')} hint={t('auth.identityHint')}
+                   invalid={identityInvalid} describedBy={identityDescribedBy}>
+            <input required value={identity} ref={identityRef} onChange={(event) => setIdentity(event.target.value)}/>
+        </FormField>
+        <FormField id="invitation-password" label={t('auth.newPassword')} hint={t('auth.passwordPolicy')} error={passwordError}>
+            <input type="password" autoComplete="new-password" required value={password} onChange={(event) => {
+                setPassword(event.target.value);
+                setPasswordMissing(false);
+            }}/>
+        </FormField>
+        <FormField id="invitation-repeat" label={t('auth.repeatPassword')} error={repeatError}>
+            <input type="password" autoComplete="new-password" required value={repeatPassword}
+                   aria-invalid={error === 'auth.passwordsDiffer'} onChange={(event) => {
+                setRepeatPassword(event.target.value);
+                setRepeatMissing(false);
+            }}/>
+        </FormField>
+        <button className="primary-button" type="submit" aria-busy={pending} disabled={pending}>
             {pending && <span className="button-spinner" aria-hidden="true"/>}{submitLabel}
         </button>
         <p id={errorId} className="form-error" role="alert">{error && t(error)}</p>

@@ -3,6 +3,7 @@ import {useSearchParams} from 'react-router-dom';
 import {useI18n} from '../../shared/i18n/I18nProvider';
 import {QueryState} from '../../shared/ui/QueryState';
 import {RouteState} from '../../shared/ui/RouteState';
+import {FormField} from '../../shared/ui/FormField';
 import {PublicPollCard} from './PublicPollCard';
 import {DataPage} from './pollPageShared';
 import {hasInvalidPollDateRange, parsePollListState, projectPollListState, serializePollListState, type PollDateFilter, type PollSort} from './pollListState';
@@ -44,24 +45,32 @@ export function PollsPage() {
         <div className="polls-content">
             <section className="poll-filters" aria-label={t('polls.filters')}>
                 <div className="poll-filter-fields">
-                    <label>{t('polls.sort')}<select className="filter-control" aria-label={t('polls.sort')} value={state.sort} onChange={(event) => {
-                        let sort: PollSort = 'newest';
-                        if (event.target.value === 'oldest') sort = 'oldest';
-                        updateState({sort});
-                    }}>
-                        <option value="newest">{t('polls.newest')}</option>
-                        <option value="oldest">{t('polls.oldest')}</option>
-                    </select></label>
-                    <label>{t('polls.dateFilter')}<select className="filter-control" aria-label={t('polls.dateFilter')} value={state.dateFilter} onChange={(event) => updateState({dateFilter: event.target.value as PollDateFilter})}>
-                        <option value="all">{t('polls.allDates')}</option>
-                        <option value="yesterday">{t('polls.yesterday')}</option>
-                        <option value="today">{t('polls.today')}</option>
-                        <option value="tomorrow">{t('polls.tomorrow')}</option>
-                        <option value="date">{t('polls.date')}</option>
-                    </select></label>
+                    <FormField id="poll-filter-sort" label={t('polls.sort')}>
+                        <select className="filter-control" value={state.sort} onChange={(event) => {
+                            let sort: PollSort = 'newest';
+                            if (event.target.value === 'oldest') sort = 'oldest';
+                            updateState({sort});
+                        }}>
+                            <option value="newest">{t('polls.newest')}</option>
+                            <option value="oldest">{t('polls.oldest')}</option>
+                        </select>
+                    </FormField>
+                    <FormField id="poll-filter-date" label={t('polls.dateFilter')}>
+                        <select className="filter-control" value={state.dateFilter} onChange={(event) => updateState({dateFilter: event.target.value as PollDateFilter})}>
+                            <option value="all">{t('polls.allDates')}</option>
+                            <option value="yesterday">{t('polls.yesterday')}</option>
+                            <option value="today">{t('polls.today')}</option>
+                            <option value="tomorrow">{t('polls.tomorrow')}</option>
+                            <option value="date">{t('polls.date')}</option>
+                        </select>
+                    </FormField>
                     {state.dateFilter === 'date' && <>
-                        <label>{t('polls.from')}<input aria-label={t('polls.from')} type="date" value={state.from ?? ''} onChange={(event) => updateState({from: event.target.value})}/></label>
-                        <label>{t('polls.to')}<input aria-label={t('polls.to')} type="date" value={state.to ?? ''} onChange={(event) => updateState({to: event.target.value})}/></label>
+                        <FormField id="poll-filter-from" label={t('polls.from')}>
+                            <input type="date" value={state.from ?? ''} onChange={(event) => updateState({from: event.target.value})}/>
+                        </FormField>
+                        <FormField id="poll-filter-to" label={t('polls.to')}>
+                            <input type="date" value={state.to ?? ''} onChange={(event) => updateState({to: event.target.value})}/>
+                        </FormField>
                     </>}
                     <button className="text-button filter-control" type="button" onClick={clearState}>{t('polls.resetFilters')}</button>
                 </div>

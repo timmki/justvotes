@@ -48,6 +48,10 @@ describe('ProfilePage', () => {
         expect(document.querySelectorAll('.profile-vote')).toHaveLength(2);
         expect(screen.getByText('aktiv')).toBeVisible();
         expect(document.querySelector('time')).toHaveAttribute('datetime', vote.votedAt);
+        expect(screen.getAllByText('Status')).toHaveLength(2);
+        expect(screen.getAllByText('Abgestimmt am')).toHaveLength(2);
+        expect(document.body).not.toHaveTextContent('UTC');
+        expect(document.body).not.toHaveTextContent('Lebenszyklus');
         expect(document.body).not.toHaveTextContent('p_v1_one');
         expect(document.body).not.toHaveTextContent('Bob');
     });

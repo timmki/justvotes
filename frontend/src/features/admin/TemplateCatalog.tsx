@@ -3,6 +3,8 @@ import {ApiError, type FrontendError} from '../../shared/api/errors';
 import {useI18n} from '../../shared/i18n/I18nProvider';
 import {QueryState} from '../../shared/ui/QueryState';
 import {RouteState} from '../../shared/ui/RouteState';
+import {FormField} from '../../shared/ui/FormField';
+import {TrashIcon} from '../../shared/ui/Icons';
 import {
     catalogCommands,
     type CatalogGroup,
@@ -28,9 +30,11 @@ function TemplateManager({templates}: { templates: CatalogTemplate[] }) {
     const [page, setPage] = useState(0);
     const [selected, setSelected] = useState<Set<string>>(new Set());
     const [newName, setNewName] = useState('');
+    const [newNameMissing, setNewNameMissing] = useState(false);
     const [batchInput, setBatchInput] = useState('');
     const [renameId, setRenameId] = useState<string | null>(null);
     const [renameValue, setRenameValue] = useState('');
+    const [renameMissing, setRenameMissing] = useState(false);
     const [busy, setBusy] = useState(false);
     const [busyMessage, setBusyMessage] = useState<BusyMessage>('common.saving');
     const [error, setError] = useState<FrontendError | null>(null);
@@ -74,7 +78,11 @@ function TemplateManager({templates}: { templates: CatalogTemplate[] }) {
     async function createTemplate(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         const name = normalizeName(newName);
-        if (!name) return;
+        setNewNameMissing(!name);
+        if (!name) {
+            event.currentTarget.querySelector<HTMLInputElement>('input')?.focus();
+            return;
+        }
         setBusy(true);
         setBusyMessage('common.saving');
         setError(null);
@@ -118,6 +126,7 @@ function TemplateManager({templates}: { templates: CatalogTemplate[] }) {
     function beginRename(template: CatalogTemplate) {
         setRenameId(template.id);
         setRenameValue(template.name);
+        setRenameMissing(false);
         setError(null);
     }
 
@@ -125,7 +134,11 @@ function TemplateManager({templates}: { templates: CatalogTemplate[] }) {
         event.preventDefault();
         if (!renameId) return;
         const name = normalizeName(renameValue);
-        if (!name) return;
+        setRenameMissing(!name);
+        if (!name) {
+            event.currentTarget.querySelector<HTMLInputElement>('input')?.focus();
+            return;
+        }
         setBusy(true);
         setBusyMessage('common.saving');
         setError(null);
@@ -140,7 +153,7 @@ function TemplateManager({templates}: { templates: CatalogTemplate[] }) {
     }
 
     async function deleteTemplates(toDelete: CatalogTemplate[]) {
-        if (!toDelete.length || !window.confirm(t('admin.confirmDeleteTemplates'))) return;
+        if (!toDelete.length || !window.confirm(t('admin.confirmDeleteTemplates').replace('{count}', String(toDelete.length)))) return;
         setBusy(true);
         setBusyMessage('common.processing');
         setError(null);
@@ -160,34 +173,40 @@ function TemplateManager({templates}: { templates: CatalogTemplate[] }) {
     }
 
     return <section className="admin-panel">
-        <h3>{t('admin.templates')}</h3>
-        <form className="catalog-form" onSubmit={createTemplate}>
-            <label htmlFor="template-name">{t('admin.newTemplate')}</label>
-            <div className="catalog-form-row"><input id="template-name" value={newName}
-                                                     onChange={(event) => setNewName(event.target.value)} required/>
+        <form className="catalog-form" onSubmit={createTemplate} noValidate>
+            <div className="catalog-form-row">
+                <FormField id="template-name" label={t('admin.newTemplate')} error={requiredText(newNameMissing, t)}>
+                    <input value={newName} required onChange={(event) => {
+                        setNewName(event.target.value);
+                        setNewNameMissing(false);
+                    }}/>
+                </FormField>
                 <button className="primary-button" type="submit" aria-busy={busy} disabled={busy}>{busy && <span className="button-spinner" aria-hidden="true"/>}{t('admin.createTemplate')}</button>
             </div>
         </form>
         <form className="catalog-form" onSubmit={importTemplates}>
-            <label htmlFor="template-batch">{t('admin.batchTemplates')}</label>
-            <textarea id="template-batch" value={batchInput} onChange={(event) => setBatchInput(event.target.value)}
-                      placeholder={t('admin.batchPlaceholder')} rows={3}/>
-            <button className="secondary-button" type="submit" disabled={busy}>{t('admin.importTemplates')}</button>
+            <FormField id="template-batch" label={t('admin.batchTemplates')}>
+                <textarea value={batchInput} onChange={(event) => setBatchInput(event.target.value)}
+                          placeholder={t('admin.batchPlaceholder')} rows={3}/>
+            </FormField>
+            <button className="primary-button" type="submit" disabled={busy}>{t('admin.importTemplates')}</button>
         </form>
-        <label htmlFor="template-search">{t('admin.searchTemplates')}</label>
-        <input className="catalog-filter-input" id="template-search" value={search}
-               placeholder={t('admin.filterTemplatesPlaceholder')} onChange={(event) => {
-            setSearch(event.target.value);
-            setPage(0);
-        }}/>
+        <FormField id="template-search" label={t('admin.searchTemplates')} hint={t('admin.filterHint')}>
+            <input value={search} placeholder={t('admin.filterTemplatesPlaceholder')} onChange={(event) => {
+                setSearch(event.target.value);
+                setPage(0);
+            }}/>
+        </FormField>
         <div className="catalog-actions"><label><input type="checkbox" checked={allVisibleSelected}
                                                        onChange={toggleVisibleSelection}/> {t('admin.selectVisible')}
         </label>
-            <button className="text-button destructive-button" type="button" disabled={busy || selected.size === 0}
-                    onClick={() => {
-                        void deleteTemplates(templates.filter((template) => selected.has(template.id)));
-                    }}>{t('admin.deleteSelected')} ({selected.size})
-            </button>
+            <div className="action-group-danger">
+                <button className="secondary-button destructive-button" type="button" disabled={busy || selected.size === 0}
+                        onClick={() => {
+                            void deleteTemplates(templates.filter((template) => selected.has(template.id)));
+                        }}><TrashIcon/>{t('admin.deleteSelected')} ({selected.size})
+                </button>
+            </div>
         </div>
         {error && <p className="form-error" role="alert">{t(error.messageKey)}</p>}
         {busy && <p className="form-status" role="status">{t(busyMessage)}</p>}
@@ -201,18 +220,25 @@ function TemplateManager({templates}: { templates: CatalogTemplate[] }) {
                               aria-label={`${t('admin.selectTemplate')} ${template.name}`}/>
                     <strong>{template.name}</strong>{template.managed && <ManagedBadge/>}</label>
                 {!template.managed && <div className="catalog-item-actions">{renameId === template.id &&
-                    <form onSubmit={renameTemplate}><input aria-label={`${t('admin.renameTemplate')} ${template.name}`}
-                                                           value={renameValue}
-                                                           onChange={(event) => setRenameValue(event.target.value)}
-                                                           required/>
-                        <button className="text-button" type="submit" disabled={busy}>{t('forms.submit')}</button>
+                    <form className="catalog-form-row catalog-rename-form" onSubmit={renameTemplate} noValidate>
+                        <FormField id={`template-rename-${template.id}`} label={t('admin.renameTemplate')}
+                                   error={requiredText(renameMissing, t)}>
+                            <input value={renameValue} required onChange={(event) => {
+                                setRenameValue(event.target.value);
+                                setRenameMissing(false);
+                            }}/>
+                        </FormField>
+                        <button className="secondary-button" type="submit" disabled={busy}>{t('forms.submit')}</button>
                         <button className="text-button" type="button"
                                 onClick={() => setRenameId(null)}>{t('forms.cancel')}</button>
                     </form>}{renameId !== template.id && <button className="text-button" type="button"
                                       onClick={() => beginRename(template)}>{t('admin.rename')}</button>}
-                    <button className="text-button destructive-button" type="button" disabled={busy} onClick={() => {
-                        void deleteTemplates([template]);
-                    }}>{t('admin.delete')}</button>
+                    <span className="action-group-danger">
+                        <button className="secondary-button destructive-button" type="button" disabled={busy}
+                                aria-label={`${t('admin.delete')}: ${template.name}`} onClick={() => {
+                            void deleteTemplates([template]);
+                        }}><TrashIcon/>{t('admin.delete')}</button>
+                    </span>
                 </div>}
             </li>)}</ul>}
         <Pagination page={currentPage} pageCount={pageCount} onPageChange={setPage}/>
@@ -276,8 +302,10 @@ function GroupManager({groups, templates, activeGroup, groupTemplatesQuery, onSe
 }) {
     const {t} = useI18n();
     const [newName, setNewName] = useState('');
+    const [newNameMissing, setNewNameMissing] = useState(false);
     const [newDescription, setNewDescription] = useState('');
     const [renameValue, setRenameValue] = useState('');
+    const [renameMissing, setRenameMissing] = useState(false);
     const [busy, setBusy] = useState(false);
     const [busyMessage, setBusyMessage] = useState<BusyMessage>('common.saving');
     const [error, setError] = useState<FrontendError | null>(null);
@@ -295,7 +323,11 @@ function GroupManager({groups, templates, activeGroup, groupTemplatesQuery, onSe
     async function createGroup(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         const name = normalizeName(newName);
-        if (!name) return;
+        setNewNameMissing(!name);
+        if (!name) {
+            event.currentTarget.querySelector<HTMLInputElement>('input')?.focus();
+            return;
+        }
         setBusy(true);
         setBusyMessage('common.saving');
         setError(null);
@@ -315,7 +347,11 @@ function GroupManager({groups, templates, activeGroup, groupTemplatesQuery, onSe
         event.preventDefault();
         if (!activeGroup) return;
         const name = normalizeName(renameValue);
-        if (!name) return;
+        setRenameMissing(!name);
+        if (!name) {
+            event.currentTarget.querySelector<HTMLInputElement>('input')?.focus();
+            return;
+        }
         setBusy(true);
         setBusyMessage('common.saving');
         setError(null);
@@ -329,7 +365,7 @@ function GroupManager({groups, templates, activeGroup, groupTemplatesQuery, onSe
     }
 
     async function deleteGroup() {
-        if (!activeGroup || !window.confirm(t('admin.confirmDeleteGroup'))) return;
+        if (!activeGroup || !window.confirm(t('admin.confirmDeleteGroup').replace('{name}', groupName(activeGroup, t)))) return;
         setBusy(true);
         setBusyMessage('common.processing');
         setError(null);
@@ -399,14 +435,18 @@ function GroupManager({groups, templates, activeGroup, groupTemplatesQuery, onSe
         && visibleTemplateIds.every((id) => membershipIds.has(id));
 
     return <section className="admin-panel">
-        <h3>{t('admin.groups')}</h3>
-        <form className="catalog-form" onSubmit={createGroup}><label htmlFor="group-name">{t('admin.newGroup')}</label>
-            <div className="catalog-form-row"><input id="group-name" value={newName}
-                                                     onChange={(event) => setNewName(event.target.value)}
-                                                     required/><input aria-label={t('admin.groupDescription')}
-                                                                      value={newDescription}
-                                                                      onChange={(event) => setNewDescription(event.target.value)}
-                                                                      placeholder={t('admin.groupDescription')}/>
+        <form className="catalog-form" onSubmit={createGroup} noValidate aria-labelledby="new-group-heading">
+            <h2 id="new-group-heading">{t('admin.newGroup')}</h2>
+            <div className="catalog-form-row">
+                <FormField id="group-name" label={t('admin.groupName')} error={requiredText(newNameMissing, t)}>
+                    <input value={newName} required onChange={(event) => {
+                        setNewName(event.target.value);
+                        setNewNameMissing(false);
+                    }}/>
+                </FormField>
+                <FormField id="group-description" label={`${t('admin.groupDescription')} ${t('forms.optionalSuffix')}`}>
+                    <input value={newDescription} onChange={(event) => setNewDescription(event.target.value)}/>
+                </FormField>
                 <button className="primary-button" type="submit" aria-busy={busy} disabled={busy}>{busy && <span className="button-spinner" aria-hidden="true"/>}{t('admin.createGroup')}</button>
             </div>
         </form>
@@ -423,23 +463,29 @@ function GroupManager({groups, templates, activeGroup, groupTemplatesQuery, onSe
             {activeGroup?.kind === 'members' && <MembersGroupDetail groupTemplatesQuery={groupTemplatesQuery}/>}
             {activeGroup && activeGroup.kind !== 'members' && <>
                 <div className="catalog-actions">
-                    <form onSubmit={renameGroup}><label htmlFor="group-rename">{t('admin.renameGroup')}</label><input
-                        id="group-rename" value={renameValue || activeGroup.name}
-                        onChange={(event) => setRenameValue(event.target.value)} required/>
-                        <button className="text-button" type="submit" disabled={busy}>{t('forms.submit')}</button>
+                    <form className="catalog-form-row group-rename-form" onSubmit={renameGroup} noValidate>
+                        <FormField id="group-rename" label={t('admin.renameGroup')} error={requiredText(renameMissing, t)}>
+                            <input value={renameValue} required onChange={(event) => {
+                                setRenameValue(event.target.value);
+                                setRenameMissing(false);
+                            }}/>
+                        </FormField>
+                        <button className="secondary-button" type="submit" disabled={busy}>{t('forms.submit')}</button>
                     </form>
-                    <button className="text-button destructive-button" type="button" disabled={busy} onClick={() => {
-                        void deleteGroup();
-                    }}>{t('admin.delete')}</button>
+                    <div className="action-group-danger">
+                        <button className="secondary-button destructive-button" type="button" disabled={busy} onClick={() => {
+                            void deleteGroup();
+                        }}><TrashIcon/>{t('admin.delete')}</button>
+                    </div>
                 </div>
                 <QueryState query={groupTemplatesQuery}>{() => <>
-                    <h4>{t('admin.memberships')}</h4>
+                    <h2>{t('admin.memberships')}</h2>
                     <div className="catalog-form-row catalog-membership-form">
                         <div className="catalog-membership-toolbar">
-                            <label htmlFor="group-template-filter">{t('admin.filterTemplates')}</label>
-                            <input id="group-template-filter" value={templateFilter}
-                                   placeholder={t('admin.filterTemplatesPlaceholder')}
-                                   onChange={(event) => changeTemplateFilter(event.target.value)} disabled={busy}/>
+                            <FormField id="group-template-filter" label={t('admin.filterTemplates')} hint={t('admin.filterHint')}>
+                                <input value={templateFilter} placeholder={t('admin.filterTemplatesPlaceholder')}
+                                       onChange={(event) => changeTemplateFilter(event.target.value)} disabled={busy}/>
+                            </FormField>
                             <button className="text-button" type="button"
                                     disabled={busy || visibleTemplates.length === 0}
                                     onClick={() => void toggleVisibleTemplates()}>
@@ -464,6 +510,11 @@ function GroupManager({groups, templates, activeGroup, groupTemplatesQuery, onSe
     </section>;
 }
 
+function requiredText(missing: boolean, t: (key: 'forms.requiredField') => string) {
+    if (missing) return t('forms.requiredField');
+    return null;
+}
+
 function ManagedBadge() {
     const {t} = useI18n();
     return <span className="managed-badge">{t('admin.managedBadge')}</span>;
@@ -476,7 +527,7 @@ function MembersGroupDetail({groupTemplatesQuery}: {
     return <>
         <p className="form-status">{t('admin.membersGroupHint')}</p>
         <QueryState query={groupTemplatesQuery}>{(members) => <>
-            <h4>{t('admin.memberships')}</h4>
+            <h2>{t('admin.memberships')}</h2>
             {members.length === 0 && <RouteState status="empty"/>}
             {members.length !== 0 && <ul className="data-list catalog-list">{members.map((member) =>
                 <li key={member.id}>{member.name}</li>)}</ul>}

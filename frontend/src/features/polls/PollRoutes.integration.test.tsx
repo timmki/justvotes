@@ -574,7 +574,7 @@ describe('PollPage', () => {
         expect(getPollResults).toHaveBeenCalledTimes(2);
     });
 
-    it('disables voting for an expired poll but keeps released results available', async () => {
+    it('replaces voting for an expired poll with a notice and keeps released results available', async () => {
         const expiredPoll = {...poll, state: 'expired' as const};
         vi.mocked(apiClient.getPoll).mockResolvedValue(expiredPoll);
         mockSession(userSession('alice'));
@@ -582,9 +582,9 @@ describe('PollPage', () => {
 
         renderPollPage();
 
-        expect(await screen.findByText(/Diese Abstimmung ist nicht mehr aktiv.*abgelaufen/)).toBeVisible();
-        expect(screen.getByRole('radio', {name: 'Apfel'})).toBeDisabled();
-        expect(await screen.findByRole('link', {name: 'Abstimmung - Ergebnisse'})).toBeVisible();
+        expect(await screen.findByText('Diese Abstimmung ist abgelaufen. Eine Stimmabgabe ist nicht mehr möglich.')).toBeVisible();
+        expect(screen.queryByRole('radio', {name: 'Apfel'})).toBeNull();
+        expect(await screen.findByRole('link', {name: 'Ergebnisse ansehen'})).toBeVisible();
     });
 
     it('uses the safe 404 state for private poll data and never loads its results', async () => {
@@ -706,8 +706,8 @@ describe('PollPage inline confirm button', () => {
 
         renderPollPage();
 
-        await waitFor(() => expect(screen.getByRole('radio', {name: 'Zebra'})).toBeChecked());
-        expect(screen.getByRole('radio', {name: 'Apfel'})).toBeDisabled();
+        await waitFor(() => expect(screen.getByText('Zebra').closest('li')).toHaveTextContent('Eigene Stimme'));
+        expect(screen.queryAllByRole('radio')).toHaveLength(0);
         expect(screen.queryByRole('button', {name: /^Stimme abgeben/})).not.toBeInTheDocument();
     });
 
@@ -842,7 +842,9 @@ describe('ResultsPage', () => {
         expect(screen.getByRole('region', {name: 'Ergebnisübersicht'})).toHaveTextContent('67 %');
         expect(screen.getByText('33 %')).toBeVisible();
         expect(screen.getAllByText('Gewinner')).toHaveLength(2);
-        expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual(['Apfel', 'Zebra', 'Abstimmungen', 'Prüfprotokoll']);
+        expect(screen.getAllByRole('link').map((link) => link.getAttribute('aria-label') ?? link.textContent))
+            .toEqual(['Stimmen ansehen: Apfel', 'Stimmen ansehen: Zebra', 'Abstimmungen', 'Prüfprotokoll']);
+        expect(screen.queryByRole('link', {name: 'Apfel'})).toBeNull();
 
         const zeroResult = {...result, totalVotes: 0, options: result.options.map((option) => ({...option, voteCount: 0, votes: []}))};
         vi.mocked(apiClient.getPollResults).mockResolvedValue(zeroResult);
