@@ -3953,9 +3953,10 @@ html.menu-open {
     .poll-admin-toggle svg { transition: none; }
 }
 
-/* Spec 009 US4: a visible gap between the radio and its option text (a later reset removed the margin). */
-.poll-option {
-    column-gap: var(--space-0-7);
+/* Spec 009 US4: a visible gap between the radio and its option text (a later reset removed the margin).
+   A margin, not column-gap: the row grid must stay gapless so the ghost copy keeps the unselected text width. */
+.poll-option input {
+    margin-inline-end: var(--space-0-7);
 }
 
 /* Spec 009 US4: rows that combine fields and a button align at the field, not at the label. */
