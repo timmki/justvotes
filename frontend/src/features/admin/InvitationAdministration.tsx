@@ -91,7 +91,7 @@ export function InvitationAdministration() {
         {query.isPending && <RouteState status="loading"/>}
         {query.isError && <RouteState status="error" error={frontendError(query.error)} onRetry={() => void query.refetch()}/>}
         {query.data && query.data.length === 0 && <RouteState status="empty" title={t('admin.noInvitations')}/>}
-        {query.data && query.data.length !== 0 && <div className="table-scroll"><table className="admin-table">
+        {query.data && query.data.length !== 0 && <div className="table-scroll"><table className="admin-table admin-card-table">
             <thead><tr>
                 <th scope="col">{t('admin.inviteEmail')}</th>
                 <th scope="col">{t('admin.accountStatus')}</th>
@@ -101,12 +101,12 @@ export function InvitationAdministration() {
             </tr></thead>
             <tbody>{query.data.map((invitation) => <tr key={invitation.invitationId}>
                 <th scope="row">{invitation.email}</th>
-                <td>
+                <td data-label={t('admin.accountStatus')}><span className="status-badges">
                     <span className={`status-badge status-${invitation.status}`}>{t(invitationStatusKey(invitation))}</span>
                     {invitation.deliveryFailed && <span className="status-badge status-failed">{t('admin.invitationDeliveryFailed')}</span>}
-                </td>
-                <td><time dateTime={invitation.issuedAt}>{formatTimestamp(invitation.issuedAt, locale)}</time></td>
-                <td><time dateTime={invitation.expiresAt}>{formatTimestamp(invitation.expiresAt, locale)}</time></td>
+                </span></td>
+                <td data-label={t('admin.invitationIssuedAt')}><time dateTime={invitation.issuedAt}>{formatTimestamp(invitation.issuedAt, locale)}</time></td>
+                <td data-label={t('admin.invitationExpiresAt')}><time dateTime={invitation.expiresAt}>{formatTimestamp(invitation.expiresAt, locale)}</time></td>
                 <td className="admin-table-actions">{(invitation.status === 'open' || invitation.status === 'expired') && <>
                     <button className="text-button" type="button" disabled={change.isPending}
                             onClick={() => change.mutate({invitation, action: 'resend'})}>{t('admin.resendInvitation')}</button>

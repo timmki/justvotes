@@ -307,7 +307,8 @@ export function Header({navigation, session}: {
                         </label>)}
                     </div>}
                 </div>
-                <div className="mobile-menu" ref={menuRef}>
+                {/* Signed-out visitors have nothing to open; a pending password change still needs sign-out. */}
+                {session && <div className="mobile-menu" ref={menuRef}>
                     <button ref={menuButtonRef} className="icon-button mobile-menu-button" type="button"
                             aria-label={menuButtonLabel} aria-expanded={menuOpen}
                             aria-controls="mobile-menu-panel" onClick={toggleMenu}>
@@ -316,10 +317,10 @@ export function Header({navigation, session}: {
                     </button>
                     {(menuOpen || panelClosing) && <div id="mobile-menu-panel" className="mobile-menu-panel" data-open={menuOpen} inert={!menuOpen} onClick={closeOnNavigate}>
                         <ShellNavigation className="mobile-menu-navigation" navigation={navigation} label={t('common.menu')}/>
-                        {session && navigation && <AccountPanel session={session} onNavigate={() => setMenuOpen(false)}/>}
+                        <AccountPanel session={session} onNavigate={() => setMenuOpen(false)}/>
                     </div>}
                     {(menuOpen || panelClosing) && createPortal(<div className="mobile-menu-backdrop" data-open={menuOpen} aria-hidden="true" onClick={closeFromBackdrop}/>, document.body)}
-                </div>
+                </div>}
             </div>
         </div>
     </header>;

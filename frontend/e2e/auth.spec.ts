@@ -184,3 +184,80 @@ test('a one-time password forces a new password before anything else', async ({p
     await expect(page).toHaveURL(/\/polls$/);
     expect(changed).toBe(true);
 });
+
+const managedAccounts = [
+    {accountId: 'a_v1_1', email: 'systemadmin@example.test', role: 'admin', identity: null, status: 'active', passwordChangeRequired: false, createdAt: '2026-10-27T10:00:00Z'},
+    {accountId: 'a_v1_2', email: 'anna.mustermann@example.test', role: 'user', identity: 'Anna Mustermann', status: 'active', passwordChangeRequired: true, createdAt: '2026-10-28T10:00:00Z'},
+];
+const openInvitations = [
+    {invitationId: 'i_v1_1', email: 'dieter.sehr-lange-adresse@example.test', status: 'open', deliveryFailed: true, issuedAt: '2026-10-29T10:00:00Z', expiresAt: '2026-11-05T10:00:00Z'},
+];
+
+async function administrationBackend(page: Page) {
+    await fakeBackend(page, {session: admin}, (route) => {
+        const path = new URL(route.request().url()).pathname;
+        if (path === '/api/v1/admin/accounts') return route.fulfill({json: managedAccounts});
+        if (path === '/api/v1/admin/invitations') return route.fulfill({json: openInvitations});
+        return route.fulfill({json: []});
+    });
+}
+
+for (const width of [320, 375, 768]) {
+    test(`accounts and invitations become readable cards at ${width}px`, async ({page}) => {
+        await page.setViewportSize({width, height: 800});
+        await administrationBackend(page);
+
+        for (const [path, title, labels] of [
+            ['/admin/accounts', 'anna.mustermann@example.test', ['Anzeigename', 'Rolle', 'Status']],
+            ['/admin/invitations', 'dieter.sehr-lange-adresse@example.test', ['Status', 'Versendet', 'Gültig bis']],
+        ] as const) {
+            await page.goto(path);
+            const card = page.getByRole('row').filter({hasText: title});
+            await expect(card).toBeVisible();
+            expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+
+            const cardBox = await card.boundingBox();
+            expect(await card.evaluate((row) => getComputedStyle(row).display)).toBe('block');
+            for (const label of labels) {
+                const cell = card.locator(`td[data-label="${label}"]`);
+                // The column name is rendered from data-label (Firefox reports the unresolved attr() here).
+                expect(await cell.evaluate((element) => getComputedStyle(element, '::before').content)).not.toBe('none');
+                // Values keep a usable width instead of being squeezed to single letters.
+                expect((await cell.boundingBox())!.width).toBeGreaterThan(cardBox!.width * .7);
+            }
+            for (const button of await card.getByRole('button').all()) {
+                const box = (await button.boundingBox())!;
+                expect(box.x).toBeGreaterThanOrEqual(cardBox!.x);
+                expect(box.x + box.width).toBeLessThanOrEqual(cardBox!.x + cardBox!.width + 0.5);
+            }
+        }
+        expect(await seriousViolations(page)).toEqual([]);
+    });
+}
+
+test('accounts stay a table on a wide desktop', async ({page}) => {
+    await page.setViewportSize({width: 1280, height: 800});
+    await administrationBackend(page);
+    await page.goto('/admin/accounts');
+    const row = page.getByRole('row').filter({hasText: 'anna.mustermann@example.test'});
+    await expect(row).toBeVisible();
+    expect(await row.evaluate((element) => getComputedStyle(element).display)).toBe('table-row');
+    await expect(page.getByRole('columnheader', {name: 'Anzeigename'})).toBeVisible();
+});
+
+test('the mobile header only offers a menu to signed-in people', async ({page}) => {
+    await page.setViewportSize({width: 375, height: 800});
+    const state: {session: Session | null} = {session: null};
+    await fakeBackend(page, state);
+    await page.goto('/login');
+    await expect(page.getByLabel('E-Mail-Adresse')).toBeVisible();
+    await expect(page.locator('.mobile-menu-button')).toHaveCount(0);
+
+    state.session = {...user, passwordChangeRequired: true};
+    await page.goto('/password');
+    await page.locator('.mobile-menu-button').click();
+    const panel = page.locator('#mobile-menu-panel');
+    await expect(panel.getByText('anna@example.test')).toBeVisible();
+    await expect(panel.getByRole('button', {name: 'Abmelden'})).toBeVisible();
+    await expect(panel.getByRole('navigation')).toHaveCount(0);
+});

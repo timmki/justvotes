@@ -3415,6 +3415,7 @@ html.menu-open {
 .table-scroll {
     max-width: 100%;
     overflow-x: auto;
+    container: admin-table / inline-size;
 }
 
 .admin-table {
@@ -3428,15 +3429,108 @@ html.menu-open {
     border-bottom: 1px solid var(--separator);
     text-align: left;
     vertical-align: top;
+    overflow-wrap: break-word;
+}
+
+/* Email addresses are single long words; only they may break anywhere, and only past a usable width. */
+.admin-table th[scope="row"] {
+    min-width: 13rem;
     overflow-wrap: anywhere;
 }
 
-.admin-table-actions {
+.admin-table-actions .text-button {
+    margin: 0 .5rem .5rem 0;
     white-space: nowrap;
 }
 
-.admin-table-actions .text-button + .text-button {
-    margin-left: .75rem;
+/*
+ * When the table has too little room (phones, tablets, or a narrow content area beside the sidebar),
+ * every row becomes a card. The row header (email) is the card title, every other cell shows its
+ * column name from data-label, and the actions wrap below as buttons.
+ */
+@container admin-table (max-width: 44rem) {
+    .admin-card-table,
+    .admin-card-table tbody,
+    .admin-card-table tr,
+    .admin-card-table th,
+    .admin-card-table td {
+        display: block;
+    }
+
+    .admin-card-table thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+
+    .admin-card-table tbody {
+        display: grid;
+        gap: .75rem;
+    }
+
+    .admin-card-table tr {
+        padding: .75rem .9rem;
+        border: 1px solid var(--separator);
+        border-radius: .9rem;
+    }
+
+    .admin-card-table th,
+    .admin-card-table td {
+        padding: .3rem 0;
+        border-bottom: 0;
+    }
+
+    .admin-card-table th[scope="row"] {
+        padding-bottom: .5rem;
+        font-size: 1rem;
+    }
+
+    .admin-card-table td[data-label] {
+        display: grid;
+        grid-template-columns: max-content minmax(0, 1fr);
+        gap: .75rem;
+        align-items: baseline;
+        overflow-wrap: break-word;
+    }
+
+    .admin-card-table td[data-label]::before {
+        min-width: 5.5rem;
+        content: attr(data-label);
+        color: var(--muted);
+        font-size: .85rem;
+        font-weight: 700;
+    }
+
+    .admin-card-table .admin-table-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .5rem;
+        padding-top: .6rem;
+    }
+
+    .admin-card-table .admin-table-actions:empty {
+        display: none;
+    }
+
+    .admin-card-table .status-badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .25rem;
+    }
+
+    .admin-card-table .status-badge {
+        margin: 0;
+    }
+
+    .admin-card-table .admin-table-actions .text-button {
+        flex: 1 1 auto;
+        margin: 0;
+        white-space: normal;
+        overflow-wrap: normal;
+    }
 }
 
 .status-badge {

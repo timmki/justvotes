@@ -54,7 +54,7 @@ export function AccountAdministration() {
                                                    onClose={() => setOneTimePassword(null)}/>}
         {error && <p className="form-error" role="alert">{t(error.messageKey)}</p>}
         {query.data.length === 0 && <RouteState status="empty" title={t('admin.noAccounts')}/>}
-        {query.data.length !== 0 && <div className="table-scroll"><table className="admin-table">
+        {query.data.length !== 0 && <div className="table-scroll"><table className="admin-table admin-card-table">
             <thead><tr>
                 <th scope="col">{t('admin.accountEmail')}</th>
                 <th scope="col">{t('admin.accountIdentity')}</th>
@@ -80,12 +80,12 @@ function AccountRow({account, pending, onAction}: {
     if (account.status === 'locked') statusKey = 'admin.statusLocked';
     return <tr>
         <th scope="row"><span title={`${account.email} · ${formatTimestamp(account.createdAt, locale)}`}>{account.email}</span></th>
-        <td>{account.identity ?? '—'}</td>
-        <td>{t(roleKey)}</td>
-        <td>
+        <td data-label={t('admin.accountIdentity')}>{account.identity ?? '—'}</td>
+        <td data-label={t('admin.accountRole')}>{t(roleKey)}</td>
+        <td data-label={t('admin.accountStatus')}><span className="status-badges">
             <span className={`status-badge status-${account.status}`}>{t(statusKey)}</span>
             {account.passwordChangeRequired && <span className="status-badge">{t('admin.passwordChangePending')}</span>}
-        </td>
+        </span></td>
         <td className="admin-table-actions">{account.role === 'user' && <>
             {account.status === 'active' && <button className="text-button" type="button" disabled={pending}
                                                     onClick={() => onAction(account, 'lock')}>{t('admin.lockAccount')}</button>}
