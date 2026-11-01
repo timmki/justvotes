@@ -1,14 +1,32 @@
 # JustVotes
 
 JustVotes verwaltet öffentliche und private Abstimmungen, ihre Optionen und die
-anonymen Identitäten, die darin Stimmen abgeben.
+Identitäten der angemeldeten Konten, die darin Stimmen abgeben.
 
 ## Language
 
 **Identität**:
-Eine global in der Instanz gültige, frei gewählte `userID`, die eine Person für
-fachliche Zwecke repräsentiert.
+Eine global in der Instanz gültige `userID`, die eine Person für fachliche Zwecke
+repräsentiert. Sie ist fest genau einem User-Konto zugeordnet und nicht frei
+wählbar.
 _Avoid_: Benutzerkonto, Nutzer
+
+**Konto**:
+Ein lokaler, anmeldefähiger Zugang mit E-Mail-Adresse als Anmeldename, Passwort
+und Rolle. Die E-Mail-Adresse ist für andere Konten nicht sichtbar. Ein Konto
+mit der Rolle User besitzt genau eine feste Identität; das Administratorkonto
+besitzt keine. Ein Konto ist Eigentümer einer Identität, kein Synonym dafür.
+_Avoid_: Identität, Account
+
+**Rolle**:
+Bestimmt die erlaubten Funktionen eines Kontos: `User` sieht und nutzt
+Abstimmungen, `Administrator` nutzt ausschließlich die Administration.
+_Avoid_: Berechtigungsgruppe
+
+**Einladung**:
+Eine vom Administrator für eine E-Mail-Adresse ausgestellte, einmalig nutzbare
+und zeitlich begrenzte Berechtigung, ein User-Konto anzulegen.
+_Avoid_: Registrierung, Einladungscode
 
 **Stimme**:
 Die aktuelle Wahl genau einer Option einer Identität in einem Poll.
@@ -21,11 +39,12 @@ _Avoid_: HTTP-Antwort, Statuscode
 
 **Domänenereignis**:
 Ein fachlich bedeutender, bereits eingetretener Vorgang wie eine abgegebene,
-ersetzte oder beim Identitätswechsel entfernte Stimme.
+ersetzte, zurückgenommene oder administrativ entfernte Stimme.
 _Avoid_: Audit-Zeile, Datenbank-Trigger
 
 **Prüfprotokoll**:
-Die chronologische, öffentlich lesbare Ansicht der Domänenereignisse eines Polls.
+Die chronologische, für alle angemeldeten User-Konten lesbare Ansicht der
+Domänenereignisse eines Polls.
 _Avoid_: Audit Log, Audit
 
 **Vorlagengruppe**:

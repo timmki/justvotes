@@ -21,14 +21,6 @@ public class TransactionalVoteManagement implements ManageVotes, ViewVotes {
     }
 
     @Override
-    public void changeIdentity(Identity oldIdentity, Identity newIdentity) {
-        transactions.execute(() -> {
-            commands.changeIdentity(oldIdentity, newIdentity);
-            return null;
-        });
-    }
-
-    @Override
     public VoteOutcome castOrReplace(PollId pollId, Identity identity, int optionNumber) {
         return transactions.execute(() -> commands.castOrReplace(pollId, identity, optionNumber));
     }

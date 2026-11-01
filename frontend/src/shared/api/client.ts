@@ -1,20 +1,32 @@
 import type {components, operations} from './generated/justvotes';
-import {networkError, problemError} from './errors';
-import {clearProtectedQueries} from './queryClient';
+import {ApiError, networkError, problemError} from './errors';
+import {clearProtectedQueries, queryClient} from './queryClient';
+import {queryKeys} from './queryKeys';
 import {SessionCoordinator} from './session';
 
 type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
-type RequestOptions = Omit<RequestInit, 'body'> & { body?: unknown };
+/** `body` is sent as JSON; `text` is sent as is with its own content type (e.g. an uploaded vCard file). */
+type RequestOptions = Omit<RequestInit, 'body'> & { body?: unknown; text?: {content: string; contentType: string} };
 type UnauthorizedHandler = (requestPath: string) => void;
 type AuthenticatedHandler = () => void;
 type SessionEndedHandler = () => void;
+type PasswordChangeRequiredHandler = () => void;
 
 const apiPrefix = '/api/v1';
 
 type CsrfToken = components['schemas']['CsrfToken'];
 type Login = components['schemas']['Login'];
-type Identity = components['schemas']['Identity'];
-type CurrentIdentity = components['schemas']['CurrentIdentity'];
+export type CurrentSession = components['schemas']['CurrentSession'];
+type PasswordChange = components['schemas']['PasswordChange'];
+type InvitationPreview = components['schemas']['InvitationPreview'];
+type InvitationAcceptance = components['schemas']['InvitationAcceptance'];
+type InvitationRequest = components['schemas']['InvitationRequest'];
+type InvitationSummary = components['schemas']['InvitationSummary'];
+export type ContactImportPreview = components['schemas']['ContactImportPreview'];
+export type ContactImportRequest = components['schemas']['ContactImportRequest'];
+export type ContactImportResult = components['schemas']['ContactImportResult'];
+type AccountSummary = components['schemas']['AccountSummary'];
+type OneTimePassword = components['schemas']['OneTimePassword'];
 type Poll = components['schemas']['Poll'];
 type PollResults = components['schemas']['PollResults'];
 type AuditEntry = components['schemas']['AuditEntry'];
@@ -31,17 +43,20 @@ export class ApiClient {
     private readonly onUnauthorized: UnauthorizedHandler;
     private readonly onAuthenticated: AuthenticatedHandler;
     private readonly onSessionEnded: SessionEndedHandler;
+    private readonly onPasswordChangeRequired: PasswordChangeRequiredHandler;
 
     constructor(options: {
         fetcher?: Fetcher;
         onUnauthorized?: UnauthorizedHandler;
         onAuthenticated?: AuthenticatedHandler;
-        onSessionEnded?: SessionEndedHandler
+        onSessionEnded?: SessionEndedHandler;
+        onPasswordChangeRequired?: PasswordChangeRequiredHandler;
     } = {}) {
         this.fetcher = options.fetcher ?? globalThis.fetch.bind(globalThis);
         this.onUnauthorized = options.onUnauthorized ?? defaultUnauthorized;
         this.onAuthenticated = options.onAuthenticated ?? (() => undefined);
         this.onSessionEnded = options.onSessionEnded ?? (() => undefined);
+        this.onPasswordChangeRequired = options.onPasswordChangeRequired ?? (() => undefined);
     }
 
     async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -53,17 +68,22 @@ export class ApiClient {
             headers.set('Content-Type', 'application/json');
             body = JSON.stringify(options.body);
         }
+        if (options.text !== undefined) {
+            headers.set('Content-Type', options.text.contentType);
+            body = options.text.content;
+        }
         if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
             const csrf = await this.ensureCsrf();
             headers.set(csrf.headerName, csrf.token);
         }
 
+        const {text: _text, ...init} = options;
         return this.send<T>(path, {
-            ...options,
+            ...init,
             method,
             headers,
             body
-        }, path.startsWith('/admin/') && path !== '/admin/login');
+        }, notifiesUnauthorized(path));
     }
 
     getCsrf() {
@@ -71,33 +91,91 @@ export class ApiClient {
     }
 
     login(credentials: Login) {
-        return this.request<void>('/admin/login', {method: 'POST', body: credentials}).then(async () => {
+        return this.request<CurrentSession>('/session/login', {method: 'POST', body: credentials}).then(async (session) => {
             await this.refreshCsrf();
             this.onAuthenticated();
+            return session;
         });
     }
 
     logout() {
-        return this.request<void>('/admin/logout', {method: 'POST'}).then(async () => {
+        return this.request<void>('/session/logout', {method: 'POST'}).then(async () => {
             await this.refreshCsrf();
             this.onSessionEnded();
         });
     }
 
-    async getAdminSession() {
-        await this.request<void>('/admin/session');
+    /**
+     * The signed-in account, or null when there is no valid session.
+     */
+    async getSession(): Promise<CurrentSession | null> {
+        try {
+            return await this.request<CurrentSession>('/session', {cache: 'no-store'});
+        } catch (error) {
+            if (error instanceof ApiError && error.frontend.status === 401) return null;
+            throw error;
+        }
     }
 
-    getIdentity() {
-        return this.request<CurrentIdentity>('/identity');
+    changePassword(change: PasswordChange) {
+        return this.request<void>('/session/password', {method: 'PUT', body: change});
+    }
+
+    inspectInvitation(token: string) {
+        return this.request<InvitationPreview>('/invitations/inspection', {method: 'POST', body: {token}});
+    }
+
+    acceptInvitation(acceptance: InvitationAcceptance) {
+        return this.request<CurrentSession>('/invitations/acceptance', {method: 'POST', body: acceptance}).then(async (session) => {
+            await this.refreshCsrf();
+            this.onAuthenticated();
+            return session;
+        });
     }
 
     getCurrentIdentityVotes() {
         return this.request<components['schemas']['CurrentIdentityVotes']>('/identity/votes', {cache: 'no-store'});
     }
 
-    changeIdentity(identity: Identity) {
-        return this.request<void>('/identity', {method: 'POST', body: identity});
+    getInvitations() {
+        return this.request<InvitationSummary[]>('/admin/invitations');
+    }
+
+    createInvitation(invitation: InvitationRequest) {
+        return this.request<InvitationSummary>('/admin/invitations', {method: 'POST', body: invitation});
+    }
+
+    previewContactImport(file: string) {
+        return this.request<ContactImportPreview>('/admin/invitations/contact-import/preview',
+            {method: 'POST', text: {content: file, contentType: 'text/vcard;charset=UTF-8'}});
+    }
+
+    importContacts(request: ContactImportRequest) {
+        return this.request<ContactImportResult>('/admin/invitations/contact-import', {method: 'POST', body: request});
+    }
+
+    resendInvitation(invitationId: string) {
+        return this.request<InvitationSummary>(`/admin/invitations/${encodeURIComponent(invitationId)}/resend`, {method: 'POST'});
+    }
+
+    revokeInvitation(invitationId: string) {
+        return this.request<void>(`/admin/invitations/${encodeURIComponent(invitationId)}`, {method: 'DELETE'});
+    }
+
+    getAccounts() {
+        return this.request<AccountSummary[]>('/admin/accounts');
+    }
+
+    lockAccount(accountId: string) {
+        return this.request<AccountSummary>(`/admin/accounts/${encodeURIComponent(accountId)}/lock`, {method: 'POST'});
+    }
+
+    unlockAccount(accountId: string) {
+        return this.request<AccountSummary>(`/admin/accounts/${encodeURIComponent(accountId)}/unlock`, {method: 'POST'});
+    }
+
+    assignOneTimePassword(accountId: string) {
+        return this.request<OneTimePassword>(`/admin/accounts/${encodeURIComponent(accountId)}/one-time-password`, {method: 'POST'});
     }
 
     getPublicPolls() {
@@ -277,15 +355,24 @@ export class ApiClient {
 
         if (!response.ok) {
             const problem = await readProblem(response);
-            if (response.status === 403) this.invalidateCsrf();
+            if (response.status === 403 && problem.code === 'password-change-required') this.onPasswordChangeRequired();
+            else if (response.status === 403) this.invalidateCsrf();
             if (response.status === 401 && notifyUnauthorized) this.onUnauthorized(path);
-            throw problemError(problem, response.status);
+            throw problemError(problem, response.status, retryAfter(response));
         }
         if (response.status === 204) return undefined as T;
         const text = await response.text();
         if (text) return JSON.parse(text) as T;
         return undefined as T;
     }
+}
+
+function retryAfter(response: Response) {
+    const header = response.headers?.get('Retry-After');
+    if (!header) return null;
+    const seconds = Number.parseInt(header, 10);
+    if (Number.isNaN(seconds)) return null;
+    return seconds;
 }
 
 async function readProblem(response: Response) {
@@ -300,12 +387,27 @@ async function readProblem(response: Response) {
 
 export const sessionCoordinator = new SessionCoordinator();
 export const apiClient = new ApiClient({
-    onUnauthorized: (path) => sessionCoordinator.requireLogin(window.location.pathname + window.location.search || path),
+    onUnauthorized: (path) => {
+        sessionCoordinator.requireLogin(window.location.pathname + window.location.search || path);
+        queryClient.setQueryData(queryKeys.session, null);
+    },
     onSessionEnded: () => {
         clearProtectedQueries();
-        sessionCoordinator.consumeReturnRoute();
+        sessionCoordinator.markLoggedOut();
+        queryClient.setQueryData(queryKeys.session, null);
+    },
+    onPasswordChangeRequired: () => {
+        void queryClient.invalidateQueries({queryKey: queryKeys.session});
     },
 });
+
+/**
+ * Login, the session probe and the invitation endpoints answer 401 as part of their normal flow;
+ * every other 401 means the session ended and the login page must be shown.
+ */
+function notifiesUnauthorized(path: string) {
+    return path !== '/session' && path !== '/session/login' && !path.startsWith('/invitations/');
+}
 
 export type ApiOperation = keyof operations;
 

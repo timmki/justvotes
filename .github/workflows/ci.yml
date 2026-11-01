@@ -118,7 +118,7 @@ jobs:
           docker volume create "justvotes-ci-data-${{ matrix.arch }}"
           docker run --detach --name "justvotes-ci-${{ matrix.arch }}" --publish 18080:8080 \
             --volume "justvotes-ci-data-${{ matrix.arch }}:/data" \
-            --env ADMIN_USERNAME=admin \
+            --env ADMIN_EMAIL=admin@example.test \
             --env 'ADMIN_PASSWORD_HASH=$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy' \
             "justvotes:ci-${{ matrix.arch }}"
 
@@ -130,7 +130,8 @@ jobs:
           done
           test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:18080/)" = 200
           test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:18080/polls)" = 200
-          test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:18080/api/v1/missing)" = 404
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:18080/api/v1/missing)" = 401
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:18080/api/v1/polls)" = 401
           test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:18080/actuator/health)" = 200
           test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:18080/actuator/health/readiness)" = 200
       - name: Show container logs on failure

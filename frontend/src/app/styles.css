@@ -3363,3 +3363,282 @@ html.menu-open {
 :root[data-theme='openai'] .poll-metadata .eyebrow {
     color: var(--accent-text);
 }
+
+
+/* Accounts, sessions and invitations */
+.auth-page .login-form {
+    max-width: 30rem;
+}
+
+.login-form .form-hint {
+    margin-top: -.2rem;
+    font-size: .85rem;
+}
+
+.login-form .form-status:empty,
+.login-form .form-error:empty {
+    display: none;
+}
+
+.account-panel {
+    display: grid;
+    gap: .3rem;
+    min-width: 0;
+}
+
+.account-panel p {
+    margin: 0;
+}
+
+.account-panel-name,
+.account-panel-identity span {
+    overflow: hidden;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.account-panel-identity {
+    overflow: hidden;
+    color: var(--muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.account-panel-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem 1rem;
+    align-items: center;
+}
+
+.table-scroll {
+    max-width: 100%;
+    overflow-x: auto;
+    container: admin-table / inline-size;
+}
+
+.admin-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.admin-table th,
+.admin-table td {
+    padding: .6rem .5rem;
+    border-bottom: 1px solid var(--separator);
+    text-align: left;
+    vertical-align: top;
+    overflow-wrap: break-word;
+}
+
+/* Email addresses are single long words; only they may break anywhere, and only past a usable width. */
+.admin-table th[scope="row"] {
+    min-width: 13rem;
+    overflow-wrap: anywhere;
+}
+
+.admin-table-actions .text-button {
+    margin: 0 .5rem .5rem 0;
+    white-space: nowrap;
+}
+
+/*
+ * When the table has too little room (phones, tablets, or a narrow content area beside the sidebar),
+ * every row becomes a card. The row header (email) is the card title, every other cell shows its
+ * column name from data-label, and the actions wrap below as buttons.
+ */
+@container admin-table (max-width: 44rem) {
+    .admin-card-table,
+    .admin-card-table tbody,
+    .admin-card-table tr,
+    .admin-card-table th,
+    .admin-card-table td {
+        display: block;
+    }
+
+    .admin-card-table thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+
+    .admin-card-table tbody {
+        display: grid;
+        gap: .75rem;
+    }
+
+    .admin-card-table tr {
+        padding: .75rem .9rem;
+        border: 1px solid var(--separator);
+        border-radius: .9rem;
+    }
+
+    .admin-card-table th,
+    .admin-card-table td {
+        padding: .3rem 0;
+        border-bottom: 0;
+    }
+
+    .admin-card-table th[scope="row"] {
+        padding-bottom: .5rem;
+        font-size: 1rem;
+    }
+
+    .admin-card-table td[data-label] {
+        display: grid;
+        grid-template-columns: max-content minmax(0, 1fr);
+        gap: .75rem;
+        align-items: baseline;
+        overflow-wrap: break-word;
+    }
+
+    .admin-card-table td[data-label]::before {
+        min-width: 5.5rem;
+        content: attr(data-label);
+        color: var(--muted);
+        font-size: .85rem;
+        font-weight: 700;
+    }
+
+    .admin-card-table .admin-table-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .5rem;
+        padding-top: .6rem;
+    }
+
+    .admin-card-table .admin-table-actions:empty {
+        display: none;
+    }
+
+    .admin-card-table .status-badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .25rem;
+    }
+
+    .admin-card-table .status-badge {
+        margin: 0;
+    }
+
+    .admin-card-table .admin-table-actions .text-button {
+        flex: 1 1 auto;
+        margin: 0;
+        white-space: normal;
+        overflow-wrap: normal;
+    }
+}
+
+.status-badge {
+    display: inline-block;
+    margin: 0 .35rem .25rem 0;
+    padding: .1rem .5rem;
+    border: 1px solid var(--separator);
+    border-radius: 999px;
+    font-size: .8rem;
+}
+
+.status-badge.status-locked,
+.status-badge.status-failed,
+.status-badge.status-revoked {
+    border-color: #b42318;
+}
+
+.one-time-password {
+    display: grid;
+    gap: .5rem;
+    margin: 1rem 0;
+    padding: 1rem;
+    border: 2px solid var(--focus-ring);
+    border-radius: 1rem;
+    background: var(--surface);
+}
+
+.one-time-password h4,
+.one-time-password p {
+    margin: 0;
+}
+
+.one-time-password-value {
+    font-size: 1.25rem;
+    letter-spacing: .08em;
+    overflow-wrap: anywhere;
+}
+
+.invite-form {
+    margin-bottom: 1.25rem;
+}
+
+.invite-form h4 {
+    margin: 0;
+}
+
+.contact-import {
+    margin-top: 1.5rem;
+}
+
+.contact-import input[type="file"] {
+    max-width: 100%;
+}
+
+.contact-import-preview h5,
+.contact-import-summary h5 {
+    margin: 1rem 0 .5rem;
+}
+
+.contact-import .select-all,
+.contact-choice {
+    display: inline-flex;
+    gap: .5rem;
+    align-items: center;
+}
+
+.contact-import .select-all {
+    margin-bottom: .5rem;
+}
+
+.contact-import input[type="checkbox"] {
+    width: 1.1rem;
+    height: 1.1rem;
+    flex: none;
+}
+
+.contact-import-actions {
+    display: grid;
+    gap: .4rem;
+    margin-top: 1rem;
+}
+
+.contact-import-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem 1rem;
+    align-items: center;
+    margin-top: .5rem;
+}
+
+.contact-outcome-invite,
+.contact-outcome-renew {
+    border-color: var(--accent, currentColor);
+}
+
+.contact-import-skipped {
+    margin: 0 0 1rem;
+    padding-left: 1.25rem;
+    overflow-wrap: anywhere;
+}
+
+.contact-import .status-badge {
+    justify-self: start;
+    margin: 0;
+}
+
+/* Inside the nested import form the cards are narrow: the column name goes above its value. */
+.contact-import .admin-card-table td[data-label] {
+    grid-template-columns: minmax(0, 1fr);
+    gap: .1rem;
+}

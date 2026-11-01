@@ -33,7 +33,7 @@ class CsrfSessionOpenApiContractTest {
     @DynamicPropertySource
     static void applicationProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + DATABASE_PATH);
-        registry.add("ADMIN_USERNAME", () -> "systemadmin");
+        registry.add("ADMIN_EMAIL", () -> "systemadmin@example.test");
         registry.add("ADMIN_PASSWORD_HASH", () -> new BCryptPasswordEncoder().encode("password"));
     }
 
@@ -75,7 +75,20 @@ class CsrfSessionOpenApiContractTest {
     }
 
     private static boolean hasSecurity(Map<String, Object> operation, String name) {
+        if (!operation.containsKey("security")) return false;
         return ((List<Map<String, Object>>) operation.get("security")).stream().anyMatch(requirement -> requirement.containsKey(name));
+    }
+
+    /**
+     * Operations without an own security requirement inherit the global signed-in session requirement.
+     */
+    private static void assertSessionRequired(Map<String, Object> document, Map<String, Object> operation) {
+        if (operation.containsKey("security")) {
+            assertThat(hasSecurity(operation, "session")).isTrue();
+            return;
+        }
+        assertThat((List<?>) document.get("security")).singleElement()
+                .satisfies(requirement -> assertThat(map(requirement)).containsOnlyKeys("session"));
     }
 
     private static void assertSecurity(Map<String, Object> operation, String... names) {
@@ -89,48 +102,46 @@ class CsrfSessionOpenApiContractTest {
     }
 
     @Test
-    void openApiSecurityRequirementsMatchTheRuntimeForEveryAdminMutation() {
-        Map<String, Object> paths = map(map(new Yaml().load(resource("docs/justvotes-v1.yaml"))).get("paths"));
+    void openApiSecurityRequirementsMatchTheRuntimeForEveryOperation() {
+        Map<String, Object> document = map(new Yaml().load(resource("docs/justvotes-v1.yaml")));
+        Map<String, Object> paths = map(document.get("paths"));
         TestRestTemplate client = new TestRestTemplate();
         String baseUrl = "http://localhost:" + port + "/api/v1";
         ResponseEntity<String> bootstrap = client.getForEntity(baseUrl + "/csrf", String.class);
         assertThat(bootstrap.getHeaders().getCacheControl()).contains("no-store");
         String csrfCookie = cookies(bootstrap);
         String token = token(bootstrap);
+        List<String> publicOperations = List.of("/csrf", "/session/login", "/invitations/inspection", "/invitations/acceptance");
 
         paths.forEach((path, pathItem) -> map(pathItem).forEach((method, value) -> {
             if (!(value instanceof Map)) return;
             Map<String, Object> operation = map(value);
-            String url = baseUrl + path.replace("{pollId}", "p_v1_missing").replace("{groupId}", "g_v1_missing").replace("{templateId}", "t_v1_missing").replace("{voteId}", "v_v1_missing");
-            if (method.equals("get") && path.startsWith("/admin/")) {
-                assertSecurity(operation, "adminSession");
-                assertResponses(operation, "401");
-                assertStatus(client.exchange(RequestEntity.get(url).build(), String.class), 401);
-                return;
-            }
-            if (!List.of("post", "put", "patch", "delete").contains(method)) return;
-            if (path.equals("/admin/login")) {
-                assertSecurity(operation, "csrf", "csrfCookie");
-                assertResponses(operation, "401", "403");
-                assertStatus(client.exchange(request(method, url, null, null, "{\"username\":\"systemadmin\",\"password\":\"wrong\"}"), String.class), 403);
-                assertStatus(client.exchange(request(method, url, null, token, "{\"username\":\"systemadmin\",\"password\":\"wrong\"}"), String.class), 403);
-                assertStatus(client.exchange(request(method, url, csrfCookie, token, "{\"username\":\"systemadmin\",\"password\":\"wrong\"}"), String.class), 401);
-                return;
-            }
-            if (!path.startsWith("/admin/")) {
-                if (hasSecurity(operation, "csrf")) {
+            String url = baseUrl + path.replace("{pollId}", "p_v1_missing").replace("{groupId}", "g_v1_missing")
+                    .replace("{templateId}", "t_v1_missing").replace("{voteId}", "v_v1_missing")
+                    .replace("{invitationId}", "i_v1_missing").replace("{accountId}", "a_v1_missing");
+            if (publicOperations.contains(path)) {
+                assertThat(hasSecurity(operation, "session")).isFalse();
+                if (!method.equals("get")) {
                     assertSecurity(operation, "csrf", "csrfCookie");
                     assertResponses(operation, "403");
                     assertStatus(client.exchange(request(method, url, null, null, "{}"), String.class), 403);
                 }
                 return;
             }
-            assertSecurity(operation, "adminSession", "csrf", "csrfCookie");
+            assertSessionRequired(document, operation);
+            assertResponses(operation, "401");
+            if (method.equals("get")) {
+                assertStatus(client.exchange(RequestEntity.get(url).build(), String.class), 401);
+                return;
+            }
+            assertSecurity(operation, "session", "csrf", "csrfCookie");
             assertResponses(operation, "401", "403");
             assertStatus(client.exchange(request(method, url, null, null, "{}"), String.class), 403);
             assertStatus(client.exchange(request(method, url, null, token, "{}"), String.class), 403);
             assertStatus(client.exchange(request(method, url, csrfCookie, token, "{}"), String.class), 401);
         }));
+        assertStatus(client.exchange(request("post", baseUrl + "/session/login", csrfCookie, token,
+                "{\"email\":\"systemadmin@example.test\",\"password\":\"wrong\"}"), String.class), 401);
     }
 
     @Test
@@ -156,48 +167,55 @@ class CsrfSessionOpenApiContractTest {
     }
 
     @Test
-    void documentsCurrentIdentityAsAnUnauthenticatedParameterlessRead() {
-        Map<String, Object> paths = map(map(new Yaml().load(resource("docs/justvotes-v1.yaml"))).get("paths"));
-        Map<String, Object> currentIdentity = map(map(paths.get("/identity")).get("get"));
+    void documentsTheSessionAsTheOnlyAuthenticationAndRemovesFreeIdentities() {
+        Map<String, Object> document = map(new Yaml().load(resource("docs/justvotes-v1.yaml")));
+        Map<String, Object> paths = map(document.get("paths"));
+        Map<String, Object> schemes = map(map(document.get("components")).get("securitySchemes"));
 
-        assertThat(currentIdentity).doesNotContainKeys("security", "parameters");
-        assertThat(map(currentIdentity.get("responses"))).containsKey("200");
+        assertThat(schemes).containsOnlyKeys("session", "csrf", "csrfCookie");
+        assertThat(paths).doesNotContainKeys("/identity", "/admin/login", "/admin/logout", "/admin/session");
+        Map<String, Object> currentSession = map(map(paths.get("/session")).get("get"));
+        assertThat(currentSession.get("operationId")).isEqualTo("currentSession");
+        assertThat(currentSession).doesNotContainKeys("security", "parameters");
+        assertResponses(currentSession, "200", "401");
+        Map<String, Object> login = map(map(paths.get("/session/login")).get("post"));
+        assertResponses(login, "200", "401", "403", "429");
     }
 
     @Test
-    void documentsPersonalVotesAsPublicParameterlessMinimalNoStoreRead() {
+    void documentsPersonalVotesAsSessionBoundParameterlessMinimalNoStoreRead() {
         Map<String, Object> document = map(new Yaml().load(resource("docs/justvotes-v1.yaml")));
         Map<String, Object> operation = map(map(map(document.get("paths")).get("/identity/votes")).get("get"));
         assertThat(operation.get("operationId")).isEqualTo("currentIdentityVotes");
-        assertThat((List<?>) operation.get("security")).isEmpty();
-        assertThat(operation).doesNotContainKeys("parameters", "requestBody");
+        assertThat(operation).doesNotContainKeys("security", "parameters", "requestBody");
+        assertResponses(operation, "200", "401", "403");
         Map<String, Object> response = map(map(operation.get("responses")).get("200"));
         assertThat(map(response.get("headers"))).containsEntry("Cache-Control", Map.of("$ref", "#/components/headers/NoStore"));
         Map<String, Object> schemas = map(map(document.get("components")).get("schemas"));
         assertThat(map(schemas.get("CurrentIdentityVotes")).get("required")).isEqualTo(List.of("userID", "votes"));
-        assertThat(map(map(map(schemas.get("CurrentIdentityVotes")).get("properties")).get("userID"))).containsEntry("nullable", true);
+        assertThat(map(map(map(schemas.get("CurrentIdentityVotes")).get("properties")).get("userID"))).doesNotContainKey("nullable");
         assertThat(map(schemas.get("PersonalVote")).get("required").toString()).contains("poll", "option", "votedAt");
         assertThat(map(map(map(schemas.get("PersonalVotePoll")).get("properties")).get("state")).get("enum").toString()).isEqualTo("[active, expired, archived]");
     }
 
     @Test
-    void documentsPollResultsAsAnUnauthenticatedReadWithVisibilityFailures() {
+    void documentsPollResultsAsASessionBoundReadWithVisibilityFailures() {
         Map<String, Object> paths = map(map(new Yaml().load(resource("docs/justvotes-v1.yaml"))).get("paths"));
         Map<String, Object> pollResults = map(map(paths.get("/polls/{pollId}/results")).get("get"));
 
         assertThat(pollResults).doesNotContainKeys("security", "parameters", "requestBody");
-        assertThat(map(pollResults.get("responses"))).containsKeys("200", "403", "404");
+        assertThat(map(pollResults.get("responses"))).containsKeys("200", "401", "403", "404");
     }
 
     @Test
-    void documentsVoteWithdrawalAsACsrfProtectedIdentityBoundMutation() {
+    void documentsVoteWithdrawalAsACsrfProtectedSessionBoundMutation() {
         Map<String, Object> paths = map(map(new Yaml().load(resource("docs/justvotes-v1.yaml"))).get("paths"));
         Map<String, Object> withdrawal = map(map(paths.get("/polls/{pollId}/votes")).get("delete"));
 
         assertThat(withdrawal.get("operationId")).isEqualTo("withdrawVote");
-        assertSecurity(withdrawal, "voterIdentity", "csrf", "csrfCookie");
+        assertSecurity(withdrawal, "session", "csrf", "csrfCookie");
         assertThat(withdrawal).doesNotContainKey("requestBody");
-        assertResponses(withdrawal, "204", "403", "404", "409");
+        assertResponses(withdrawal, "204", "401", "403", "404", "409");
     }
 
     @Test
@@ -220,7 +238,7 @@ class CsrfSessionOpenApiContractTest {
 
         Map<String, Object> listing = map(map(paths.get("/admin/votes")).get("get"));
         assertThat(listing.get("operationId")).isEqualTo("adminVotes");
-        assertSecurity(listing, "adminSession");
+        assertSecurity(listing, "session");
         assertResponses(listing, "200", "400", "401");
         assertThat((List<?>) listing.get("parameters")).isNotEmpty();
         assertThat(map(parameters.get("Page")).get("description").toString()).contains("0");
@@ -228,7 +246,7 @@ class CsrfSessionOpenApiContractTest {
 
         Map<String, Object> removal = map(map(paths.get("/admin/votes/{voteId}")).get("delete"));
         assertThat(removal.get("operationId")).isEqualTo("removeAdminVote");
-        assertSecurity(removal, "adminSession", "csrf", "csrfCookie");
+        assertSecurity(removal, "session", "csrf", "csrfCookie");
         assertResponses(removal, "204", "400", "401", "403", "404");
 
         Map<String, Object> reason = map(map(schemas.get("VoteRemoval")).get("properties"));
@@ -248,12 +266,12 @@ class CsrfSessionOpenApiContractTest {
         assertThat(enumValues(schemas, "AuditEventType")).containsExactly(
                 "PollPublished", "PollExpired", "PollArchived", "PollRestoredFromArchive",
                 "PollExpiryChanged", "PollReopened", "PollSoftDeleted", "PollRestored",
-                "VoteCast", "VoteReplaced", "VoteWithdrawn", "VoteRemovedForIdentityChange", "VoteRemovedByAdmin");
+                "VoteCast", "VoteReplaced", "VoteWithdrawn", "VoteRemovedByAdmin");
         assertThat(enumValues(schemas, "PollAuditEventType")).containsExactly(
                 "PollPublished", "PollExpired", "PollArchived", "PollRestoredFromArchive",
                 "PollExpiryChanged", "PollReopened", "PollSoftDeleted", "PollRestored");
         assertThat(enumValues(schemas, "VoteAuditEventType")).containsExactly(
-                "VoteCast", "VoteReplaced", "VoteWithdrawn", "VoteRemovedForIdentityChange", "VoteRemovedByAdmin");
+                "VoteCast", "VoteReplaced", "VoteWithdrawn", "VoteRemovedByAdmin");
 
         Map<String, Object> audit = map(schemas.get("AuditEntry"));
         assertThat((List<?>) audit.get("oneOf")).hasSize(2);

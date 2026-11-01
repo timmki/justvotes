@@ -104,7 +104,6 @@ const auditEventTranslationKeys: Record<AuditEventType, TranslationKey> = {
     VoteCast: 'audit.voteCast',
     VoteReplaced: 'audit.voteReplaced',
     VoteWithdrawn: 'audit.voteWithdrawn',
-    VoteRemovedForIdentityChange: 'audit.voteRemovedForIdentityChange',
     VoteRemovedByAdmin: 'audit.voteRemovedByAdmin',
 };
 

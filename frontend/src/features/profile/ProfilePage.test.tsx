@@ -30,22 +30,12 @@ describe('ProfilePage', () => {
         expect(screen.getByText('Bob')).toBeVisible();
         expect(screen.queryByText('Alice')).not.toBeInTheDocument();
     });
-    it('distinguishes missing identity and reuses the existing identity editor', async () => {
-        vi.spyOn(apiClient, 'getCurrentIdentityVotes').mockResolvedValue({userID: null, votes: []});
-        renderPollTest('/profile', <ProfilePage/>);
-        expect(await screen.findByText('Zuerst eine Identität setzen')).toBeVisible();
-        fireEvent.click(screen.getByRole('button', {name: 'Identität festlegen'}));
-        expect(screen.getByLabelText('Neue Identität')).toBeVisible();
-        expect(screen.queryByText('Transport')).not.toBeInTheDocument();
-        expect(screen.queryByText('Keine aktuelle Stimme')).not.toBeInTheDocument();
-    });
     it('distinguishes a set identity with no current public votes', async () => {
         vi.spyOn(apiClient, 'getCurrentIdentityVotes').mockResolvedValue({userID: 'Alice', votes: []});
         renderPollTest('/profile', <ProfilePage/>);
         expect(await screen.findByText('Keine aktuelle Stimme')).toBeVisible();
         expect(screen.getByText('Alice')).toBeVisible();
         expect(screen.queryByText('Transport')).not.toBeInTheDocument();
-        expect(screen.queryByText('Zuerst eine Identität setzen')).not.toBeInTheDocument();
     });
     it('shows only current personal fields without technical IDs or unrelated voters', async () => {
         vi.spyOn(apiClient, 'getCurrentIdentityVotes').mockResolvedValue({userID: 'Älice #1', votes: [vote,

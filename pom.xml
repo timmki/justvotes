@@ -8,6 +8,7 @@
     <modules>
         <module>poll-management</module>
         <module>template-catalog</module>
+        <module>account-management</module>
         <module>api-contract</module>
         <module>adapters</module>
         <module>bootstrap</module>

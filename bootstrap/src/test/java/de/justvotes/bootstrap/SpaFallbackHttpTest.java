@@ -25,7 +25,7 @@ class SpaFallbackHttpTest {
     @DynamicPropertySource
     static void applicationProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + DATABASE_PATH);
-        registry.add("ADMIN_USERNAME", () -> "systemadmin");
+        registry.add("ADMIN_EMAIL", () -> "systemadmin@example.test");
         registry.add("ADMIN_PASSWORD_HASH", () -> "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy");
     }
 
@@ -48,8 +48,9 @@ class SpaFallbackHttpTest {
         assertThat(staticFile.getHeaders().getContentType()).isEqualTo(MediaType.TEXT_HTML);
         assertThat(clientRoute.getBody()).isEqualTo(root.getBody());
         assertThat(missingAsset.getStatusCode().value()).isEqualTo(404);
-        assertThat(missingApiRoot.getStatusCode().value()).isEqualTo(404);
-        assertThat(missingApi.getStatusCode().value()).isEqualTo(404);
+        // Without a session nothing below /api is revealed, not even whether a route exists.
+        assertThat(missingApiRoot.getStatusCode().value()).isEqualTo(401);
+        assertThat(missingApi.getStatusCode().value()).isEqualTo(401);
         assertThat(missingActuator.getStatusCode().value()).isEqualTo(404);
     }
 }

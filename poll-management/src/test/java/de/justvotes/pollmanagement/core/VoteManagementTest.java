@@ -3,7 +3,6 @@ package de.justvotes.pollmanagement.core;
 import de.justvotes.pollmanagement.core.event.PollDomainEvent;
 import de.justvotes.pollmanagement.core.event.PollLifecycleChanged;
 import de.justvotes.pollmanagement.core.event.VoteRemovedByAdmin;
-import de.justvotes.pollmanagement.core.event.VoteRemovedForIdentityChange;
 import de.justvotes.pollmanagement.core.event.VoteWithdrawn;
 import de.justvotes.pollmanagement.core.exception.PollNotActiveException;
 import de.justvotes.pollmanagement.core.exception.PollNotFoundException;
@@ -64,44 +63,6 @@ class VoteManagementTest {
     private static VoteManagement management(Instant now, Poll... polls) {
         return new VoteManagement(new InMemoryPollRepository(polls), pollId -> List.of(), ignored -> {
         }, () -> now);
-    }
-
-    @Test
-    void removesVotesFromOpenPollsAndRecordsTheOriginalIdentity() {
-        Poll firstOpenPoll = activePollWithVote(OLD_IDENTITY);
-        Poll secondOpenPoll = activePollWithVote(OLD_IDENTITY);
-        Poll closedPoll = Poll.reconstitue(
-                PollId.newId(), "Vergangene Wahl", "systemadmin", Visibility.PUBLIC, State.EXPIRED,
-                group(), List.of("Ja"), List.of("Ja"), List.of(new Vote(OLD_IDENTITY, 1, VOTE_TIME))
-        );
-        InMemoryPollRepository polls = new InMemoryPollRepository(firstOpenPoll, secondOpenPoll, closedPoll);
-        List<PollDomainEvent> events = new ArrayList<>();
-        VoteManagement management = new VoteManagement(polls, pollId -> List.of(), events::add, Instant::now);
-
-        management.changeIdentity(OLD_IDENTITY, NEW_IDENTITY);
-
-        assertEquals(List.of(), firstOpenPoll.votes());
-        assertEquals(List.of(), secondOpenPoll.votes());
-        assertEquals(List.of(new Vote(OLD_IDENTITY, 1, VOTE_TIME)), closedPoll.votes());
-        assertEquals(List.of(
-                new VoteRemovedForIdentityChange(firstOpenPoll.id(), new Vote(OLD_IDENTITY, 1, VOTE_TIME), "Ja"),
-                new VoteRemovedForIdentityChange(secondOpenPoll.id(), new Vote(OLD_IDENTITY, 1, VOTE_TIME), "Ja")
-        ), events);
-        assertEquals(List.of(firstOpenPoll, secondOpenPoll), polls.saved());
-    }
-
-    @Test
-    void leavesVotesAndHistoryUntouchedWhenTheIdentityDoesNotChange() {
-        Poll openPoll = activePollWithVote(OLD_IDENTITY);
-        InMemoryPollRepository polls = new InMemoryPollRepository(openPoll);
-        List<PollDomainEvent> events = new ArrayList<>();
-        VoteManagement management = new VoteManagement(polls, pollId -> List.of(), events::add, Instant::now);
-
-        management.changeIdentity(OLD_IDENTITY, OLD_IDENTITY);
-
-        assertEquals(List.of(new Vote(OLD_IDENTITY, 1, VOTE_TIME)), openPoll.votes());
-        assertEquals(List.of(), events);
-        assertEquals(List.of(), polls.saved());
     }
 
     @Test
@@ -285,7 +246,7 @@ class VoteManagementTest {
     }
 
     @Test
-    void personalVotesTrackCastReplacementWithdrawalAndIdentityChangesWithNewestFirst() {
+    void personalVotesTrackCastReplacementAndWithdrawalPerIdentityWithNewestFirst() {
         Poll first = Poll.reconstitue(PollId.newId(), "First", "admin", Visibility.PUBLIC, State.ACTIVE,
                 group(), List.of("Ja", "Nein"), List.of("Ja", "Nein"), List.of());
         Poll second = activePollWithVote(OLD_IDENTITY);
@@ -300,8 +261,7 @@ class VoteManagementTest {
         service.withdrawVote(first.id(), OLD_IDENTITY);
         assertEquals(List.of(second.id()), service.currentVotes(OLD_IDENTITY).stream().map(PersonalVote::pollId).toList());
         service.castOrReplace(first.id(), NEW_IDENTITY, 1);
-        service.changeIdentity(OLD_IDENTITY, NEW_IDENTITY);
-        assertEquals(List.of(), service.currentVotes(OLD_IDENTITY));
+        assertEquals(List.of(second.id()), service.currentVotes(OLD_IDENTITY).stream().map(PersonalVote::pollId).toList());
         assertEquals(List.of(first.id()), service.currentVotes(NEW_IDENTITY).stream().map(PersonalVote::pollId).toList());
     }
 

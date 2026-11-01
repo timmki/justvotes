@@ -1,0 +1,92 @@
+package de.justvotes.adapters.accountmanagement.infra.in.transaction;
+
+import de.justvotes.accountmanagement.core.InvitationManagement;
+import de.justvotes.accountmanagement.core.model.Account;
+import de.justvotes.accountmanagement.core.model.ContactAssessment;
+import de.justvotes.accountmanagement.core.model.ContactCandidate;
+import de.justvotes.accountmanagement.core.model.ContactInvitation;
+import de.justvotes.accountmanagement.core.model.InvitationId;
+import de.justvotes.accountmanagement.core.model.InvitationOverview;
+import de.justvotes.accountmanagement.core.model.InvitationPreview;
+import de.justvotes.accountmanagement.core.model.IssuedInvitation;
+import de.justvotes.accountmanagement.core.ports.in.AcceptInvitation;
+import de.justvotes.accountmanagement.core.ports.in.InviteContacts;
+import de.justvotes.accountmanagement.core.ports.in.ManageInvitations;
+import de.justvotes.adapters.sqlite.SqliteRetryingTransaction;
+import org.springframework.dao.DataAccessException;
+
+import java.util.List;
+
+public class TransactionalInvitationManagement implements ManageInvitations, AcceptInvitation, InviteContacts {
+    private final InvitationManagement invitations;
+    private final SqliteRetryingTransaction transactions;
+
+    public TransactionalInvitationManagement(InvitationManagement invitations, SqliteRetryingTransaction transactions) {
+        this.invitations = invitations;
+        this.transactions = transactions;
+    }
+
+    @Override
+    public IssuedInvitation invite(String email) {
+        return transactions.execute(() -> invitations.invite(email));
+    }
+
+    @Override
+    public IssuedInvitation resend(InvitationId invitationId) {
+        return transactions.execute(() -> invitations.resend(invitationId));
+    }
+
+    @Override
+    public void revoke(InvitationId invitationId) {
+        transactions.execute(() -> {
+            invitations.revoke(invitationId);
+            return null;
+        });
+    }
+
+    @Override
+    public void recordDelivery(InvitationId invitationId, boolean delivered) {
+        transactions.execute(() -> {
+            invitations.recordDelivery(invitationId, delivered);
+            return null;
+        });
+    }
+
+    @Override
+    public InvitationOverview invitation(InvitationId invitationId) {
+        return transactions.executeReadOnly(() -> invitations.invitation(invitationId));
+    }
+
+    @Override
+    public List<InvitationOverview> invitations() {
+        return transactions.executeReadOnly(invitations::invitations);
+    }
+
+    @Override
+    public List<ContactAssessment> assess(List<ContactCandidate> contacts) {
+        return transactions.executeReadOnly(() -> invitations.assess(contacts));
+    }
+
+    /**
+     * Each contact runs in its own transaction, so a conflict for one contact never undoes the others.
+     */
+    @Override
+    public ContactInvitation inviteContact(String email, String name) {
+        return transactions.execute(() -> invitations.inviteContact(email, name));
+    }
+
+    @Override
+    public InvitationPreview inspect(String token) {
+        return transactions.executeReadOnly(() -> invitations.inspect(token));
+    }
+
+    @Override
+    public Account accept(String token, String identity, String password) {
+        try {
+            return transactions.execute(() -> invitations.accept(token, identity, password));
+        } catch (DataAccessException concurrentAcceptance) {
+            // A parallel acceptance won the unique index; the second attempt reports the taken identity.
+            return transactions.execute(() -> invitations.accept(token, identity, password));
+        }
+    }
+}

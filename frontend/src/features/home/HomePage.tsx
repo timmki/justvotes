@@ -3,7 +3,6 @@ import {apiClient} from '../../shared/api/client';
 import {useApiQuery} from '../../shared/api/useApiQuery';
 import {queryKeys} from '../../shared/api/queryKeys';
 import {useI18n} from '../../shared/i18n/I18nProvider';
-import {IdentityEditor} from '../../shared/ui/IdentityEditor';
 import {PageFrame} from '../../shared/ui/PageFrame';
 import {QueryState} from '../../shared/ui/QueryState';
 import {RouteState} from '../../shared/ui/RouteState';
@@ -11,15 +10,9 @@ import {PublicPollCard, type PublicPoll} from '../polls/PublicPollCard';
 
 export function HomePage() {
     const {t} = useI18n();
-    const identityQuery = useApiQuery(queryKeys.identity, () => apiClient.getIdentity());
     const pollsQuery = useApiQuery(queryKeys.publicPolls, () => apiClient.getPublicPolls());
     return <PageFrame title={t('common.home')} description={t('common.homeDescription')} titleHidden>
-        <QueryState query={identityQuery}>{(identity) => {
-            if (identity.userID) return <IdentityEditor identity={identity.userID} variant="compact"/>;
-            return <IdentityEditor identity={null}/>;
-        }}</QueryState>
         <QueryState query={pollsQuery}>{(polls) => <HomeDiscovery polls={polls}/>}</QueryState>
-        <footer className="home-footer"><Link className="text-link" to="/admin">{t('common.admin')}</Link></footer>
     </PageFrame>;
 }
 

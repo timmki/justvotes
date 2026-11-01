@@ -1,14 +1,42 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-const centralRoutes = ['/', '/profile', '/polls', '/poll/example', '/poll/results/example', '/poll/results/example/option/1', '/poll/audit/example', '/404', '/admin', '/admin/votes', '/admin/polls', '/admin/groups', '/admin/templates', '/admin/create'];
+const centralRoutes = ['/', '/profile', '/polls', '/poll/example', '/poll/results/example', '/poll/results/example/option/1', '/poll/audit/example', '/404', '/admin', '/admin/votes', '/admin/polls', '/admin/groups', '/admin/templates', '/admin/create', '/admin/accounts', '/admin/invitations'];
+
+type Session = { email: string; role: 'user' | 'admin'; identity: string | null; passwordChangeRequired: boolean };
+const userSession: Session = { email: 'alice@example.test', role: 'user', identity: 'alice', passwordChangeRequired: false };
+const adminSession: Session = { email: 'systemadmin@example.test', role: 'admin', identity: null, passwordChangeRequired: false };
+const sessionOverrides = new WeakMap<Page, Session | null>();
+
+/**
+ * Signs the browser in for the mocked API: admin routes use the administrator, all other routes a user,
+ * unless a test sets a session explicitly.
+ */
+function setSession(page: Page, session: Session | null) {
+  sessionOverrides.set(page, session);
+}
+
+function sessionFor(page: Page) {
+  if (sessionOverrides.has(page)) return sessionOverrides.get(page) ?? null;
+  if (new URL(page.url() || 'http://localhost/').pathname.startsWith('/admin')) return adminSession;
+  return userSession;
+}
+
+async function mockApi(page: Page, handler: Parameters<Page['route']>[1]) {
+  await page.route('**/api/v1/**', async (route, request) => {
+    if (new URL(request.url()).pathname === '/api/v1/session') {
+      const session = sessionFor(page);
+      if (session) return route.fulfill({ json: session });
+      return route.fulfill({ status: 401, json: { status: 401, code: 'authentication-required' } });
+    }
+    return handler(route, request);
+  });
+}
 
 test.beforeEach(async ({ page }) => {
-  await page.route('**/api/v1/**', async (route) => {
+  await mockApi(page, async (route) => {
     const url = route.request().url();
-    if (url.endsWith('/admin/session')) return route.fulfill({ status: 401, json: { status: 401, code: 'unauthorized' } });
-    if (url.endsWith('/identity/votes')) return route.fulfill({ json: { userID: null, votes: [] } });
-    if (url.endsWith('/identity')) return route.fulfill({ json: { userID: null } });
+    if (url.endsWith('/identity/votes')) return route.fulfill({ json: { userID: 'alice', votes: [] } });
     return route.fulfill({ json: [] });
   });
 });
@@ -70,7 +98,7 @@ test('keeps the public navigation reachable on a narrow viewport', async ({ page
   await page.keyboard.press('Escape');
   await expect(navigation).toHaveCount(0);
   await page.goto('/');
-  await expect(page.getByRole('link', { name: 'Admin' })).toHaveAttribute('href', '/admin');
+  await expect(page.getByRole('link', { name: 'Admin' })).toHaveCount(0);
   const themeButton = page.getByRole('button', { name: 'Theme auswählen' });
   await themeButton.click();
   await expect(page.getByRole('radiogroup', { name: 'Theme auswählen' })).toBeVisible();
@@ -132,15 +160,16 @@ test('keeps the polls intro close to the mobile header', async ({ page }) => {
    })).toBeLessThanOrEqual(24);
 });
 
-test('keeps central routes within supported viewport widths', async ({ page }) => {
-  for (const width of [320, 600, 900, 1280]) {
+// One test per width keeps each run of all central routes within its own timeout on slower CI browsers.
+for (const width of [320, 600, 900, 1280]) {
+  test(`keeps central routes within the viewport at ${width}px`, async ({ page }) => {
     await page.setViewportSize({width, height: 720});
     for (const route of centralRoutes) {
       await page.goto(route);
       expect(await page.evaluate(() => document.documentElement.scrollWidth), `${route} at ${width}px`).toBeLessThanOrEqual(width);
     }
-  }
-});
+  });
+}
 
 test('keeps populated public and admin surfaces within supported viewport widths', async ({ page }) => {
   const poll = {
@@ -155,10 +184,9 @@ test('keeps populated public and admin surfaces within supported viewport widths
     templateSnapshotOptions: [{ number: 1, text: 'Yes' }, { number: 2, text: 'No' }],
     options: [{ number: 1, text: 'Yes' }, { number: 2, text: 'No' }],
   };
-  await page.route('**/api/v1/**', async (route) => {
+  await mockApi(page, async (route) => {
     const request = route.request();
     const url = request.url();
-    if (url.endsWith('/admin/session')) return route.fulfill({ status: 204 });
     if (url.endsWith('/polls/p_responsive/results')) return route.fulfill({ json: {
       ...poll,
       options: [{ number: 1, text: 'Yes', voteCount: 1, votes: [{ userID: 'alice', votedAt: poll.createdAt }] }, { number: 2, text: 'No', voteCount: 0, votes: [] }],
@@ -215,79 +243,10 @@ test('uses only same-origin runtime resources', async ({ page }) => {
   }
 });
 
-test('sets the identity once after confirming without a removal warning', async ({ page }) => {
-  let identity: string | null = null;
-  const requests: { method: string; url: string }[] = [];
-  await page.route('**/api/v1/**', async (route) => {
-    const request = route.request();
-    requests.push({ method: request.method(), url: request.url() });
-    if (request.url().endsWith('/csrf')) return route.fulfill({ json: { token: 'csrf-token', headerName: 'X-XSRF-TOKEN' } });
-    if (request.url().endsWith('/identity') && request.method() === 'GET') return route.fulfill({ json: { userID: identity } });
-    if (request.url().endsWith('/identity') && request.method() === 'POST') {
-      identity = request.postDataJSON().userID;
-      return route.fulfill({ status: 204 });
-    }
-    return route.fulfill({ json: [] });
-  });
-
-  await page.goto('/');
-  await page.locator('.identity-card').getByRole('button', { name: 'Identität festlegen' }).click();
-  await page.getByLabel('Neue Identität').fill('Alice_1');
-  await page.getByRole('button', { name: 'Speichern' }).click();
-
-  await expect(page.getByRole('dialog')).toContainText('Identität festlegen?');
-  await expect(page.getByRole('dialog')).not.toContainText('Stimmen der bisherigen Identität');
-  await page.getByRole('button', { name: 'Festlegen', exact: true }).click();
-  await expect(page.getByTitle('Alice_1')).toHaveCount(1);
-
-  expect(requests.filter(({ method, url }) => method === 'POST' && url.endsWith('/identity'))).toHaveLength(1);
-  expect(requests.filter(({ method, url }) => method === 'DELETE' && url.includes('/votes'))).toHaveLength(0);
-});
-
-test('keeps the identity confirmation above poll content', async ({ page }) => {
-  await page.setViewportSize({ width: 969, height: 900 });
-  await page.route('**/api/v1/**', async (route) => {
-    const url = route.request().url();
-    if (url.endsWith('/identity')) return route.fulfill({ json: { userID: 'alice' } });
-    if (url.endsWith('/polls/poll-z-index')) return route.fulfill({ json: {
-      id: 'poll-z-index',
-      title: 'Poll behind identity dialog',
-      visibility: 'public',
-      state: 'active',
-      createdAt: '2026-08-31T12:00:00.000Z',
-      endsAt: null,
-      totalVotes: 0,
-      options: [{ number: 1, text: 'Yes' }, { number: 2, text: 'No' }],
-    } });
-    if (url.endsWith('/polls/poll-z-index/results')) return route.fulfill({ json: {
-      id: 'poll-z-index',
-      totalVotes: 0,
-      options: [{ number: 1, text: 'Yes', voteCount: 0, votes: [] }, { number: 2, text: 'No', voteCount: 0, votes: [] }],
-    } });
-    return route.fulfill({ json: [] });
-  });
-
-  await page.goto('/poll/poll-z-index');
-  await expect(page.getByText('Poll behind identity dialog')).toBeVisible();
-  await page.evaluate(() => window.scrollTo(0, 450));
-  await page.locator('.identity-shell-editor').getByRole('button', { name: 'Identität ändern' }).click();
-  await page.getByLabel('Neue Identität').fill('bob');
-  await page.locator('.identity-shell-editor').getByRole('button', { name: 'Speichern' }).click();
-
-  const dialog = page.getByRole('dialog');
-  await expect(dialog).toBeVisible();
-  expect(await dialog.evaluate((element) => element.closest('.sidebar'))).toBeNull();
-  expect(await dialog.evaluate((element) => {
-    const bounds = element.getBoundingClientRect();
-    const topmost = document.elementFromPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2);
-    return topmost?.closest('[role="dialog"]') === element;
-  })).toBe(true);
-});
-
 test('renders public poll cards from one list request without N+1 detail requests', async ({ page }) => {
   const requests: string[] = [];
   await page.setViewportSize({ width: 375, height: 800 });
-  await page.route('**/api/v1/**', async (route) => {
+  await mockApi(page, async (route) => {
     const request = route.request();
     requests.push(request.url());
     if (request.url().endsWith('/polls') && request.method() === 'GET') {
@@ -349,11 +308,10 @@ test('casts and replaces a public poll vote only after submitting', async ({ pag
     }),
   });
 
-  await page.route('**/api/v1/**', async (route) => {
+  await mockApi(page, async (route) => {
     const request = route.request();
     const url = request.url();
     requestMethods.push(request.method());
-    if (url.endsWith('/identity') && request.method() === 'GET') return route.fulfill({ json: { userID: 'alice' } });
     if (url.endsWith('/polls/p_v1_vote') && request.method() === 'GET') return route.fulfill({ json: poll() });
     if (url.endsWith('/polls/p_v1_vote/results') && request.method() === 'GET') {
       if (selectedOption === null) return route.fulfill({ status: 403, json: { status: 403, code: 'results-not-available' } });
@@ -400,10 +358,9 @@ test('casts and replaces a public poll vote only after submitting', async ({ pag
 });
 
 test('disables voting for an expired poll and safely handles private or missing polls', async ({ page }) => {
-  await page.route('**/api/v1/**', async (route) => {
+  await mockApi(page, async (route) => {
     const request = route.request();
     const url = request.url();
-    if (url.endsWith('/identity')) return route.fulfill({ json: { userID: null } });
     if (url.endsWith('/polls/p_expired')) return route.fulfill({ json: {
       id: 'p_expired',
       title: 'Expired browser poll',
@@ -455,10 +412,9 @@ test('disables voting for an expired poll and safely handles private or missing 
 });
 
 test('schützt Poll-Ergebnisse vor Stimmabgabe und gibt sie nach Stimmabgabe oder Ablauf frei', async ({ page }) => {
-  await page.route('**/api/v1/**', async (route) => {
+  await mockApi(page, async (route) => {
     const request = route.request();
     const url = request.url();
-    if (url.endsWith('/identity')) return route.fulfill({ json: { userID: 'alice' } });
     if (url.endsWith('/polls/p_results_before/results')) {
       return route.fulfill({ status: 403, json: { status: 403, code: 'results-not-available' } });
     }
@@ -488,10 +444,9 @@ test('schützt Poll-Ergebnisse vor Stimmabgabe und gibt sie nach Stimmabgabe ode
 });
 
 test('keeps a failed vote selection so it can be submitted again', async ({ page }) => {
-  await page.route('**/api/v1/**', async (route) => {
+  await mockApi(page, async (route) => {
     const request = route.request();
     const url = request.url();
-    if (url.endsWith('/identity')) return route.fulfill({ json: { userID: 'alice' } });
     if (url.endsWith('/polls/p_failed_vote') && request.method() === 'GET') return route.fulfill({ json: {
       id: 'p_failed_vote', title: 'Failed vote poll', visibility: 'public', state: 'active',
       createdAt: '2026-08-31T12:00:00.000Z', endsAt: '2099-01-01T00:00:00.000Z', totalVotes: 1,
@@ -521,10 +476,9 @@ test('keeps a failed vote selection so it can be submitted again', async ({ page
 test('refreshes active results on schedule and stops after the poll expires', async ({ page }) => {
   let resultsRequest = 0;
   await page.clock.install();
-  await page.route('**/api/v1/**', async (route) => {
+  await mockApi(page, async (route) => {
     const request = route.request();
     const url = request.url();
-    if (url.endsWith('/identity')) return route.fulfill({ json: { userID: 'alice' } });
     if (url.endsWith('/polls/p_live_results/results')) {
       resultsRequest += 1;
       const active = resultsRequest < 3;
@@ -554,7 +508,7 @@ test('refreshes active results on schedule and stops after the poll expires', as
 
 test('loads a direct option link with the complete current voter list', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 800 });
-  await page.route('**/api/v1/**', async (route) => {
+  await mockApi(page, async (route) => {
     const request = route.request();
     const url = request.url();
     if (url.endsWith('/polls/p_option_details/results')) return route.fulfill({ json: {
@@ -590,7 +544,7 @@ test('loads a direct option link with the complete current voter list', async ({
 
 test('zeigt eine lokalisierte, zugaengliche oeffentliche Domaenenereignis-Timeline', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 800 });
-  await page.route('**/api/v1/**', async (route) => {
+  await mockApi(page, async (route) => {
     const request = route.request();
     if (request.url().endsWith('/polls/p_audit_browser/audit')) return route.fulfill({ json: [
       { event: 'PollPublished', actor: 'admin', occurredAt: '2026-08-31T12:00:00.000Z' },
@@ -621,7 +575,7 @@ test('zeigt eine lokalisierte, zugaengliche oeffentliche Domaenenereignis-Timeli
 
 test('zeigt null Prozent und Gleichstände in Poll-Ergebnissen', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 800 });
-  await page.route('**/api/v1/**', async (route) => {
+  await mockApi(page, async (route) => {
     const request = route.request();
     const url = request.url();
     if (url.endsWith('/polls/p_zero_results/results')) return route.fulfill({ json: {
@@ -659,10 +613,9 @@ test('confirms vote withdrawal and returns to the poll detail', async ({ page })
   let deleteRequests = 0;
   let csrfHeader: string | undefined;
   let confirmationMessage = '';
-  await page.route('**/api/v1/**', async (route) => {
+  await mockApi(page, async (route) => {
     const request = route.request();
     const url = request.url();
-    if (url.endsWith('/identity')) return route.fulfill({ json: { userID: 'alice' } });
     if (url.endsWith('/polls/p_withdrawal') && request.method() === 'GET') return route.fulfill({ json: {
       id: 'p_withdrawal', title: 'Withdrawal poll', visibility: 'public', state: 'active',
       createdAt: '2026-08-31T12:00:00.000Z', endsAt: '2099-01-01T00:00:00.000Z', totalVotes: Number(!withdrawn),
@@ -703,37 +656,33 @@ test('confirms vote withdrawal and returns to the poll detail', async ({ page })
   expect(csrfHeader).toBe('csrf-token');
 });
 
-test('logs in, restores the active admin area after reload, and logs out', async ({ page }) => {
-  let authenticated = false;
-  await page.route('**/api/v1/**', async (route) => {
-    const request = route.request();
+test('signs the administrator in, restores the active admin area after reload, and signs out', async ({ page }) => {
+  setSession(page, null);
+  await mockApi(page, async (route, request) => {
     const url = request.url();
     if (url.endsWith('/csrf')) return route.fulfill({ json: { token: 'csrf-token', headerName: 'X-XSRF-TOKEN' } });
-    if (url.endsWith('/admin/login')) { authenticated = true; return route.fulfill({ status: 204 }); }
-    if (url.endsWith('/admin/session')) {
-      if (authenticated) return route.fulfill({ status: 204 });
-      return route.fulfill({ status: 401, json: { status: 401, code: 'unauthorized' } });
-    }
-    if (url.endsWith('/admin/logout')) { authenticated = false; return route.fulfill({ status: 204 }); }
+    if (url.endsWith('/session/login')) { setSession(page, adminSession); return route.fulfill({ json: adminSession }); }
+    if (url.endsWith('/session/logout')) { setSession(page, null); return route.fulfill({ status: 204 }); }
     if (url.includes('/admin/votes?')) return route.fulfill({ json: { votes: [], page: 0, size: 50, totalElements: 0 } });
     return route.fulfill({ json: [] });
   });
 
   await page.goto('/admin');
-  await expect(page.getByLabel('Benutzername')).toBeVisible();
+  await expect(page.getByLabel('E-Mail-Adresse')).toBeVisible();
+  await expect(page).toHaveURL(/\/login$/);
   expect(await page.getByRole('navigation', { name: 'Admin-Navigation' }).count()).toBe(0);
-  await page.getByLabel('Benutzername').fill('admin');
+  const accessibility = await new AxeBuilder({ page }).analyze();
+  expect(accessibility.violations.filter(({ impact }) => impact === 'critical' || impact === 'serious')).toEqual([]);
+  await page.getByLabel('E-Mail-Adresse').fill('systemadmin@example.test');
   await page.getByLabel('Passwort').fill('secret');
   await page.getByRole('button', { name: 'Anmelden' }).click();
 
   await expect(page.getByRole('heading', { name: 'Stimmen', level: 3 })).toBeVisible();
-  await expect(page.locator('.back-link')).toHaveAttribute('href', '/');
   await page.goto('/admin/polls');
-  await expect(page.locator('.back-link')).toHaveAttribute('href', '/');
   await page.goto('/admin');
   await expect(page.getByRole('heading', { name: 'Stimmen', level: 3 })).toBeVisible();
   await expect(page.locator('.sidebar-navigation').getByRole('link', { name: 'Abstimmungen' })).toBeVisible();
-  await expect(page.locator('.sidebar-navigation').getByRole('link')).toHaveCount(4);
+  await expect(page.locator('.sidebar-navigation').getByRole('link')).toHaveCount(6);
   await expect(page.locator('.sidebar-navigation').getByRole('link', { name: 'Stimmen' })).toHaveAttribute('aria-current', 'page');
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Stimmen', level: 3 })).toBeVisible();
@@ -741,7 +690,7 @@ test('logs in, restores the active admin area after reload, and logs out', async
   await page.getByRole('button', { name: 'Menü', exact: true }).click();
   const mobileNavigation = page.locator('.mobile-menu-navigation');
   await expect(mobileNavigation).toBeVisible();
-  await expect(mobileNavigation.getByRole('link')).toHaveCount(4);
+  await expect(mobileNavigation.getByRole('link')).toHaveCount(6);
   await expect(mobileNavigation.getByRole('link', { name: 'Stimmen' })).toHaveAttribute('aria-current', 'page');
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
   for (const [label, path] of [['Stimmen', '/admin/votes'], ['Abstimmungen', '/admin/polls'], ['Vorlagengruppen', '/admin/groups'], ['Optionsvorlagen', '/admin/templates']] as const) {
@@ -752,19 +701,19 @@ test('logs in, restores the active admin area after reload, and logs out', async
     await page.keyboard.press('Enter');
     await expect(page).toHaveURL(new RegExp(`${path}$`));
   }
-  await page.getByRole('button', { name: 'Abmelden' }).click();
-  await expect(page.getByLabel('Benutzername')).toBeVisible();
+  await page.setViewportSize({ width: 1024, height: 800 });
+  await page.locator('.sidebar .account-panel').getByRole('button', { name: 'Abmelden' }).click();
+  await expect(page.getByLabel('E-Mail-Adresse')).toBeVisible();
   expect(await page.getByRole('navigation', { name: 'Admin-Navigation' }).count()).toBe(0);
 });
 
 test('removes an administrative vote through the browser flow', async ({ page }) => {
   let votePresent = true;
   let removalReason: string | undefined;
-  await page.route('**/api/v1/**', async (route) => {
+  await mockApi(page, async (route) => {
     const request = route.request();
     const url = request.url();
     if (url.endsWith('/csrf')) return route.fulfill({ json: { token: 'csrf-token', headerName: 'X-XSRF-TOKEN' } });
-    if (url.endsWith('/admin/session')) return route.fulfill({ status: 204 });
     if (url.includes('/admin/votes/') && request.method() === 'DELETE') {
       removalReason = request.postDataJSON().reason;
       votePresent = false;
@@ -819,7 +768,7 @@ test('removes an administrative vote through the browser flow', async ({ page })
   await expect(page.locator('.result-summary dd')).toHaveText(['0', '0 %']);
   await page.goto('/poll/results/p_v1_browser/option/1');
   await expect(page.getByText('Noch keine Daten vorhanden')).toBeVisible();
-  await expect(page.getByText('alice')).toHaveCount(0);
+  await expect(page.getByRole('main').getByText('alice')).toHaveCount(0);
   await expect(page.getByRole('main')).not.toContainText('p_v1_browser');
   await page.goto('/poll/audit/p_v1_browser');
   await expect(page.getByRole('heading', { name: 'Stimme administrativ entfernt', level: 3 })).toBeVisible();
@@ -828,19 +777,14 @@ test('removes an administrative vote through the browser flow', async ({ page })
 });
 
 test('shows login on session expiry and restores the previous admin route', async ({ page }) => {
-  let authenticated = true;
   let expired = false;
-  await page.route('**/api/v1/**', async (route) => {
-    const request = route.request();
+  setSession(page, adminSession);
+  await mockApi(page, async (route, request) => {
     const url = request.url();
     if (url.endsWith('/csrf')) return route.fulfill({ json: { token: 'csrf-token', headerName: 'X-XSRF-TOKEN' } });
-    if (url.endsWith('/admin/session')) {
-      if (authenticated) return route.fulfill({ status: 204 });
-      return route.fulfill({ status: 401, json: { status: 401, code: 'unauthorized' } });
-    }
-    if (url.endsWith('/admin/login')) { authenticated = true; expired = false; return route.fulfill({ status: 204 }); }
+    if (url.endsWith('/session/login')) { expired = false; setSession(page, adminSession); return route.fulfill({ json: adminSession }); }
     if (url.endsWith('/admin/polls')) {
-      if (expired) return route.fulfill({ status: 401, json: { status: 401, code: 'unauthorized' } });
+      if (expired) return route.fulfill({ status: 401, json: { status: 401, code: 'authentication-required' } });
       return route.fulfill({ json: [] });
     }
     return route.fulfill({ json: [] });
@@ -849,11 +793,13 @@ test('shows login on session expiry and restores the previous admin route', asyn
   await page.goto('/admin/polls');
   await expect(page.getByRole('heading', { name: 'Abstimmungen', level: 3 })).toBeVisible();
   expired = true;
-  await page.reload();
+  await page.getByRole('link', { name: 'Vorlagengruppen' }).click();
+  await page.getByRole('link', { name: 'Abstimmungen' }).click();
 
-  await expect(page.getByLabel('Benutzername')).toBeVisible();
+  await expect(page.getByLabel('E-Mail-Adresse')).toBeVisible();
+  await expect(page.getByText('Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.')).toBeVisible();
   expect(await page.getByRole('navigation', { name: 'Admin-Navigation' }).count()).toBe(0);
-  await page.getByLabel('Benutzername').fill('admin');
+  await page.getByLabel('E-Mail-Adresse').fill('systemadmin@example.test');
   await page.getByLabel('Passwort').fill('secret');
   await page.getByRole('button', { name: 'Anmelden' }).click();
 
@@ -884,11 +830,10 @@ test('runs an admin poll through publication, expiry, archive, restore and destr
     };
   };
 
-  await page.route('**/api/v1/**', async (route) => {
+  await mockApi(page, async (route) => {
     const request = route.request();
     const url = request.url();
     if (url.endsWith('/csrf')) return route.fulfill({ json: { token: 'csrf-token', headerName: 'X-XSRF-TOKEN' } });
-    if (url.endsWith('/admin/session')) return route.fulfill({ status: 204 });
     if (url.endsWith('/admin/template-catalog/groups') && request.method() === 'GET') return route.fulfill({ json: [{ id: 'g_v1_lifecycle', name: 'Lifecycle group', description: '' }] });
     if (url.endsWith('/admin/template-catalog/groups/g_v1_lifecycle/templates')) return route.fulfill({ json: [{ id: 't_v1_yes', name: 'Yes' }] });
     if (url.endsWith('/admin/polls') && request.method() === 'POST') { state = 'draft'; return route.fulfill({ status: 201, json: poll() }); }
@@ -933,10 +878,9 @@ test('keeps the template catalog usable at 320px with long names', async ({ page
   const longTemplateName = 'An option template name that must remain readable at 320px';
   const longMembershipName = 'MembershipNameThatMustWrapAt320pxWithoutSpaces';
   await page.setViewportSize({ width: 320, height: 720 });
-  await page.route('**/api/v1/**', async (route) => {
+  await mockApi(page, async (route) => {
     const request = route.request();
     const url = request.url();
-    if (url.endsWith('/admin/session')) return route.fulfill({status: 204});
     if (url.endsWith('/admin/template-catalog/groups') && request.method() === 'GET') {
       return route.fulfill({json: [{id: 'g_v1_catalog', name: longGroupName, description: ''}]});
     }
@@ -962,9 +906,8 @@ test('keeps the template catalog usable at 320px with long names', async ({ page
 });
 
 test('keeps option radio borders at 3:1 contrast and metadata flat in every theme', async ({ page }) => {
-  await page.route('**/api/v1/**', async (route) => {
+  await mockApi(page, async (route) => {
     const url = route.request().url();
-    if (url.endsWith('/identity')) return route.fulfill({ json: { userID: 'alice' } });
     if (url.endsWith('/polls/p_contrast')) return route.fulfill({ json: {
       id: 'p_contrast',
       title: 'Contrast poll',
@@ -1018,9 +961,8 @@ test('keeps option radio borders at 3:1 contrast and metadata flat in every them
 });
 
 test('keeps the selected option radio at 3:1 contrast in every theme', async ({ page }) => {
-  await page.route('**/api/v1/**', async (route) => {
+  await mockApi(page, async (route) => {
     const url = route.request().url();
-    if (url.endsWith('/identity')) return route.fulfill({ json: { userID: 'alice' } });
     if (url.endsWith('/polls/p_contrast')) return route.fulfill({ json: {
       id: 'p_contrast',
       title: 'Contrast poll',
@@ -1075,9 +1017,8 @@ test('keeps the selected option radio at 3:1 contrast in every theme', async ({ 
 
 test('keeps touch targets, eyebrow text, long titles, and accessibility within mobile bounds', async ({ page }) => {
   const longTitle = 'Ein sehr langer Abstimmungstitel '.repeat(5).trim();
-  await page.route('**/api/v1/**', async (route) => {
+  await mockApi(page, async (route) => {
     const url = route.request().url();
-    if (url.endsWith('/identity')) return route.fulfill({ json: { userID: 'alice' } });
     if (url.endsWith('/polls/p_long')) return route.fulfill({ json: {
       id: 'p_long', title: longTitle, visibility: 'public', state: 'active', createdAt: '2026-08-31T12:00:00.000Z',
       endsAt: null, totalVotes: 0, options: [{ number: 1, text: 'Yes' }, { number: 2, text: 'No' }],
@@ -1120,9 +1061,8 @@ test('keeps touch targets, eyebrow text, long titles, and accessibility within m
 
 test('shows list and poll content above the 812px viewport bottom at 375px', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
-  await page.route('**/api/v1/**', async (route) => {
+  await mockApi(page, async (route) => {
     const url = route.request().url();
-    if (url.endsWith('/identity')) return route.fulfill({ json: { userID: null } });
     if (url.endsWith('/polls/p_fold')) return route.fulfill({ json: {
       id: 'p_fold', title: 'Above the fold', visibility: 'public', state: 'active', createdAt: '2026-08-31T12:00:00.000Z',
       endsAt: null, totalVotes: 0, options: [{ number: 1, text: 'Yes' }, { number: 2, text: 'No' }],
@@ -1146,35 +1086,9 @@ test('shows list and poll content above the 812px viewport bottom at 375px', asy
   expect(await page.locator('.poll-option').last().evaluate((element) => element.getBoundingClientRect().bottom)).toBeLessThanOrEqual(812);
 });
 
-test('changes the identity from the mobile menu dialog and shows it in the menu status', async ({ page }) => {
-  let identity: string | null = null;
-  await page.route('**/api/v1/**', async (route) => {
-    const request = route.request();
-    if (request.url().endsWith('/csrf')) return route.fulfill({ json: { token: 'csrf-token', headerName: 'X-XSRF-TOKEN' } });
-    if (request.url().endsWith('/identity') && request.method() === 'GET') return route.fulfill({ json: { userID: identity } });
-    if (request.url().endsWith('/identity') && request.method() === 'POST') {
-      identity = request.postDataJSON().userID;
-      return route.fulfill({ status: 204 });
-    }
-    return route.fulfill({ json: [] });
-  });
-  await page.setViewportSize({ width: 375, height: 812 });
-  await page.goto('/polls');
-
-  await page.getByRole('button', { name: 'Menü', exact: true }).click();
-  await page.locator('.mobile-identity').getByRole('button', { name: 'Identität festlegen' }).click();
-  await page.getByLabel('Neue Identität').fill('Bob');
-  await page.getByRole('button', { name: 'Speichern' }).click();
-  await page.getByRole('button', { name: 'Festlegen', exact: true }).click();
-
-  await expect(page.getByRole('dialog')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Menü', exact: true }).click();
-  await expect(page.locator('.mobile-identity-value')).toContainText('Bob');
-});
-
 test('closes the mobile menu when the viewport reaches desktop width', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
-  await page.route('**/api/v1/**', (route) => route.fulfill({ json: [] }));
+  await mockApi(page, (route) => route.fulfill({ json: [] }));
   await page.goto('/polls');
   await page.getByRole('button', { name: 'Menü', exact: true }).click();
   await expect(page.locator('#mobile-menu-panel')).toBeVisible();
@@ -1187,17 +1101,11 @@ test('closes the mobile menu when the viewport reaches desktop width', async ({ 
 
 test('keeps primary button text and focus rings readable in every theme', async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 800 });
-  let signedIn = false;
-  await page.route('**/api/v1/**', (route) => {
-    if (route.request().url().endsWith('/admin/session')) {
-      if (signedIn) return route.fulfill({ status: 204 });
-      return route.fulfill({ status: 401, json: { status: 401, code: 'unauthorized' } });
-    }
-    return route.fulfill({ json: [] });
-  });
+  await mockApi(page, (route) => route.fulfill({ json: [] }));
 
-  for (const path of ['/', '/admin', '/admin/polls']) {
-    signedIn = path === '/admin/polls';
+  for (const path of ['/login', '/admin/polls']) {
+    if (path === '/login') setSession(page, null);
+    else setSession(page, adminSession);
     await page.goto(path);
     for (const label of ['Hell', 'Dunkel', 'Sepia', 'Eco']) {
       await page.getByRole('button', { name: 'Theme auswählen' }).click();
@@ -1250,7 +1158,7 @@ test('keeps primary button text and focus rings readable in every theme', async 
 
 test('keeps poll list filter controls equally tall with matching corners', async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 800 });
-  await page.route('**/api/v1/**', (route) => route.fulfill({ json: [] }));
+  await mockApi(page, (route) => route.fulfill({ json: [] }));
   await page.goto('/polls');
 
   const controls = page.locator('.filter-control');
@@ -1267,7 +1175,7 @@ test('keeps poll list filter controls equally tall with matching corners', async
 
 test('locks page scrolling behind the open mobile menu and closes it from the backdrop', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
-  await page.route('**/api/v1/**', (route) => route.fulfill({ json: [] }));
+  await mockApi(page, (route) => route.fulfill({ json: [] }));
   await page.goto('/polls');
 
   await page.getByRole('button', { name: 'Menü', exact: true }).click();
@@ -1281,7 +1189,7 @@ test('locks page scrolling behind the open mobile menu and closes it from the ba
 
 test('stacks the start page statistics one per row and keeps the intro out of the layout at 375px', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
-  await page.route('**/api/v1/**', (route) => route.fulfill({ json: [] }));
+  await mockApi(page, (route) => route.fulfill({ json: [] }));
   await page.goto('/');
 
   await expect(page.locator('.discovery-stats > div')).toHaveCount(3);
@@ -1293,7 +1201,7 @@ test('stacks the start page statistics one per row and keeps the intro out of th
 test('removes button and menu motion when reduced motion is requested', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.setViewportSize({ width: 375, height: 812 });
-  await page.route('**/api/v1/**', (route) => route.fulfill({ json: [] }));
+  await mockApi(page, (route) => route.fulfill({ json: [] }));
   await page.goto('/polls');
 
   await page.getByRole('button', { name: 'Menü', exact: true }).click();
@@ -1303,11 +1211,10 @@ test('removes button and menu motion when reduced motion is requested', async ({
   expect(duration).toBeLessThanOrEqual(0.001);
 });
 
-test('shows the poll title, fact line and identity action without scrolling at 375px', async ({ page }) => {
+test('shows the poll title, fact line and first option without scrolling at 375px', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
-  await page.route('**/api/v1/**', async (route) => {
+  await mockApi(page, async (route) => {
     const url = route.request().url();
-    if (url.endsWith('/identity')) return route.fulfill({ json: { userID: null } });
     if (url.endsWith('/polls/p_fact_line')) return route.fulfill({ json: {
       id: 'p_fact_line', title: 'Fact line poll', visibility: 'public', state: 'active',
       createdAt: '2026-08-31T12:00:00.000Z', endsAt: '2099-01-01T00:00:00.000Z', totalVotes: 2,
@@ -1322,7 +1229,7 @@ test('shows the poll title, fact line and identity action without scrolling at 3
   await page.goto('/poll/p_fact_line');
   const title = page.getByRole('heading', { name: 'Fact line poll', level: 1 });
   const fact = page.locator('.poll-fact-line');
-  const action = page.getByRole('button', { name: 'Identität festlegen' });
+  const action = page.getByRole('radio', { name: 'Yes' });
   await expect(fact).toContainText('2 Stimmen');
   for (const locator of [title, fact, action]) {
     const box = await locator.boundingBox();
@@ -1339,19 +1246,13 @@ async function tabUntilFocused(page: Page, target: Locator) {
   await expect(target).toBeFocused();
 }
 
-test('sets the identity and casts a vote using only the keyboard', async ({ page }) => {
-  let identity: string | null = null;
+test('casts a vote using only the keyboard', async ({ page }) => {
   let selectedOption: number | null = null;
   const voteRequests: number[] = [];
-  await page.route('**/api/v1/**', async (route) => {
+  await mockApi(page, async (route) => {
     const request = route.request();
     const url = request.url();
     if (url.endsWith('/csrf')) return route.fulfill({ json: { token: 'csrf-token', headerName: 'X-XSRF-TOKEN' } });
-    if (url.endsWith('/identity') && request.method() === 'GET') return route.fulfill({ json: { userID: identity } });
-    if (url.endsWith('/identity') && request.method() === 'POST') {
-      identity = request.postDataJSON().userID;
-      return route.fulfill({ status: 204 });
-    }
     if (url.endsWith('/polls/p_keyboard') && request.method() === 'GET') return route.fulfill({ json: {
       id: 'p_keyboard', title: 'Keyboard poll', visibility: 'public', state: 'active',
       createdAt: '2026-08-31T12:00:00.000Z', endsAt: '2099-01-01T00:00:00.000Z', totalVotes: Number(selectedOption !== null),
@@ -1379,18 +1280,7 @@ test('sets the identity and casts a vote using only the keyboard', async ({ page
 
   await page.setViewportSize({ width: 1024, height: 800 });
   await page.goto('/poll/p_keyboard');
-  const notice = page.locator('.poll-identity-notice');
-  await expect(notice).toBeVisible();
-  await tabUntilFocused(page, notice.getByRole('button', { name: 'Identität festlegen' }));
-  await page.keyboard.press('Enter');
-  await page.keyboard.type('bob');
-  await tabUntilFocused(page, page.getByRole('button', { name: 'Speichern' }));
-  await page.keyboard.press('Enter');
-  await tabUntilFocused(page, page.getByRole('dialog').getByRole('button', { name: 'Festlegen', exact: true }));
-  await page.keyboard.press('Enter');
-
-  await expect(page.getByRole('radio', { name: 'Apfel' })).toBeFocused();
-  await expect(page.getByText('Identität gesetzt. Du kannst jetzt abstimmen.')).toBeVisible();
+  await tabUntilFocused(page, page.getByRole('radio', { name: 'Apfel' }));
   await page.keyboard.press('ArrowDown');
   await expect(page.getByRole('radio', { name: 'Zebra' })).toBeChecked();
   expect(voteRequests).toEqual([]);
@@ -1410,11 +1300,10 @@ test('sets the identity and casts a vote using only the keyboard', async ({ page
 const rowPollOption = 'Ein sehr langer Vorschlag, der über mehrere Zeilen geht und im Auswahlfeld abgeschnitten werden muss';
 
 async function routeRowPoll(page: Page) {
-  await page.route('**/api/v1/**', async (route) => {
+  await mockApi(page, async (route) => {
     const request = route.request();
     const url = request.url();
     if (url.endsWith('/csrf')) return route.fulfill({ json: { token: 'csrf-token', headerName: 'X-XSRF-TOKEN' } });
-    if (url.endsWith('/identity') && request.method() === 'GET') return route.fulfill({ json: { userID: 'alice' } });
     if (url.endsWith('/polls/p_row') && request.method() === 'GET') return route.fulfill({ json: {
       id: 'p_row', title: 'Row poll', visibility: 'public', state: 'active',
       createdAt: '2026-08-31T12:00:00.000Z', endsAt: '2099-01-01T00:00:00.000Z', totalVotes: 0,
@@ -1550,11 +1439,10 @@ test('keeps every option row at its height and restores the full text when desel
 
 async function routeTenOptionPoll(page: Page) {
   const options = Array.from({ length: 10 }, (_, index) => ({ number: index + 1, text: `Option ${index + 1}` }));
-  await page.route('**/api/v1/**', async (route) => {
+  await mockApi(page, async (route) => {
     const request = route.request();
     const url = request.url();
     if (url.endsWith('/csrf')) return route.fulfill({ json: { token: 'csrf-token', headerName: 'X-XSRF-TOKEN' } });
-    if (url.endsWith('/identity') && request.method() === 'GET') return route.fulfill({ json: { userID: 'alice' } });
     if (url.endsWith('/polls/p_ten') && request.method() === 'GET') return route.fulfill({ json: {
       id: 'p_ten', title: 'Zehn Optionen', visibility: 'public', state: 'active',
       createdAt: '2026-08-31T12:00:00.000Z', endsAt: '2099-01-01T00:00:00.000Z', totalVotes: 0, options,
@@ -1632,7 +1520,7 @@ test('keeps the confirm button distinguishable from the selected row at 3:1 in e
 
 test('keeps start page statistic labels within two lines and clips no text at 375px', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
-  await page.route('**/api/v1/**', (route) => {
+  await mockApi(page, (route) => {
     const url = route.request().url();
     if (url.endsWith('/polls/p_clip')) return route.fulfill({ json: {
       id: 'p_clip', title: 'Ein langer Titel für die Klippprüfung auf dem Handy', visibility: 'public', state: 'active',
@@ -1667,34 +1555,21 @@ test('keeps start page statistic labels within two lines and clips no text at 37
   for (const lines of lineCounts) expect(lines).toBeLessThanOrEqual(2);
 });
 
-test('aligns the sidebar identity action and the mobile menu identity text with their neighbours', async ({ page }) => {
-  await page.route('**/api/v1/**', (route) => route.fulfill({ json: [] }));
-  await page.setViewportSize({ width: 1024, height: 800 });
-  await page.goto('/polls');
-  const sidebarStatus = await page.locator('.identity-mini h2 span').evaluate((element) => element.getBoundingClientRect().left);
-  const sidebarAction = await page.locator('.identity-mini .identity-edit-button').evaluate((element) => element.getBoundingClientRect().left);
-  expect(Math.abs(sidebarAction - sidebarStatus)).toBeLessThanOrEqual(1);
-
-  await page.setViewportSize({ width: 375, height: 812 });
-  await page.getByRole('button', { name: 'Menü', exact: true }).click();
-  const navigationText = await page.locator('.mobile-menu-navigation .nav-item').first().evaluate((element) => element.getBoundingClientRect().left + parseFloat(getComputedStyle(element).paddingLeft));
-  const identityText = await page.locator('.mobile-identity .eyebrow').evaluate((element) => element.getBoundingClientRect().left);
-  expect(Math.abs(identityText - navigationText)).toBeLessThanOrEqual(1);
-});
-
 test('starts the start page at the regular main padding and keeps button transitions short', async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 800 });
-  await page.route('**/api/v1/**', (route) => route.fulfill({ json: [] }));
+  await mockApi(page, (route) => route.fulfill({ json: [] }));
   await page.goto('/');
-  await expect(page.locator('.identity-card')).toBeVisible();
+  await expect(page.locator('.home-featured')).toBeVisible();
 
   const offset = await page.evaluate(() => {
     const main = document.querySelector('main') as HTMLElement;
-    const card = document.querySelector('.identity-card') as HTMLElement;
+    const card = document.querySelector('.home-discovery') as HTMLElement;
     return card.getBoundingClientRect().top - main.getBoundingClientRect().top - parseFloat(getComputedStyle(main).paddingTop);
   });
   expect(Math.abs(offset)).toBeLessThanOrEqual(2);
 
+  setSession(page, null);
+  await page.goto('/login');
   const transition = await page.locator('.primary-button').first().evaluate((element) => parseFloat(getComputedStyle(element).transitionDuration));
   expect(transition).toBeGreaterThan(0);
   expect(transition).toBeLessThanOrEqual(0.2);
@@ -1703,8 +1578,9 @@ test('starts the start page at the regular main padding and keeps button transit
 test('removes primary button transitions when reduced motion is requested', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.setViewportSize({ width: 1024, height: 800 });
-  await page.route('**/api/v1/**', (route) => route.fulfill({ json: [] }));
-  await page.goto('/');
+  await mockApi(page, (route) => route.fulfill({ json: [] }));
+  setSession(page, null);
+  await page.goto('/login');
   await expect(page.locator('.primary-button').first()).toBeVisible();
 
   const transition = await page.locator('.primary-button').first().evaluate((element) => parseFloat(getComputedStyle(element).transitionDuration));
@@ -1713,15 +1589,16 @@ test('removes primary button transitions when reduced motion is requested', asyn
 
 test('keeps the tablet band free of horizontal overflow and opens the mobile menu at 768px', async ({ page }) => {
   await page.setViewportSize({ width: 768, height: 1024 });
-  await page.route('**/api/v1/**', (route) => {
+  await mockApi(page, (route) => {
     const url = route.request().url();
-    if (url.endsWith('/admin/session')) return route.fulfill({ status: 401, json: { status: 401, code: 'unauthorized' } });
     if (url.endsWith('/polls/p_tablet')) return route.fulfill({ json: {
       id: 'p_tablet', title: 'Ein Abstimmungstitel für das Tablet mit mehreren Wörtern', visibility: 'public', state: 'active',
       createdAt: '2026-08-31T12:00:00.000Z', endsAt: '2099-01-01T00:00:00.000Z', totalVotes: 1,
       options: [{ number: 1, text: 'Ja' }, { number: 2, text: 'Nein' }],
     } });
     if (url.endsWith('/polls/p_tablet/results')) return route.fulfill({ status: 403, json: { status: 403, code: 'results-not-available' } });
+    // '/admin' is rendered for the signed-in administrator, whose start page loads the vote list.
+    if (new URL(url).pathname === '/api/v1/admin/votes') return route.fulfill({ json: { votes: [], page: 0, size: 50, totalElements: 0 } });
     return route.fulfill({ json: [] });
   });
 
@@ -1740,7 +1617,7 @@ test('keeps the tablet band free of horizontal overflow and opens the mobile men
 
 test('keeps the page still while the mobile menu is open', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
-  await page.route('**/api/v1/**', (route) => route.fulfill({ json: [] }));
+  await mockApi(page, (route) => route.fulfill({ json: [] }));
   await page.goto('/polls');
   await page.evaluate(() => { document.body.style.minHeight = '3000px'; });
 
@@ -1755,9 +1632,8 @@ test('keeps the page still while the mobile menu is open', async ({ page }) => {
 
 test('keeps every supported width free of horizontal overflow in all four themes', async ({ page }) => {
   test.setTimeout(300000);
-  await page.route('**/api/v1/**', (route) => {
+  await mockApi(page, (route) => {
     const url = route.request().url();
-    if (url.endsWith('/admin/session')) return route.fulfill({ status: 401, json: { status: 401, code: 'unauthorized' } });
     if (url.endsWith('/polls/p_theme_overflow')) return route.fulfill({ json: {
       id: 'p_theme_overflow', title: 'Ein Abstimmungstitel über mehrere Wörter für die Breitenprüfung', visibility: 'public', state: 'active',
       createdAt: '2026-08-31T12:00:00.000Z', endsAt: '2099-01-01T00:00:00.000Z', totalVotes: 1,
@@ -1767,7 +1643,7 @@ test('keeps every supported width free of horizontal overflow in all four themes
     return route.fulfill({ json: [] });
   });
 
-  const pages = ['/', '/polls', '/poll/p_theme_overflow', '/admin'];
+  const pages = ['/', '/polls', '/poll/p_theme_overflow', '/admin/polls', '/admin/accounts', '/admin/invitations', '/password'];
   for (const width of [320, 375, 768, 1024]) {
     await page.setViewportSize({ width, height: 800 });
     await page.goto('/');

@@ -5,8 +5,6 @@ import de.justvotes.pollmanagement.core.model.Poll.PollId;
 import de.justvotes.pollmanagement.core.model.VoteOutcome;
 
 public interface ManageVotes {
-    void changeIdentity(Identity oldIdentity, Identity newIdentity);
-
     VoteOutcome castOrReplace(PollId pollId, Identity identity, int optionNumber);
 
     void withdrawVote(PollId pollId, Identity identity);

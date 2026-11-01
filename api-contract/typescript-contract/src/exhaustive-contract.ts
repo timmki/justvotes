@@ -64,7 +64,6 @@ export function describeAuditEvent(value: AuditEventType): string {
         case AuditEventType.VoteCast:
         case AuditEventType.VoteReplaced:
         case AuditEventType.VoteWithdrawn:
-        case AuditEventType.VoteRemovedForIdentityChange:
         case AuditEventType.VoteRemovedByAdmin:
             return value;
         default:
@@ -85,7 +84,6 @@ export function describeAuditEntry(value: AuditEntry): string {
         case AuditEventType.VoteCast:
         case AuditEventType.VoteReplaced:
         case AuditEventType.VoteWithdrawn:
-        case AuditEventType.VoteRemovedForIdentityChange:
         case AuditEventType.VoteRemovedByAdmin:
             return describeAuditEvent(value.event);
         default:

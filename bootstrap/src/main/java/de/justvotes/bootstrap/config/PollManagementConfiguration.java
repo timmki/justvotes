@@ -115,8 +115,8 @@ class PollManagementConfiguration {
     }
 
     @Bean
-    IdentityController identityController(@Qualifier("voteCommands") ManageVotes votes, @Qualifier("voteQueries") ViewVotes queries) {
-        return new IdentityController(votes, queries);
+    IdentityController identityController(@Qualifier("voteQueries") ViewVotes queries) {
+        return new IdentityController(queries);
     }
 
     @Bean

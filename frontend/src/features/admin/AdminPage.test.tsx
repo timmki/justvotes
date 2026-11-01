@@ -10,6 +10,7 @@ import {queryKeys} from '../../shared/api/queryKeys';
 import {I18nProvider} from '../../shared/i18n/I18nProvider';
 import {AdminPage} from './AdminPage';
 import type {components} from '../../shared/api/generated/justvotes';
+import {adminSession, mockSession, userSession} from '../../test/sessions';
 
 beforeEach(() => {
     queryClient.clear();
@@ -43,19 +44,8 @@ function renderAdmin(initialEntry = '/admin') {
     );
 }
 
-describe('AdminPage session gate', () => {
-    it('shows only a loading state while the session is being checked', () => {
-        vi.spyOn(apiClient, 'getAdminSession').mockImplementation(() => new Promise(() => undefined));
-
-        renderAdmin();
-
-        expect(screen.getByRole('status')).toHaveTextContent('Wird geladen');
-        expect(screen.queryByRole('tab')).toBeNull();
-        expect(screen.queryByLabelText('Benutzername')).toBeNull();
-    });
-
-    it('loads only the visible area while leaving navigation to the shell', async () => {
-        const getAdminSession = vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+describe('AdminPage areas', () => {
+    it('loads only the visible area while leaving navigation and sign-in to the shell', async () => {
         const getAdminVotes = vi.spyOn(apiClient, 'getAdminVotes').mockResolvedValue({
             votes: [],
             page: 0,
@@ -70,105 +60,17 @@ describe('AdminPage session gate', () => {
 
         expect(await screen.findByRole('heading', {name: 'Stimmen', level: 3})).toBeVisible();
         expect(screen.queryAllByRole('link')).toHaveLength(0);
-        expect(getAdminSession).toHaveBeenCalledTimes(1);
+        expect(screen.queryByLabelText('Benutzername')).toBeNull();
         expect(getAdminVotes).toHaveBeenCalledTimes(1);
         expect(getAdminPolls).not.toHaveBeenCalled();
         expect(getGroups).not.toHaveBeenCalled();
         expect(getTemplates).not.toHaveBeenCalled();
     });
+});
 
-    it.each([
-        ['bad request', problemError({
-            status: 400,
-            code: 'invalid_credentials'
-        }, 400), 'Die Anfrage konnte nicht verarbeitet werden.'],
-        ['bad credentials', problemError({status: 401, code: 'unauthorized'}, 401), 'Die Anmeldung ist abgelaufen.'],
-        ['csrf failure', problemError({status: 403, code: 'csrf_invalid'}, 403), 'Diese Aktion ist nicht erlaubt.'],
-        ['network failure', networkError(new Error('offline')), 'Netzwerkfehler. Prüfe deine Verbindung.'],
-    ])('keeps credentials transient after %s', async (_description, error, message) => {
-        vi.spyOn(apiClient, 'getAdminSession').mockRejectedValue(problemError({
-            status: 401,
-            code: 'unauthorized'
-        }, 401));
-        vi.spyOn(apiClient, 'login').mockRejectedValue(error);
-
-        renderAdmin();
-
-        const username = await screen.findByLabelText('Benutzername');
-        fireEvent.change(username, {target: {value: 'admin'}});
-        fireEvent.change(screen.getByLabelText('Passwort'), {target: {value: 'secret'}});
-        fireEvent.click(screen.getByRole('button', {name: 'Anmelden'}));
-
-        expect(await screen.findByRole('alert')).toHaveTextContent(message);
-        expect(window.localStorage.getItem('password')).toBeNull();
-    });
-
-    it('restores the route that triggered login and loads that area after login', async () => {
-        vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
-        vi.spyOn(apiClient, 'login').mockResolvedValue(undefined);
-        vi.spyOn(apiClient, 'getAdminPolls').mockResolvedValue([]);
-        if (sessionCoordinator.isLoginRequired()) sessionCoordinator.consumeReturnRoute();
-        sessionCoordinator.requireLogin('/admin/polls');
-
-        renderAdmin();
-
-        fireEvent.change(await screen.findByLabelText('Benutzername'), {target: {value: 'admin'}});
-        fireEvent.change(screen.getByLabelText('Passwort'), {target: {value: 'secret'}});
-        fireEvent.click(screen.getByRole('button', {name: 'Anmelden'}));
-
-        expect(await screen.findByRole('heading', {name: 'Abstimmungen', level: 3})).toBeVisible();
-    });
-
-    it('removes protected content and shows login when the visible area expires', async () => {
-        const unauthorized = problemError({status: 401, code: 'unauthorized'}, 401);
-        vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
-        vi.spyOn(apiClient, 'getAdminVotes').mockImplementation(async () => {
-            sessionCoordinator.requireLogin('/admin/votes');
-            throw unauthorized;
-        });
-
-        renderAdmin('/admin/votes');
-
-        expect(await screen.findByLabelText('Benutzername')).toBeVisible();
-        expect(screen.queryByRole('tab')).toBeNull();
-        expect(screen.queryByRole('heading', {name: 'Stimmen', level: 3})).toBeNull();
-    });
-
-    it('logs out and removes the protected query cache before returning to login', async () => {
-        vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
-        vi.spyOn(apiClient, 'getAdminVotes').mockResolvedValue({votes: [], page: 0, size: 50, totalElements: 0});
-        vi.spyOn(apiClient, 'logout').mockImplementation(async () => {
-            queryClient.removeQueries({queryKey: queryKeys.adminSession});
-            sessionCoordinator.requireLogin('/admin');
-        });
-        queryClient.setQueryData(queryKeys.adminPolls, [{id: 'private-poll'}]);
-
-        renderAdmin('/admin/votes');
-
-        await screen.findByRole('heading', {name: 'Stimmen', level: 3});
-        fireEvent.click(screen.getByRole('button', {name: 'Abmelden'}));
-
-        expect(await screen.findByLabelText('Benutzername')).toBeVisible();
-        expect(queryClient.getQueryData(queryKeys.adminPolls)).toBeUndefined();
-        await waitFor(() => expect(screen.queryByRole('link', {name: 'Stimmen'})).toBeNull());
-    });
-
-    it('keeps the active area and reports a logout failure', async () => {
-        vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
-        vi.spyOn(apiClient, 'getAdminVotes').mockResolvedValue({votes: [], page: 0, size: 50, totalElements: 0});
-        vi.spyOn(apiClient, 'logout').mockRejectedValue(problemError({status: 500, code: 'server_error'}, 500));
-
-        renderAdmin('/admin/votes');
-
-        expect(await screen.findByRole('heading', {name: 'Stimmen', level: 3})).toBeVisible();
-        fireEvent.click(screen.getByRole('button', {name: 'Abmelden'}));
-
-        expect(await screen.findByRole('alert')).toHaveTextContent('Die Anfrage konnte nicht verarbeitet werden.');
-        expect(screen.getByRole('heading', {name: 'Stimmen', level: 3})).toBeVisible();
-    });
-
+describe('AdminPage template catalog', () => {
     it('searches templates and paginates in pages of twenty', async () => {
-        vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+        mockSession(adminSession());
         vi.spyOn(apiClient, 'getTemplates').mockResolvedValue(Array.from({length: 21}, (_, index) => ({
             id: `t_v1_${index + 1}`,
             name: `Template ${index + 1}`
@@ -187,7 +89,7 @@ describe('AdminPage session gate', () => {
     });
 
     it('trims batch values and reports partial failures', async () => {
-        vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+        mockSession(adminSession());
         vi.spyOn(apiClient, 'getTemplates').mockResolvedValue([{id: 't_v1_existing', name: 'alpha'}]);
         const createTemplate = vi.spyOn(apiClient, 'createTemplate').mockImplementation(async (name) => {
             if (name.toLowerCase() === 'beta') throw problemError({status: 409, code: 'conflict'}, 409);
@@ -214,7 +116,7 @@ describe('AdminPage session gate', () => {
     });
 
     it('serializes batch requests', async () => {
-        vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+        mockSession(adminSession());
         vi.spyOn(apiClient, 'getTemplates').mockResolvedValue([]);
         let maxActive = 0;
         let active = 0;
@@ -237,7 +139,7 @@ describe('AdminPage session gate', () => {
     });
 
     it('shows a pending status while creating a template', async () => {
-        vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+        mockSession(adminSession());
         vi.spyOn(apiClient, 'getTemplates').mockResolvedValue([]);
         let release!: () => void;
         const pending = new Promise<{ id: string; name: string }>((resolve) => {
@@ -258,7 +160,7 @@ describe('AdminPage session gate', () => {
     });
 
     it('creates and renames an individual option template', async () => {
-        vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+        mockSession(adminSession());
         vi.spyOn(apiClient, 'getTemplates').mockResolvedValue([{id: 't_v1_existing', name: 'alpha'}]);
         const createTemplate = vi.spyOn(apiClient, 'createTemplate').mockResolvedValue({
             id: 't_v1_new',
@@ -282,7 +184,7 @@ describe('AdminPage session gate', () => {
     });
 
     it('requires confirmation for global template deletion', async () => {
-        vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+        mockSession(adminSession());
         vi.spyOn(apiClient, 'getTemplates').mockResolvedValue([{id: 't_v1_existing', name: 'alpha'}]);
         const deleteTemplate = vi.spyOn(apiClient, 'deleteTemplate').mockResolvedValue(undefined);
         const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
@@ -298,7 +200,7 @@ describe('AdminPage session gate', () => {
     });
 
     it('reports partial results when deleting multiple templates', async () => {
-        vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+        mockSession(adminSession());
         vi.spyOn(apiClient, 'getTemplates').mockResolvedValue([{id: 't_v1_one', name: 'One'}, {
             id: 't_v1_two',
             name: 'Two'
@@ -323,7 +225,7 @@ describe('AdminPage session gate', () => {
     });
 
     it('retries only the failed template deletion', async () => {
-        vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+        mockSession(adminSession());
         vi.spyOn(apiClient, 'getTemplates').mockResolvedValue([{id: 't_v1_one', name: 'One'}, {
             id: 't_v1_two',
             name: 'Two'
@@ -349,7 +251,7 @@ describe('AdminPage session gate', () => {
     });
 
     it('adds and removes memberships without deleting the global template', async () => {
-        vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+        mockSession(adminSession());
         vi.spyOn(apiClient, 'getGroups').mockResolvedValue([{id: 'g_v1_group', name: 'Board', description: 'A board'}]);
         vi.spyOn(apiClient, 'getTemplates').mockResolvedValue([{id: 't_v1_one', name: 'One'}, {
             id: 't_v1_two',
@@ -373,7 +275,7 @@ describe('AdminPage session gate', () => {
     });
 
     it('adds selected memberships serially and shows partial failures', async () => {
-        vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+        mockSession(adminSession());
         vi.spyOn(apiClient, 'getGroups').mockResolvedValue([{id: 'g_v1_group', name: 'Board', description: ''}]);
         vi.spyOn(apiClient, 'getTemplates').mockResolvedValue([{id: 't_v1_one', name: 'One'}, {
             id: 't_v1_two',
@@ -404,7 +306,7 @@ describe('AdminPage session gate', () => {
     });
 
     it('filters all templates with globs and applies select all immediately', async () => {
-        vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+        mockSession(adminSession());
         vi.spyOn(apiClient, 'getGroups').mockResolvedValue([{id: 'g_v1_group', name: 'Board', description: ''}]);
         vi.spyOn(apiClient, 'getTemplates').mockResolvedValue([
             {id: 't_v1_one', name: 'Board One'},
@@ -434,7 +336,7 @@ describe('AdminPage session gate', () => {
     });
 
     it('creates, renames, and deletes a template group explicitly', async () => {
-        vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+        mockSession(adminSession());
         const groups = [{id: 'g_v1_group', name: 'Board', description: 'A board'}];
         vi.spyOn(apiClient, 'getGroups').mockImplementation(async () => groups);
         vi.spyOn(apiClient, 'getTemplates').mockResolvedValue([]);
@@ -475,7 +377,7 @@ describe('AdminPage session gate', () => {
 
     it('translates template-group controls in English', async () => {
         window.localStorage.setItem('justvotes-locale', 'en');
-        vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+        mockSession(adminSession());
         vi.spyOn(apiClient, 'getGroups').mockResolvedValue([{id: 'g_v1_group', name: 'Board', description: ''}]);
         vi.spyOn(apiClient, 'getTemplates').mockResolvedValue([]);
         vi.spyOn(apiClient, 'getTemplatesInGroup').mockResolvedValue([]);
@@ -501,7 +403,7 @@ function testAdminVote(id: string, pollId: string, pollTitle: string, userID: st
 
 describe('Admin vote administration', () => {
     it('loads all pages for global metrics and paginates the visible votes', async () => {
-        vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+        mockSession(adminSession());
         const votes = [
             testAdminVote('v_v1_one', 'p_v1_alpha', 'Alpha', 'alice'),
             testAdminVote('v_v1_two', 'p_v1_alpha', 'Alpha', 'bob', 'No'),
@@ -545,7 +447,7 @@ describe('Admin vote administration', () => {
     });
 
     it('requires a trimmed reason and removes a vote after confirmation', async () => {
-        vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+        mockSession(adminSession());
         vi.spyOn(apiClient, 'getAdminVotes').mockResolvedValue({
             votes: [testAdminVote('v_v1_vote', 'p_v1_poll', 'A poll', 'alice')],
             page: 0,
@@ -584,7 +486,7 @@ describe('Admin vote administration', () => {
     });
 
     it('traps removal dialog focus, closes with Escape, and restores the trigger focus', async () => {
-        vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+        mockSession(adminSession());
         vi.spyOn(apiClient, 'getAdminVotes').mockResolvedValue({
             votes: [testAdminVote('v_v1_vote', 'p_v1_poll', 'A poll', 'alice')],
             page: 0,
@@ -616,7 +518,7 @@ describe('Admin vote administration', () => {
     });
 
     it('disables duplicate removal and keeps the dialog open while pending', async () => {
-        vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+        mockSession(adminSession());
         vi.spyOn(apiClient, 'getAdminVotes').mockResolvedValue({
             votes: [testAdminVote('v_v1_vote', 'p_v1_poll', 'A poll', 'alice')],
             page: 0,
@@ -649,7 +551,7 @@ describe('Admin vote administration', () => {
     });
 
     it('keeps the vote and entered reason visible when removal fails', async () => {
-        vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+        mockSession(adminSession());
         vi.spyOn(apiClient, 'getAdminVotes').mockResolvedValue({
             votes: [testAdminVote('v_v1_vote', 'p_v1_poll', 'A poll', 'alice')],
             page: 0,
@@ -704,7 +606,7 @@ function testPoll(state: TestPoll['state'], visibility?: TestPoll['visibility'])
 
 describe('Admin poll lifecycle', () => {
     it('renders the exhaustive state/action matrix and current options', async () => {
-        vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+        mockSession(adminSession());
         vi.spyOn(apiClient, 'getAdminPolls').mockResolvedValue([
             testPoll('draft'),
             testPoll('active'),
@@ -744,7 +646,7 @@ describe('Admin poll lifecycle', () => {
     });
 
     it('only allows draft option replacement and publishes only with a future expiry', async () => {
-        vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+        mockSession(adminSession());
         vi.spyOn(apiClient, 'getAdminPolls').mockResolvedValue([testPoll('draft')]);
         const replacePollOptions = vi.spyOn(apiClient, 'replacePollOptions').mockResolvedValue(testPoll('draft'));
         const publishPoll = vi.spyOn(apiClient, 'publishPoll').mockResolvedValue(testPoll('active'));
@@ -766,7 +668,7 @@ describe('Admin poll lifecycle', () => {
     });
 
     it('keeps option values after replacing options fails', async () => {
-        vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+        mockSession(adminSession());
         vi.spyOn(apiClient, 'getAdminPolls').mockResolvedValue([testPoll('draft')]);
         vi.spyOn(apiClient, 'replacePollOptions').mockRejectedValue(problemError({status: 409, code: 'poll_state_conflict'}, 409));
 
@@ -784,7 +686,7 @@ describe('Admin poll lifecycle', () => {
     });
 
     it('keeps the expiry value after changing it fails', async () => {
-        vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+        mockSession(adminSession());
         vi.spyOn(apiClient, 'getAdminPolls').mockResolvedValue([testPoll('expired')]);
         vi.spyOn(apiClient, 'changePollExpiry').mockRejectedValue(problemError({status: 409, code: 'poll_state_conflict'}, 409));
 
@@ -801,7 +703,7 @@ describe('Admin poll lifecycle', () => {
     });
 
     it('executes the remaining allowed lifecycle actions', async () => {
-        vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+        mockSession(adminSession());
         const makePrivate = vi.spyOn(apiClient, 'makePollPrivate').mockResolvedValue(testPoll('active', 'private'));
         const changedExpiryPoll = {...testPoll('expired'), endsAt: new Date('2099-02-01T12:00').toISOString()};
         const changeExpiry = vi.spyOn(apiClient, 'changePollExpiry').mockResolvedValue(changedExpiryPoll);
@@ -836,7 +738,7 @@ describe('Admin poll lifecycle', () => {
     });
 
     it('offers only non-empty template groups for poll creation', async () => {
-        vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+        mockSession(adminSession());
         vi.spyOn(apiClient, 'getAdminPolls').mockResolvedValue([]);
         vi.spyOn(apiClient, 'getGroups').mockResolvedValue([
             {id: 'g_v1_empty', name: 'Empty', description: ''},
@@ -858,7 +760,7 @@ describe('Admin poll lifecycle', () => {
     });
 
     it('keeps poll creation values after the server rejects the snapshot', async () => {
-        vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+        mockSession(adminSession());
         vi.spyOn(apiClient, 'getAdminPolls').mockResolvedValue([]);
         vi.spyOn(apiClient, 'getGroups').mockResolvedValue([{id: 'g_v1_full', name: 'Full', description: ''}]);
         vi.spyOn(apiClient, 'getTemplatesInGroup').mockResolvedValue([{id: 't_v1_one', name: 'One'}]);
@@ -878,7 +780,7 @@ describe('Admin poll lifecycle', () => {
     });
 
     it('creates a draft with the selected template-group options', async () => {
-        vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+        mockSession(adminSession());
         vi.spyOn(apiClient, 'getGroups').mockResolvedValue([{id: 'g_v1_full', name: 'Full', description: ''}]);
         vi.spyOn(apiClient, 'getTemplatesInGroup').mockResolvedValue([{id: 't_v1_one', name: 'One'}]);
         const created = testPoll('draft');
@@ -899,7 +801,7 @@ describe('Admin poll lifecycle', () => {
     });
 
     it('requires one confirmation for soft delete and two for permanent delete', async () => {
-        vi.spyOn(apiClient, 'getAdminSession').mockResolvedValue(undefined);
+        mockSession(adminSession());
         vi.spyOn(apiClient, 'getAdminPolls').mockResolvedValue([testPoll('active'), testPoll('deleted')]);
         const deletePoll = vi.spyOn(apiClient, 'deletePoll').mockResolvedValue(testPoll('deleted'));
         const permanentlyDeletePoll = vi.spyOn(apiClient, 'permanentlyDeletePoll').mockResolvedValue(undefined);

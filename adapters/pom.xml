@@ -23,6 +23,15 @@
             <version>${project.version}</version>
         </dependency>
         <dependency>
+            <groupId>de.justvotes</groupId>
+            <artifactId>account-management</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-web</artifactId>
         </dependency>

@@ -1,3 +1,4 @@
+import {useSessionQuery} from '../auth/sessionQueries';
 import {Link, useNavigate, useParams} from 'react-router-dom';
 import {useState} from 'react';
 import {useApiQuery} from '../../shared/api/useApiQuery';
@@ -16,12 +17,12 @@ import {usePollingResultsQuery} from './usePollingResultsQuery';
 export function ResultsPage() {
     const {t, locale} = useI18n();
     const {pollId = ''} = useParams();
-    const identityQuery = useApiQuery(queryKeys.identity, () => apiClient.getIdentity());
+    const identity = useSessionQuery().data?.identity ?? null;
     const query = usePollingResultsQuery(pollId);
     return <DataPage title={t('polls.results')}
                      description={t('common.resultsDescription')}>
         <QueryState query={query}>{(results) => <ResultsDetail results={results}
-                                                                   identity={identityQuery.data?.userID ?? null}
+                                                                   identity={identity}
                                                                    locale={locale}/>}</QueryState>
     </DataPage>;
 }
