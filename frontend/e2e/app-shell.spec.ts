@@ -1596,6 +1596,8 @@ test('keeps the tablet band free of horizontal overflow and opens the mobile men
       options: [{ number: 1, text: 'Ja' }, { number: 2, text: 'Nein' }],
     } });
     if (url.endsWith('/polls/p_tablet/results')) return route.fulfill({ status: 403, json: { status: 403, code: 'results-not-available' } });
+    // '/admin' is rendered for the signed-in administrator, whose start page loads the vote list.
+    if (new URL(url).pathname === '/api/v1/admin/votes') return route.fulfill({ json: { votes: [], page: 0, size: 50, totalElements: 0 } });
     return route.fulfill({ json: [] });
   });
 
