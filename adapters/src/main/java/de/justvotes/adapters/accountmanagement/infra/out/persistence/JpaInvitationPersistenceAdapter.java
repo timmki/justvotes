@@ -32,6 +32,12 @@ public final class JpaInvitationPersistenceAdapter implements InvitationReposito
     }
 
     @Override
+    public Optional<Invitation> findOpenByEmailKey(String normalizedEmail) {
+        return invitations.findFirstByEmailKeyAndStatus(normalizedEmail, InvitationStatus.OPEN.name())
+                .map(InvitationEntity::toDomain);
+    }
+
+    @Override
     public List<Invitation> findAll() {
         return invitations.findAll().stream().map(InvitationEntity::toDomain).toList();
     }

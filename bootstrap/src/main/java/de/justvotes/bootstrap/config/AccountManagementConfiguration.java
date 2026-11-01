@@ -188,7 +188,7 @@ class AccountManagementConfiguration {
     @Bean
     AdminInvitationController adminInvitationController(TransactionalInvitationManagement invitations,
                                                         InvitationDelivery delivery, SecurityEventLogger securityEvents) {
-        return new AdminInvitationController(invitations, delivery, securityEvents);
+        return new AdminInvitationController(invitations, invitations, delivery, securityEvents);
     }
 
     @Bean

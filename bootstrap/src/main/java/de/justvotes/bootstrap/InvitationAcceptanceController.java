@@ -2,6 +2,7 @@ package de.justvotes.bootstrap;
 
 import de.justvotes.accountmanagement.core.model.Account;
 import de.justvotes.accountmanagement.core.model.InvitationPreview;
+import de.justvotes.accountmanagement.core.model.SuggestedIdentity;
 import de.justvotes.accountmanagement.core.ports.in.AcceptInvitation;
 import de.justvotes.adapters.accountmanagement.infra.in.http.AccountResponseMapper;
 import de.justvotes.adapters.shared.infra.in.http.SecurityEventLogger;
@@ -58,7 +59,8 @@ class InvitationAcceptanceController implements InvitationsApi {
         InvitationPreview preview = invitations.inspect(request.getToken());
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
                 .body(new de.justvotes.api.v1.model.InvitationPreview(preview.email().value(),
-                        AccountResponseMapper.utc(preview.expiresAt())));
+                        AccountResponseMapper.utc(preview.expiresAt()))
+                        .suggestedUserID(preview.suggestedIdentity().map(SuggestedIdentity::value).orElse(null)));
     }
 
     @Override

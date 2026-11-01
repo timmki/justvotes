@@ -1,0 +1,45 @@
+BEGIN:VCARD
+VERSION:3.0
+FN:Anna Beispiel
+N:Beispiel;Anna;;;
+EMAIL;TYPE=HOME:anna@example.test
+TEL;TYPE=CELL,HOME:0000/0000000
+UID:00000000-0000-4000-8000-000000000001
+END:VCARD
+BEGIN:VCARD
+VERSION:4.0
+FN:Bert Muster
+EMAIL:bert.alt@example.test
+EMAIL;PREF=1:bert@example.test
+UID:00000000-0000-4000-8000-000000000002
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+FN:Jörg Ümlaut-Straß
+N:Ümlaut-Straß;Jörg;;;
+BDAY;VALUE=DATE:2000-01-01
+EMAIL;TYPE=HOME;PREF=1:joerg@example.test
+ADR;TYPE=HOME:;;Testweg 1;Teststadt;;00000;Testland
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+FN:Clara van der Test mit einem sehr langen
+  Namen
+N:van der Test;Clara;;;
+EMAIL;TYPE=HOME:clara@example.test
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+FN:Ohne Adresse
+N:Adresse;Ohne;;;
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+FN:Kaputt
+EMAIL;TYPE=HOME:kein-at-zeichen
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+FN:Anna Doppelt
+EMAIL;TYPE=HOME:ANNA@example.test
+END:VCARD

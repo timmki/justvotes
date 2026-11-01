@@ -28,8 +28,13 @@ final class InMemoryInvitations implements InvitationRepository {
 
     @Override
     public boolean existsOpenByEmailKey(String normalizedEmail) {
-        return invitations.values().stream().anyMatch(invitation -> invitation.status() == InvitationStatus.OPEN
-                && invitation.email().normalized().equals(normalizedEmail));
+        return findOpenByEmailKey(normalizedEmail).isPresent();
+    }
+
+    @Override
+    public Optional<Invitation> findOpenByEmailKey(String normalizedEmail) {
+        return invitations.values().stream().filter(invitation -> invitation.status() == InvitationStatus.OPEN
+                && invitation.email().normalized().equals(normalizedEmail)).findFirst();
     }
 
     @Override
@@ -46,7 +51,8 @@ final class InMemoryInvitations implements InvitationRepository {
         long id = nextId++;
         Invitation stored = Invitation.restore(InvitationId.of(id), invitation.email(), invitation.tokenHash(),
                 invitation.status(), invitation.deliveryFailed(), invitation.issuedAt(), invitation.expiresAt(),
-                invitation.acceptedAt().orElse(null), invitation.acceptedAccountId().orElse(null));
+                invitation.acceptedAt().orElse(null), invitation.acceptedAccountId().orElse(null),
+                invitation.suggestedIdentity().orElse(null));
         invitations.put(id, stored);
         return stored;
     }

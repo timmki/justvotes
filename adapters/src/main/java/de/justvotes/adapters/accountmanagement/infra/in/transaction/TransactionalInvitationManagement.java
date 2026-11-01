@@ -2,18 +2,22 @@ package de.justvotes.adapters.accountmanagement.infra.in.transaction;
 
 import de.justvotes.accountmanagement.core.InvitationManagement;
 import de.justvotes.accountmanagement.core.model.Account;
+import de.justvotes.accountmanagement.core.model.ContactAssessment;
+import de.justvotes.accountmanagement.core.model.ContactCandidate;
+import de.justvotes.accountmanagement.core.model.ContactInvitation;
 import de.justvotes.accountmanagement.core.model.InvitationId;
 import de.justvotes.accountmanagement.core.model.InvitationOverview;
 import de.justvotes.accountmanagement.core.model.InvitationPreview;
 import de.justvotes.accountmanagement.core.model.IssuedInvitation;
 import de.justvotes.accountmanagement.core.ports.in.AcceptInvitation;
+import de.justvotes.accountmanagement.core.ports.in.InviteContacts;
 import de.justvotes.accountmanagement.core.ports.in.ManageInvitations;
 import de.justvotes.adapters.sqlite.SqliteRetryingTransaction;
 import org.springframework.dao.DataAccessException;
 
 import java.util.List;
 
-public class TransactionalInvitationManagement implements ManageInvitations, AcceptInvitation {
+public class TransactionalInvitationManagement implements ManageInvitations, AcceptInvitation, InviteContacts {
     private final InvitationManagement invitations;
     private final SqliteRetryingTransaction transactions;
 
@@ -56,6 +60,19 @@ public class TransactionalInvitationManagement implements ManageInvitations, Acc
     @Override
     public List<InvitationOverview> invitations() {
         return transactions.executeReadOnly(invitations::invitations);
+    }
+
+    @Override
+    public List<ContactAssessment> assess(List<ContactCandidate> contacts) {
+        return transactions.executeReadOnly(() -> invitations.assess(contacts));
+    }
+
+    /**
+     * Each contact runs in its own transaction, so a conflict for one contact never undoes the others.
+     */
+    @Override
+    public ContactInvitation inviteContact(String email, String name) {
+        return transactions.execute(() -> invitations.inviteContact(email, name));
     }
 
     @Override

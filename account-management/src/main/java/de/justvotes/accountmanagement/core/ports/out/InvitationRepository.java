@@ -14,6 +14,8 @@ public interface InvitationRepository {
 
     boolean existsOpenByEmailKey(String normalizedEmail);
 
+    Optional<Invitation> findOpenByEmailKey(String normalizedEmail);
+
     List<Invitation> findAll();
 
     Invitation save(Invitation invitation);

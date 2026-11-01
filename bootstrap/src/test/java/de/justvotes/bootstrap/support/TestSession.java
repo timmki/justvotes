@@ -24,6 +24,16 @@ public record TestSession(TestRestTemplate client, String cookies, String csrfTo
                 .header(HttpHeaders.COOKIE, cookies).header("X-XSRF-TOKEN", csrfToken).body(body), String.class);
     }
 
+    public ResponseEntity<String> postVCard(String url, String body) {
+        return client.exchange(RequestEntity.post(url).contentType(MediaType.parseMediaType("text/vcard;charset=UTF-8"))
+                .header(HttpHeaders.COOKIE, cookies).header("X-XSRF-TOKEN", csrfToken).body(body), String.class);
+    }
+
+    public ResponseEntity<String> postVCardWithoutCsrf(String url, String body) {
+        return client.exchange(RequestEntity.post(url).contentType(MediaType.parseMediaType("text/vcard;charset=UTF-8"))
+                .header(HttpHeaders.COOKIE, cookies).body(body), String.class);
+    }
+
     public ResponseEntity<String> postWithoutCsrf(String url, String body) {
         return client.exchange(RequestEntity.post(url).contentType(MediaType.APPLICATION_JSON)
                 .header(HttpHeaders.COOKIE, cookies).body(body), String.class);

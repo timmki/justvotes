@@ -1,6 +1,14 @@
 package de.justvotes.accountmanagement.core;
 
 import de.justvotes.accountmanagement.core.exception.EmailAlreadyInvitedException;
+import de.justvotes.accountmanagement.core.ports.in.InviteContacts;
+import de.justvotes.accountmanagement.core.model.SuggestedIdentity;
+import de.justvotes.accountmanagement.core.model.ContactSkipReason;
+import de.justvotes.accountmanagement.core.model.ContactOutcome;
+import de.justvotes.accountmanagement.core.model.ContactInvitation;
+import de.justvotes.accountmanagement.core.model.ContactCandidate;
+import de.justvotes.accountmanagement.core.model.ContactAssessment;
+import de.justvotes.accountmanagement.core.exception.ContactSkippedException;
 import de.justvotes.accountmanagement.core.exception.IdentityTakenException;
 import de.justvotes.accountmanagement.core.exception.InvitationDeliveryUnavailableException;
 import de.justvotes.accountmanagement.core.exception.InvitationNotFoundException;
@@ -30,13 +38,14 @@ import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 
-public final class InvitationManagement implements ManageInvitations, AcceptInvitation {
+public final class InvitationManagement implements ManageInvitations, AcceptInvitation, InviteContacts {
     private final InvitationRepository invitations;
     private final AccountRepository accounts;
     private final PasswordHasher hasher;
     private final TokenGenerator tokens;
     private final InvitationMailer mailer;
     private final UtcClock clock;
+    private final ContactInvitations contacts;
 
     public InvitationManagement(InvitationRepository invitations, AccountRepository accounts, PasswordHasher hasher,
                                 TokenGenerator tokens, InvitationMailer mailer, UtcClock clock) {
@@ -46,6 +55,7 @@ public final class InvitationManagement implements ManageInvitations, AcceptInvi
         this.tokens = tokens;
         this.mailer = mailer;
         this.clock = clock;
+        this.contacts = new ContactInvitations(accounts, invitations);
     }
 
     @Override
@@ -105,7 +115,7 @@ public final class InvitationManagement implements ManageInvitations, AcceptInvi
     @Override
     public InvitationPreview inspect(String token) {
         Invitation invitation = usable(token);
-        return new InvitationPreview(invitation.email(), invitation.expiresAt());
+        return new InvitationPreview(invitation.email(), invitation.expiresAt(), invitation.suggestedIdentity());
     }
 
     @Override
@@ -127,6 +137,42 @@ public final class InvitationManagement implements ManageInvitations, AcceptInvi
         invitation.accept(tokenHash, createdId, now);
         invitations.save(invitation);
         return created;
+    }
+
+    @Override
+    public List<ContactAssessment> assess(List<ContactCandidate> candidates) {
+        requireDelivery();
+        return contacts.assess(candidates, clock.now());
+    }
+
+    @Override
+    public ContactInvitation inviteContact(String email, String name) {
+        requireDelivery();
+        EmailAddress address = ContactInvitations.validEmail(email)
+                .orElseThrow(() -> new ContactSkippedException(ContactSkipReason.INVALID_EMAIL));
+        Instant now = clock.now();
+        SuggestedIdentity suggestion = SuggestedIdentity.fromContactName(name).orElse(null);
+        ContactOutcome outcome = contacts.outcome(address, now);
+        if (outcome == ContactOutcome.HAS_ACCOUNT) {
+            throw new ContactSkippedException(ContactSkipReason.HAS_ACCOUNT);
+        }
+        if (outcome == ContactOutcome.ALREADY_INVITED) {
+            throw new ContactSkippedException(ContactSkipReason.ALREADY_INVITED);
+        }
+        InvitationToken token = tokens.invitationToken();
+        if (outcome == ContactOutcome.RENEW) {
+            Invitation expired = invitations.findOpenByEmailKey(address.normalized()).orElseThrow();
+            expired.reissue(token.hash(), now, suggestion);
+            return new ContactInvitation(new IssuedInvitation(invitations.save(expired), token), true);
+        }
+        Invitation created = invitations.save(Invitation.issue(address, token.hash(), now, suggestion));
+        return new ContactInvitation(new IssuedInvitation(created, token), false);
+    }
+
+    private void requireDelivery() {
+        if (!mailer.isAvailable()) {
+            throw new InvitationDeliveryUnavailableException();
+        }
     }
 
     private Invitation usable(String token) {

@@ -68,6 +68,20 @@ public final class SecurityEventLogger {
         account("password-changed", accountId);
     }
 
+    /**
+     * One event per confirmed contact import, with counters only and never names or addresses.
+     */
+    public void contactImport(long actorId, int invited, int renewed, int skipped, int deliveryFailed) {
+        LOG.atInfo()
+                .addKeyValue("event", "contact-import")
+                .addKeyValue("actorId", actorId)
+                .addKeyValue("invited", invited)
+                .addKeyValue("renewed", renewed)
+                .addKeyValue("skipped", skipped)
+                .addKeyValue("deliveryFailed", deliveryFailed)
+                .log("Security event contact-import");
+    }
+
     public void invitationIssued(long invitationId, long actorId) {
         invitation("invitation-issued", invitationId, actorId);
     }

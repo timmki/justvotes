@@ -33,7 +33,10 @@ public final class InvitationDelivery {
         return deliver(invitations.resend(invitationId), locale);
     }
 
-    private InvitationOverview deliver(IssuedInvitation issued, Locale locale) {
+    /**
+     * Sends the email for an invitation that has already been committed, e.g. one created by a contact import.
+     */
+    public InvitationOverview deliver(IssuedInvitation issued, Locale locale) {
         Invitation invitation = issued.invitation();
         InvitationId id = invitation.id().orElseThrow();
         try {

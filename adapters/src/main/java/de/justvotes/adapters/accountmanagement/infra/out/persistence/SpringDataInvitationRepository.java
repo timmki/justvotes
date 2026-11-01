@@ -8,4 +8,6 @@ public interface SpringDataInvitationRepository extends JpaRepository<Invitation
     Optional<InvitationEntity> findByTokenHash(String tokenHash);
 
     boolean existsByEmailKeyAndStatus(String emailKey, String status);
+
+    Optional<InvitationEntity> findFirstByEmailKeyAndStatus(String emailKey, String status);
 }
