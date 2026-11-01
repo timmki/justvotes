@@ -160,15 +160,16 @@ test('keeps the polls intro close to the mobile header', async ({ page }) => {
    })).toBeLessThanOrEqual(24);
 });
 
-test('keeps central routes within supported viewport widths', async ({ page }) => {
-  for (const width of [320, 600, 900, 1280]) {
+// One test per width keeps each run of all central routes within its own timeout on slower CI browsers.
+for (const width of [320, 600, 900, 1280]) {
+  test(`keeps central routes within the viewport at ${width}px`, async ({ page }) => {
     await page.setViewportSize({width, height: 720});
     for (const route of centralRoutes) {
       await page.goto(route);
       expect(await page.evaluate(() => document.documentElement.scrollWidth), `${route} at ${width}px`).toBeLessThanOrEqual(width);
     }
-  }
-});
+  });
+}
 
 test('keeps populated public and admin surfaces within supported viewport widths', async ({ page }) => {
   const poll = {
