@@ -48,7 +48,7 @@ jobs:
           distribution: temurin
           java-version: '21'
       # .mvn/settings.xml keeps the local repository inside the workspace, not in ~/.m2.
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: .mvn/repository
           key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}
