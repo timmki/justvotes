@@ -102,14 +102,16 @@ class SecurityEventLoggingTest extends AccountHttpTestBase {
         admin.post(url("/admin/accounts/" + accountId + "/lock"));
         admin.post(url("/admin/accounts/" + accountId + "/unlock"));
         String oneTimePassword = json(admin.post(url("/admin/accounts/" + accountId + "/one-time-password"))).path("password").asText();
+        admin.post(url("/admin/invitations/contact-import"),
+                "{\"contacts\":[{\"email\":\"imported-contact@example.test\",\"name\":\"Geheimer Kontaktname\"}]}");
 
         assertThat(second.path("invitationId").asText()).isNotBlank();
         assertThat(events()).contains("login-failed", "login-throttled", "login", "password-changed", "logout",
                 "invitation-issued", "invitation-resent", "invitation-revoked", "invitation-accepted",
-                "account-locked", "account-unlocked", "one-time-password-set");
+                "account-locked", "account-unlocked", "one-time-password-set", "contact-import");
         String log = everything();
         assertThat(log).doesNotContain(userPassword, "next-secret-password", "accepting-password", "secret-password-typed-as-name",
-                oneTimePassword, "{pbkdf2", "{bcrypt", "$2a$", name);
+                oneTimePassword, "{pbkdf2", "{bcrypt", "$2a$", name, "imported-contact@example.test", "Geheimer Kontaktname");
         for (String token : TOKENS) {
             assertThat(log).doesNotContain(token);
         }

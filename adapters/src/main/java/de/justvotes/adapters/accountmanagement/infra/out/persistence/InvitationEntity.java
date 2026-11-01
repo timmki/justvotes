@@ -6,6 +6,7 @@ import de.justvotes.accountmanagement.core.model.Invitation;
 import de.justvotes.accountmanagement.core.model.InvitationId;
 import de.justvotes.accountmanagement.core.model.InvitationStatus;
 import de.justvotes.accountmanagement.core.model.InvitationTokenHash;
+import de.justvotes.accountmanagement.core.model.SuggestedIdentity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -37,6 +38,8 @@ public class InvitationEntity {
     private String acceptedAt;
     @Column(name = "acceptedAccountId")
     private Integer acceptedAccountId;
+    @Column(name = "suggestedIdentity")
+    private String suggestedIdentity;
 
     protected InvitationEntity() {
     }
@@ -57,6 +60,7 @@ public class InvitationEntity {
         expiresAt = invitation.expiresAt().toString();
         acceptedAt = invitation.acceptedAt().map(Instant::toString).orElse(null);
         acceptedAccountId = invitation.acceptedAccountId().map(accountId -> Math.toIntExact(accountId.value())).orElse(null);
+        suggestedIdentity = invitation.suggestedIdentity().map(SuggestedIdentity::value).orElse(null);
     }
 
     Invitation toDomain() {
@@ -68,8 +72,12 @@ public class InvitationEntity {
         if (acceptedAccountId != null) {
             acceptedAccount = AccountId.of(acceptedAccountId);
         }
+        SuggestedIdentity suggestion = null;
+        if (suggestedIdentity != null) {
+            suggestion = SuggestedIdentity.of(suggestedIdentity);
+        }
         return Invitation.restore(InvitationId.of(id), EmailAddress.of(email), InvitationTokenHash.of(tokenHash),
                 InvitationStatus.valueOf(status), deliveryFailed != 0, Instant.parse(issuedAt), Instant.parse(expiresAt),
-                accepted, acceptedAccount);
+                accepted, acceptedAccount, suggestion);
     }
 }

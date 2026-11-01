@@ -10,6 +10,7 @@ import {useI18n} from '../../shared/i18n/I18nProvider';
 import type {TranslationKey} from '../../shared/i18n/translations';
 import {RouteState} from '../../shared/ui/RouteState';
 import {formatTimestamp} from '../polls/pollFormatters';
+import {ContactImport} from './ContactImport';
 
 export type InvitationSummary = components['schemas']['InvitationSummary'];
 type InvitationLocale = 'de' | 'en';
@@ -88,6 +89,7 @@ export function InvitationAdministration() {
             <p className="form-status" role="status">{message}</p>
             <p className="form-error" role="alert">{error && t(error)}</p>
         </form>
+        <ContactImport/>
         {query.isPending && <RouteState status="loading"/>}
         {query.isError && <RouteState status="error" error={frontendError(query.error)} onRetry={() => void query.refetch()}/>}
         {query.data && query.data.length === 0 && <RouteState status="empty" title={t('admin.noInvitations')}/>}

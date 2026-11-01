@@ -92,7 +92,8 @@ function UnusableInvitation({messageKey}: {messageKey: TranslationKey}) {
 function InvitationForm({token, t}: {token: string; t: ReturnType<typeof useI18n>['t']}) {
     const {locale} = useI18n();
     const preview = useApiQuery(['invitation', token], () => apiClient.inspectInvitation(token));
-    const [identity, setIdentity] = useState('');
+    // null until the person edits the field; until then an imported contact name is suggested.
+    const [editedIdentity, setIdentity] = useState<string | null>(null);
     const [password, setPassword] = useState('');
     const [repeatPassword, setRepeatPassword] = useState('');
     const [pending, setPending] = useState(false);
@@ -111,6 +112,7 @@ function InvitationForm({token, t}: {token: string; t: ReturnType<typeof useI18n
         if (preview.error instanceof ApiError) frontend = preview.error.frontend;
         return <RouteState status="error" error={frontend} onRetry={() => void preview.refetch()}/>;
     }
+    const identity = editedIdentity ?? preview.data.suggestedUserID ?? '';
 
     async function submit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();

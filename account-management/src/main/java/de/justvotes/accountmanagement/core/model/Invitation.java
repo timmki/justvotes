@@ -22,10 +22,11 @@ public final class Invitation {
     private Instant expiresAt;
     private Instant acceptedAt;
     private AccountId acceptedAccountId;
+    private SuggestedIdentity suggestedIdentity;
 
     private Invitation(InvitationId id, EmailAddress email, InvitationTokenHash tokenHash, InvitationStatus status,
                        boolean deliveryFailed, Instant issuedAt, Instant expiresAt, Instant acceptedAt,
-                       AccountId acceptedAccountId) {
+                       AccountId acceptedAccountId, SuggestedIdentity suggestedIdentity) {
         this.id = id;
         this.email = Objects.requireNonNull(email, "An invitation requires an email address.");
         this.tokenHash = Objects.requireNonNull(tokenHash, "An invitation requires a token hash.");
@@ -35,19 +36,32 @@ public final class Invitation {
         this.deliveryFailed = deliveryFailed;
         this.acceptedAt = acceptedAt;
         this.acceptedAccountId = acceptedAccountId;
+        if (status != InvitationStatus.OPEN && suggestedIdentity != null) {
+            throw new IllegalArgumentException("Only an open invitation keeps a suggested display name.");
+        }
+        this.suggestedIdentity = suggestedIdentity;
     }
 
     public static Invitation issue(EmailAddress email, InvitationTokenHash tokenHash, Instant now) {
+        return issue(email, tokenHash, now, null);
+    }
+
+    /**
+     * Issues an invitation that suggests a display name, e.g. the name of an imported contact.
+     */
+    public static Invitation issue(EmailAddress email, InvitationTokenHash tokenHash, Instant now,
+                                   SuggestedIdentity suggestedIdentity) {
         return new Invitation(null, email, tokenHash, InvitationStatus.OPEN, false, now, now.plus(VALIDITY),
-                null, null);
+                null, null, suggestedIdentity);
     }
 
     public static Invitation restore(InvitationId id, EmailAddress email, InvitationTokenHash tokenHash,
                                      InvitationStatus status, boolean deliveryFailed, Instant issuedAt,
-                                     Instant expiresAt, Instant acceptedAt, AccountId acceptedAccountId) {
+                                     Instant expiresAt, Instant acceptedAt, AccountId acceptedAccountId,
+                                     SuggestedIdentity suggestedIdentity) {
         Objects.requireNonNull(id, "A restored invitation requires an ID.");
         return new Invitation(id, email, tokenHash, status, deliveryFailed, issuedAt, expiresAt, acceptedAt,
-                acceptedAccountId);
+                acceptedAccountId, suggestedIdentity);
     }
 
     public InvitationState state(Instant now) {
@@ -61,6 +75,13 @@ public final class Invitation {
             return InvitationState.EXPIRED;
         }
         return InvitationState.OPEN;
+    }
+
+    /**
+     * An open invitation whose link has run out; it can be renewed instead of issuing a second one.
+     */
+    public boolean isExpired(Instant now) {
+        return state(now) == InvitationState.EXPIRED;
     }
 
     public boolean isUsable(InvitationTokenHash candidate, Instant now) {
@@ -84,9 +105,18 @@ public final class Invitation {
         deliveryFailed = false;
     }
 
+    /**
+     * Reissues the invitation and replaces the suggested display name, e.g. when a contact file is imported again.
+     */
+    public void reissue(InvitationTokenHash newTokenHash, Instant now, SuggestedIdentity replacement) {
+        reissue(newTokenHash, now);
+        suggestedIdentity = replacement;
+    }
+
     public void revoke() {
         requireOpen();
         status = InvitationStatus.REVOKED;
+        suggestedIdentity = null;
     }
 
     public void accept(InvitationTokenHash candidate, AccountId accountId, Instant now) {
@@ -94,6 +124,7 @@ public final class Invitation {
         status = InvitationStatus.ACCEPTED;
         acceptedAt = now;
         acceptedAccountId = Objects.requireNonNull(accountId, "An accepted invitation requires the created account.");
+        suggestedIdentity = null;
     }
 
     public void recordDelivery(boolean delivered) {
@@ -143,5 +174,9 @@ public final class Invitation {
 
     public Optional<AccountId> acceptedAccountId() {
         return Optional.ofNullable(acceptedAccountId);
+    }
+
+    public Optional<SuggestedIdentity> suggestedIdentity() {
+        return Optional.ofNullable(suggestedIdentity);
     }
 }

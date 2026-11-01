@@ -2,6 +2,8 @@ package de.justvotes.adapters.shared.infra.in.http;
 
 import de.justvotes.accountmanagement.core.exception.AccountNotFoundException;
 import de.justvotes.accountmanagement.core.exception.AccountNotManageableException;
+import de.justvotes.accountmanagement.core.exception.ContactImportInvalidException;
+import de.justvotes.accountmanagement.core.exception.ContactImportTooManyException;
 import de.justvotes.accountmanagement.core.exception.CurrentPasswordInvalidException;
 import de.justvotes.accountmanagement.core.exception.EmailAlreadyInvitedException;
 import de.justvotes.accountmanagement.core.exception.IdentityTakenException;
@@ -77,6 +79,21 @@ public final class ApiExceptionHandler {
         response.getBody().setProperty("field", exception.field());
         response.getBody().setProperty("rule", exception.rule());
         return response;
+    }
+
+    @ExceptionHandler(ContactImportInvalidException.class)
+    ResponseEntity<ProblemDetail> contactImportInvalid(ContactImportInvalidException exception) {
+        return problem(HttpStatus.BAD_REQUEST, "contact-import-invalid", exception.getMessage());
+    }
+
+    @ExceptionHandler(ContactImportTooManyException.class)
+    ResponseEntity<ProblemDetail> contactImportTooMany(ContactImportTooManyException exception) {
+        return problem(HttpStatus.BAD_REQUEST, "contact-import-too-many", exception.getMessage());
+    }
+
+    @ExceptionHandler(ContactImportTooLargeException.class)
+    ResponseEntity<ProblemDetail> contactImportTooLarge(ContactImportTooLargeException exception) {
+        return problem(HttpStatus.PAYLOAD_TOO_LARGE, "contact-import-too-large", exception.getMessage());
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)

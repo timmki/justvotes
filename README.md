@@ -94,6 +94,14 @@ Invitation mail is sent via SMTP and only offered when `MAIL_HOST` and `PUBLIC_B
 A missing or unreachable mail server never affects `/actuator/health`; failed deliveries are shown
 at the invitation and can be resent.
 
+Several people can be invited at once from an address book export: under *Administration →
+Einladungen → Aus Datei einladen* the administrator chooses a vCard file (`.vcf`, versions 3.0 and
+4.0, at most 1 MB and 500 contacts). The application only reads each contact's name and preferred
+email address and shows a preview: who will be invited, whose expired invitation will be renewed, and
+who is skipped (already has an account, already invited, duplicate, missing or invalid address). After
+confirming, every selected contact receives a normal invitation; the contact name is suggested as the
+display name on the invitation page and can be changed. The file itself is never stored.
+
 ## API Contract and Documentation
 
 The versioned OpenAPI contract is maintained at `api-contract/src/main/openapi/justvotes-v1.yaml`. Maven validates it and generates the server interfaces and DTOs; generated sources remain under `target/generated-sources`.

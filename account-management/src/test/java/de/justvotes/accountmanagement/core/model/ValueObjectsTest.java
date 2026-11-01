@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ValueObjectsTest {
     @Test
@@ -46,5 +47,17 @@ class ValueObjectsTest {
     void invitationTokenHashIsSha256Hex() {
         InvitationTokenHash hash = InvitationToken.of("abc").hash();
         assertEquals("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", hash.value());
+    }
+
+    @Test
+    void suggestedIdentityComesFromContactNamesWithinIdentityRules() {
+        assertEquals("Anna Beispiel", SuggestedIdentity.fromContactName("  Anna Beispiel ").orElseThrow().value());
+        assertTrue(SuggestedIdentity.fromContactName("   ").isEmpty());
+        assertTrue(SuggestedIdentity.fromContactName(null).isEmpty());
+        String tooLong = "😀".repeat(65);
+        String cut = SuggestedIdentity.fromContactName(tooLong).orElseThrow().value();
+        assertEquals(64, cut.codePointCount(0, cut.length()));
+        assertEquals("a".repeat(63), SuggestedIdentity.fromContactName("a".repeat(63) + " b").orElseThrow().value());
+        assertThrows(IllegalArgumentException.class, () -> SuggestedIdentity.of(" Anna"));
     }
 }

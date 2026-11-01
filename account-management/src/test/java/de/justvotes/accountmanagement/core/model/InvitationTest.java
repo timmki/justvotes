@@ -66,4 +66,32 @@ class InvitationTest {
         assertEquals(AccountId.of(5), invitation.acceptedAccountId().orElseThrow());
         assertThrows(InvitationNotUsableException.class, () -> invitation.accept(FIRST, AccountId.of(6), NOW));
     }
+
+    @Test
+    void suggestionIsKeptOrReplacedOnReissueAndClearedOnAcceptOrRevoke() {
+        SuggestedIdentity anna = SuggestedIdentity.of("Anna Beispiel");
+        Invitation invitation = Invitation.issue(EmailAddress.of("anna@example.test"), FIRST, NOW, anna);
+        assertEquals(anna, invitation.suggestedIdentity().orElseThrow());
+
+        invitation.reissue(SECOND, NOW);
+        assertEquals(anna, invitation.suggestedIdentity().orElseThrow());
+        invitation.reissue(FIRST, NOW, SuggestedIdentity.of("Anna B."));
+        assertEquals("Anna B.", invitation.suggestedIdentity().orElseThrow().value());
+
+        invitation.accept(FIRST, AccountId.of(5), NOW);
+        assertTrue(invitation.suggestedIdentity().isEmpty());
+
+        Invitation revoked = Invitation.issue(EmailAddress.of("bert@example.test"), SECOND, NOW, anna);
+        revoked.revoke();
+        assertTrue(revoked.suggestedIdentity().isEmpty());
+    }
+
+    @Test
+    void expiredOnlyAfterTheValidityPeriodOfAnOpenInvitation() {
+        Invitation invitation = invitation();
+        assertFalse(invitation.isExpired(NOW.plus(Duration.ofDays(7)).minusSeconds(1)));
+        assertTrue(invitation.isExpired(NOW.plus(Duration.ofDays(7))));
+        invitation.revoke();
+        assertFalse(invitation.isExpired(NOW.plus(Duration.ofDays(8))));
+    }
 }

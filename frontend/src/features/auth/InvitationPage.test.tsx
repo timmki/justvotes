@@ -95,6 +95,22 @@ describe('InvitationPage', () => {
         expect(screen.getByLabelText('Anzeigename')).toHaveAttribute('aria-invalid', 'true');
     });
 
+    it('prefills the display name suggested by a contact import and lets the person change it', async () => {
+        signIn(null);
+        vi.spyOn(apiClient, 'inspectInvitation').mockResolvedValue({...preview, suggestedUserID: 'Anna Beispiel'});
+        const accept = vi.spyOn(apiClient, 'acceptInvitation').mockResolvedValue(userSession('Anna B.'));
+        renderPollTest('/invitation', <InvitationPage/>);
+
+        expect(await screen.findByLabelText('Anzeigename')).toHaveValue('Anna Beispiel');
+        fireEvent.change(screen.getByLabelText('Anzeigename'), {target: {value: ''}});
+        expect(screen.getByLabelText('Anzeigename')).toHaveValue('');
+        fill('Anna B.', 'correct-horse-battery');
+
+        await vi.waitFor(() => expect(accept).toHaveBeenCalledWith({
+            token: 'secret-token', userID: 'Anna B.', password: 'correct-horse-battery',
+        }));
+    });
+
     it('explains unusable invitations and forgets their token', async () => {
         signIn(null);
         vi.spyOn(apiClient, 'inspectInvitation').mockRejectedValue(problemError({code: 'invitation-not-usable'}, 409));

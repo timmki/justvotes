@@ -261,3 +261,75 @@ test('the mobile header only offers a menu to signed-in people', async ({page}) 
     await expect(panel.getByRole('button', {name: 'Abmelden'})).toBeVisible();
     await expect(panel.getByRole('navigation')).toHaveCount(0);
 });
+
+const importPreview = {
+    unreadableEntries: 1,
+    contacts: [
+        {position: 1, name: 'Anna Beispiel', email: 'anna@example.test', outcome: 'invite'},
+        {position: 2, name: 'Bert Muster', email: 'bert@example.test', outcome: 'renew'},
+        {position: 3, name: 'Jörg Ümlaut-Straß', email: 'joerg@example.test', outcome: 'invite'},
+        {position: 4, name: 'Ohne Adresse', email: null, outcome: 'missing-email'},
+        {position: 5, name: 'Kaputt', email: 'kein-at-zeichen', outcome: 'invalid-email'},
+        {position: 6, name: 'Anna Doppelt', email: 'anna@example.test', outcome: 'duplicate-in-file'},
+    ],
+};
+
+for (const width of [320, 375, 1280]) {
+    test(`imports contacts from a vCard file at ${width}px`, async ({page}) => {
+        await page.setViewportSize({width, height: 900});
+        let uploaded = '';
+        let imported: {locale: string; contacts: {email: string; name: string | null}[]} | null = null;
+        await fakeBackend(page, {session: admin}, async (route) => {
+            const request = route.request();
+            const path = new URL(request.url()).pathname;
+            if (path === '/api/v1/admin/invitations/contact-import/preview') {
+                uploaded = request.postData() ?? '';
+                expect(request.headers()['content-type']).toContain('text/vcard');
+                return route.fulfill({json: importPreview});
+            }
+            if (path === '/api/v1/admin/invitations/contact-import') {
+                imported = request.postDataJSON();
+                return route.fulfill({json: {invited: 1, renewed: 1, deliveryFailed: 0, entries: [
+                    {email: 'anna@example.test', outcome: 'invited'},
+                    {email: 'bert@example.test', outcome: 'renewed'},
+                ]}});
+            }
+            return route.fulfill({json: []});
+        });
+
+        await page.goto('/admin/invitations');
+        await page.getByLabel('Kontaktdatei (.vcf)').setInputFiles('e2e/fixtures/contacts.vcf');
+
+        await expect(page.getByText('1 Eintrag der Datei konnte nicht gelesen werden.')).toBeVisible();
+        await expect(page.getByText('Jörg Ümlaut-Straß')).toBeVisible();
+        await expect(page.getByText('Ungültige E-Mail-Adresse')).toBeVisible();
+        expect(uploaded).toContain('BEGIN:VCARD');
+        expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+        expect(await seriousViolations(page)).toEqual([]);
+
+        await page.getByRole('checkbox', {name: 'Jörg Ümlaut-Straß einladen'}).uncheck();
+        await page.getByLabel('Sprache der Einladung').last().selectOption('en');
+        await page.getByRole('button', {name: '2 einladen'}).click();
+
+        await expect(page.getByText('1 eingeladen, 1 erneuert, 0 übersprungen.')).toBeVisible();
+        expect(imported).toEqual({locale: 'en', contacts: [
+            {email: 'anna@example.test', name: 'Anna Beispiel'},
+            {email: 'bert@example.test', name: 'Bert Muster'},
+        ]});
+    });
+}
+
+test('an invitation from a contact import suggests the display name', async ({page}) => {
+    const state: {session: Session | null} = {session: null};
+    await fakeBackend(page, state, (route) => {
+        if (new URL(route.request().url()).pathname === '/api/v1/invitations/inspection') {
+            return route.fulfill({json: {email: 'anna@example.test', expiresAt: '2026-11-03T10:00:00.000Z', suggestedUserID: 'Anna Beispiel'}});
+        }
+        return route.fulfill({json: []});
+    });
+
+    await page.goto('/invitation#token=invite-token');
+    await expect(page.getByLabel('Anzeigename')).toHaveValue('Anna Beispiel');
+    await page.getByLabel('Anzeigename').fill('Anna B.');
+    await expect(page.getByLabel('Anzeigename')).toHaveValue('Anna B.');
+});

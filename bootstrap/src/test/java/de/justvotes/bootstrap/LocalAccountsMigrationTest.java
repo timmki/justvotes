@@ -69,4 +69,20 @@ class LocalAccountsMigrationTest {
             assertThat(tables).contains("Account", "Invitation").doesNotContain("Admin");
         }
     }
+
+    @Test
+    void addsTheSuggestedDisplayNameToExistingInvitations() throws Exception {
+        String url = "jdbc:sqlite:" + Path.of("target", "migration-" + UUID.randomUUID() + ".db");
+        flyway(url, "7").migrate();
+        try (Connection connection = DriverManager.getConnection(url); Statement statement = connection.createStatement()) {
+            statement.execute("INSERT INTO \"Invitation\" (email, \"emailKey\", \"tokenHash\", status, \"issuedAt\", \"expiresAt\") "
+                    + "VALUES ('anna@example.test', 'anna@example.test', 'hash', 'OPEN', 'now', 'later')");
+        }
+
+        flyway(url, "latest").migrate();
+
+        try (Connection connection = DriverManager.getConnection(url); Statement statement = connection.createStatement()) {
+            assertThat(count(statement, "SELECT count(*) FROM \"Invitation\" WHERE \"suggestedIdentity\" IS NULL")).isEqualTo(1);
+        }
+    }
 }

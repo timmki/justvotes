@@ -3576,3 +3576,69 @@ html.menu-open {
 .invite-form h4 {
     margin: 0;
 }
+
+.contact-import {
+    margin-top: 1.5rem;
+}
+
+.contact-import input[type="file"] {
+    max-width: 100%;
+}
+
+.contact-import-preview h5,
+.contact-import-summary h5 {
+    margin: 1rem 0 .5rem;
+}
+
+.contact-import .select-all,
+.contact-choice {
+    display: inline-flex;
+    gap: .5rem;
+    align-items: center;
+}
+
+.contact-import .select-all {
+    margin-bottom: .5rem;
+}
+
+.contact-import input[type="checkbox"] {
+    width: 1.1rem;
+    height: 1.1rem;
+    flex: none;
+}
+
+.contact-import-actions {
+    display: grid;
+    gap: .4rem;
+    margin-top: 1rem;
+}
+
+.contact-import-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem 1rem;
+    align-items: center;
+    margin-top: .5rem;
+}
+
+.contact-outcome-invite,
+.contact-outcome-renew {
+    border-color: var(--accent, currentColor);
+}
+
+.contact-import-skipped {
+    margin: 0 0 1rem;
+    padding-left: 1.25rem;
+    overflow-wrap: anywhere;
+}
+
+.contact-import .status-badge {
+    justify-self: start;
+    margin: 0;
+}
+
+/* Inside the nested import form the cards are narrow: the column name goes above its value. */
+.contact-import .admin-card-table td[data-label] {
+    grid-template-columns: minmax(0, 1fr);
+    gap: .1rem;
+}

@@ -5,7 +5,8 @@ import {queryKeys} from './queryKeys';
 import {SessionCoordinator} from './session';
 
 type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
-type RequestOptions = Omit<RequestInit, 'body'> & { body?: unknown };
+/** `body` is sent as JSON; `text` is sent as is with its own content type (e.g. an uploaded vCard file). */
+type RequestOptions = Omit<RequestInit, 'body'> & { body?: unknown; text?: {content: string; contentType: string} };
 type UnauthorizedHandler = (requestPath: string) => void;
 type AuthenticatedHandler = () => void;
 type SessionEndedHandler = () => void;
@@ -21,6 +22,9 @@ type InvitationPreview = components['schemas']['InvitationPreview'];
 type InvitationAcceptance = components['schemas']['InvitationAcceptance'];
 type InvitationRequest = components['schemas']['InvitationRequest'];
 type InvitationSummary = components['schemas']['InvitationSummary'];
+export type ContactImportPreview = components['schemas']['ContactImportPreview'];
+export type ContactImportRequest = components['schemas']['ContactImportRequest'];
+export type ContactImportResult = components['schemas']['ContactImportResult'];
 type AccountSummary = components['schemas']['AccountSummary'];
 type OneTimePassword = components['schemas']['OneTimePassword'];
 type Poll = components['schemas']['Poll'];
@@ -64,13 +68,18 @@ export class ApiClient {
             headers.set('Content-Type', 'application/json');
             body = JSON.stringify(options.body);
         }
+        if (options.text !== undefined) {
+            headers.set('Content-Type', options.text.contentType);
+            body = options.text.content;
+        }
         if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
             const csrf = await this.ensureCsrf();
             headers.set(csrf.headerName, csrf.token);
         }
 
+        const {text: _text, ...init} = options;
         return this.send<T>(path, {
-            ...options,
+            ...init,
             method,
             headers,
             body
@@ -134,6 +143,15 @@ export class ApiClient {
 
     createInvitation(invitation: InvitationRequest) {
         return this.request<InvitationSummary>('/admin/invitations', {method: 'POST', body: invitation});
+    }
+
+    previewContactImport(file: string) {
+        return this.request<ContactImportPreview>('/admin/invitations/contact-import/preview',
+            {method: 'POST', text: {content: file, contentType: 'text/vcard;charset=UTF-8'}});
+    }
+
+    importContacts(request: ContactImportRequest) {
+        return this.request<ContactImportResult>('/admin/invitations/contact-import', {method: 'POST', body: request});
     }
 
     resendInvitation(invitationId: string) {

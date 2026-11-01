@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: JustVotes API
-  version: 2.0.0
+  version: 2.1.0
   description: |
     The authoritative HTTP contract for JustVotes. Every operation except the CSRF bootstrap, the login and the invitation endpoints requires a signed-in account. Poll audit entries are detailed so every signed-in participant can verify voting activity; they contain the identity and selected option.
 
@@ -34,12 +34,13 @@ tags:
 x-status-matrix:
   description: Central inventory used to reconcile operation responses and HTTP tests.
   statuses:
-    '400': malformed JSON, bean validation, invalid opaque identifier, or a rejected account value (`invalid-account-input` with `field` and `rule`)
+    '400': malformed JSON, bean validation, invalid opaque identifier, a rejected account value (`invalid-account-input` with `field` and `rule`), or an unreadable contact file (`contact-import-invalid`, `contact-import-too-many`)
     '401': missing, expired or invalidated session (`authentication-required`), or invalid login credentials (`invalid-credentials`)
     '403': missing/invalid CSRF token, insufficient role (`access-denied`), or pending password change (`password-change-required`)
     '404': missing resource or unknown route
     '405': unsupported HTTP method
     '409': illegal poll transition, duplicate name, conflicting state, or account and invitation conflicts (`identity-taken`, `email-already-invited`, `invitation-not-usable`, `invitation-delivery-unavailable`, `account-not-manageable`, `already-authenticated`)
+    '413': contact file larger than 1 MB (`contact-import-too-large`)
     '415': unsupported request media type
     '422': password rejected (`password-policy-violation`, `current-password-invalid`)
     '429': too many failed logins for an email address (`login-throttled`), with `Retry-After`
@@ -976,6 +977,82 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/Conflict'
+  /admin/invitations/contact-import/preview:
+    post:
+      tags:
+        - Invitation administration
+      operationId: previewContactImport
+      description: Reads a vCard file (versions 3.0 and 4.0, at most 1 MB and 500 contacts) and assesses every contact without creating invitations or sending emails. Only name and preferred email address are evaluated; the file is not stored.
+      security:
+        - session: [ ]
+          csrf: [ ]
+          csrfCookie: [ ]
+      requestBody:
+        required: true
+        content:
+          text/vcard:
+            schema:
+              type: string
+          text/x-vcard:
+            schema:
+              type: string
+          text/plain:
+            schema:
+              type: string
+      responses:
+        '200':
+          description: Assessment of every readable contact in file order.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactImportPreview'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+  /admin/invitations/contact-import:
+    post:
+      tags:
+        - Invitation administration
+      operationId: importContacts
+      description: Invites the selected contacts like single invitations. Every contact is checked again; expired invitations are renewed instead of duplicated. Processing is not atomic.
+      security:
+        - session: [ ]
+          csrf: [ ]
+          csrfCookie: [ ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContactImportRequest'
+      responses:
+        '200':
+          description: Result per contact and totals.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactImportResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
   '/admin/invitations/{invitationId}':
     parameters:
       - $ref: '#/components/parameters/InvitationId'
@@ -1507,6 +1584,15 @@ components:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
+    PayloadTooLarge:
+      description: The request body exceeds the allowed size (`contact-import-too-large`).
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/NoStore'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
     UnprocessableEntity:
       description: The password was rejected (`password-policy-violation` or `current-password-invalid`).
       headers:
@@ -1709,6 +1795,10 @@ components:
           type: string
         expiresAt:
           $ref: '#/components/schemas/UtcTimestamp'
+        suggestedUserID:
+          type: string
+          nullable: true
+          description: Suggested display name from an imported vCard; the invited person may change it.
     InvitationAcceptance:
       type: object
       additionalProperties: false
@@ -1736,12 +1826,101 @@ components:
           minLength: 3
           maxLength: 254
         locale:
-          type: string
-          enum: [de, en]
-          description: Language of the invitation email; defaults to `de`.
+          $ref: '#/components/schemas/InvitationLocale'
+    InvitationLocale:
+      type: string
+      enum: [de, en]
+      description: Language of the invitation email; defaults to `de`.
     InvitationStatus:
       type: string
       enum: [open, expired, accepted, revoked]
+    ContactImportPreview:
+      type: object
+      additionalProperties: false
+      required: [contacts, unreadableEntries]
+      properties:
+        contacts:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContactImportEntry'
+        unreadableEntries:
+          type: integer
+          minimum: 0
+          description: Number of damaged entries that could not be read.
+    ContactImportEntry:
+      type: object
+      additionalProperties: false
+      required: [position, outcome]
+      properties:
+        position:
+          type: integer
+          minimum: 1
+        name:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        outcome:
+          $ref: '#/components/schemas/ContactImportOutcome'
+    ContactImportOutcome:
+      type: string
+      enum: [invite, renew, has-account, already-invited, duplicate-in-file, missing-email, invalid-email]
+    ContactImportRequest:
+      type: object
+      additionalProperties: false
+      required: [contacts]
+      properties:
+        locale:
+          $ref: '#/components/schemas/InvitationLocale'
+        contacts:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/ContactImportContact'
+    ContactImportContact:
+      type: object
+      additionalProperties: false
+      required: [email]
+      properties:
+        email:
+          type: string
+          minLength: 3
+          maxLength: 254
+        name:
+          type: string
+          nullable: true
+          maxLength: 256
+    ContactImportResult:
+      type: object
+      additionalProperties: false
+      required: [invited, renewed, deliveryFailed, entries]
+      properties:
+        invited:
+          type: integer
+        renewed:
+          type: integer
+        deliveryFailed:
+          type: integer
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContactImportResultEntry'
+    ContactImportResultEntry:
+      type: object
+      additionalProperties: false
+      required: [email, outcome]
+      properties:
+        email:
+          type: string
+        outcome:
+          type: string
+          enum: [invited, renewed, delivery-failed, skipped]
+        reason:
+          type: string
+          nullable: true
+          enum: [has-account, already-invited, invalid-email, duplicate-in-request]
     InvitationSummary:
       type: object
       additionalProperties: false
