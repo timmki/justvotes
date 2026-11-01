@@ -44,18 +44,14 @@ public final class JpaPollPersistenceAdapter implements PollRepository {
                             endsAt,
                             poll.templateGroup().id().value(),
                             poll.templateGroup().name(),
-                            poll.templateGroup().description());
+                            poll.templateGroup().description(),
+                            poll.templateGroup().followsMembers());
                 });
 
         entity.updateLifecycle(poll.visibility().name().toLowerCase(), poll.state().name().toLowerCase(), poll.endsAt());
 
-        if (entity.templateSnapshotOptions().isEmpty()) {
-            entity.addTemplateSnapshotOptions(poll.templateSnapshotOptions().stream().map(Option::text).toList());
-        }
-
-        if (entity.options().isEmpty()) {
-            entity.addOptions(poll.options().stream().map(Option::text).toList());
-        }
+        entity.addMissingTemplateSnapshotOptions(poll.templateSnapshotOptions());
+        entity.synchronizeOptions(poll.options());
 
         entity.synchronizeVotes(poll.votes());
         polls.save(entity);
@@ -93,6 +89,12 @@ public final class JpaPollPersistenceAdapter implements PollRepository {
                 Visibility.PUBLIC.name().toLowerCase(),
                 State.ACTIVE.name().toLowerCase()
         ).stream().map(this::poll).toList();
+    }
+
+    @Override
+    public List<Poll> findAllFollowingMembers() {
+        return polls.findAllByFollowsMembersAndStateIn(1, List.of(State.DRAFT.name().toLowerCase(), State.ACTIVE.name().toLowerCase()))
+                .stream().map(this::poll).toList();
     }
 
     @Override
@@ -138,7 +140,7 @@ public final class JpaPollPersistenceAdapter implements PollRepository {
                 State.valueOf(entity.state().toUpperCase()),
                 entity.createdAt(),
                 entity.endsAt(),
-                TemplateGroup.of(TemplateGroupId.of(entity.templateGroupId()), entity.templateGroupName(), entity.templateGroupDescription()),
+                new TemplateGroup(TemplateGroupId.of(entity.templateGroupId()), entity.templateGroupName(), entity.templateGroupDescription(), entity.followsMembers()),
                 entity.templateSnapshotOptions().stream()
                         .sorted(Comparator.comparingInt(PollTemplateSnapshotOptionEntity::number))
                         .map(PollTemplateSnapshotOptionEntity::text)
@@ -174,10 +176,11 @@ public final class JpaPollPersistenceAdapter implements PollRepository {
                 endsAt = PollEntity.parseInstant(row.getEndsAt());
             }
             state = State.valueOf(row.getState().toUpperCase());
-            templateGroup = TemplateGroup.of(
+            templateGroup = new TemplateGroup(
                     TemplateGroupId.of(row.getTemplateGroupId()),
                     row.getTemplateGroupName(),
-                    row.getTemplateGroupDescription());
+                    row.getTemplateGroupDescription(),
+                    row.getFollowsMembers() == 1);
             totalVotes = Math.toIntExact(row.getTotalVotes());
         }
 

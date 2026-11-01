@@ -5,6 +5,7 @@ import de.justvotes.pollmanagement.core.model.TemplateGroupSnapshot;
 import de.justvotes.pollmanagement.core.ports.out.TemplateGroupSnapshotProvider;
 import de.justvotes.templatecatalog.core.model.OptionTemplate;
 import de.justvotes.templatecatalog.core.model.OptionTemplateGroup;
+import de.justvotes.templatecatalog.core.model.TemplateGroupKind;
 import de.justvotes.templatecatalog.core.ports.in.ViewTemplateCatalog;
 
 public final class TemplateCatalogSnapshotAdapter implements TemplateGroupSnapshotProvider {
@@ -30,6 +31,7 @@ public final class TemplateCatalogSnapshotAdapter implements TemplateGroupSnapsh
                 catalog.templatesInGroup(templateGroupId.value())
                         .stream()
                         .map(OptionTemplate::name)
-                        .toList());
+                        .toList(),
+                group.kind() == TemplateGroupKind.MEMBERS);
     }
 }

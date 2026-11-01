@@ -36,7 +36,8 @@ class SqliteSchemaValidator implements ApplicationRunner {
             "/db/migration/V5__store_poll_template_group_descriptions.sql",
             "/db/migration/V6__store_administrative_vote_removal_details.sql",
             "/db/migration/V7__local_accounts.sql",
-            "/db/migration/V8__invitation_suggested_identity.sql");
+            "/db/migration/V8__invitation_suggested_identity.sql",
+            "/db/migration/V9__member_template_group.sql");
     private final DataSource dataSource;
 
     SqliteSchemaValidator(DataSource dataSource) {

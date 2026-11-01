@@ -1131,6 +1131,18 @@ describe('AuditPage', () => {
         expect(screen.getByRole('link', {name: 'Abstimmung - Ergebnisse'})).toHaveAttribute('href', '/poll/results/poll-1');
     });
 
+    it('zeigt eine automatisch ergaenzte Mitglieds-Option mit lesbarem Grund', async () => {
+        vi.spyOn(apiClient, 'getPollAudit').mockResolvedValue([
+            {event: 'PollOptionAdded', actor: 'System', occurredAt: '2026-08-01T10:00:00Z', selection: 'Clara', reason: 'member-joined', optionNumber: 3},
+        ]);
+
+        renderAuditPage();
+
+        expect(await screen.findByRole('heading', {name: 'Option ergänzt', level: 3})).toBeVisible();
+        expect(screen.getByText('Clara')).toBeVisible();
+        expect(screen.getByText('Neues Mitglied')).toBeVisible();
+    });
+
     it('lokalisiert jedes Vertrags-Domaenenereignis und behandelt unbekannte zukuenftige Werte sicher', async () => {
         const knownEvents = [
             ['PollPublished', 'Abstimmung veröffentlicht', 'Poll published'],
@@ -1141,6 +1153,7 @@ describe('AuditPage', () => {
             ['PollReopened', 'Abstimmung wieder geöffnet', 'Poll reopened'],
             ['PollSoftDeleted', 'Abstimmung soft gelöscht', 'Poll soft-deleted'],
             ['PollRestored', 'Abstimmung wiederhergestellt', 'Poll restored'],
+            ['PollOptionAdded', 'Option ergänzt', 'Option added'],
             ['VoteCast', 'Stimme abgegeben', 'Vote cast'],
             ['VoteReplaced', 'Stimme ersetzt', 'Vote replaced'],
             ['VoteWithdrawn', 'Stimme zurückgenommen', 'Vote withdrawn'],

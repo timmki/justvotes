@@ -24,6 +24,11 @@ public interface PollRepository {
 
     List<Poll> findAllActive();
 
+    /**
+     * Polls created from the members group that are still in draft or active.
+     */
+    List<Poll> findAllFollowingMembers();
+
     AdminVotePage findAdminVotes(int page, int size);
 
     Optional<Poll> findByVoteId(long voteId);

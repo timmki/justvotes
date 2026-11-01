@@ -1,5 +1,6 @@
 package de.justvotes.adapters.pollmanagement.infra.out.persistence;
 
+import de.justvotes.pollmanagement.core.model.Poll.Option;
 import de.justvotes.pollmanagement.core.model.Vote;
 import jakarta.persistence.*;
 
@@ -26,6 +27,8 @@ public class PollEntity {
     private String templateGroupName;
     @Column(name = "templateGroupDescription")
     private String templateGroupDescription;
+    @Column(name = "followsMembers", updatable = false)
+    private int followsMembers;
     @OneToMany(mappedBy = "poll", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<PollOptionEntity> options = new ArrayList<>();
     @OneToMany(mappedBy = "poll", cascade = CascadeType.ALL, orphanRemoval = true)
@@ -36,7 +39,10 @@ public class PollEntity {
     protected PollEntity() {
     }
 
-    PollEntity(String id, String title, String createdBy, String visibility, String state, String createdAt, String endsAt, long templateGroupId, String templateGroupName, String templateGroupDescription) {
+    PollEntity(String id, String title, String createdBy, String visibility, String state, String createdAt, String endsAt, long templateGroupId, String templateGroupName, String templateGroupDescription, boolean followsMembers) {
+        if (followsMembers) {
+            this.followsMembers = 1;
+        }
         this.id = id;
         this.title = title;
         this.createdBy = createdBy;
@@ -100,6 +106,10 @@ public class PollEntity {
         return templateGroupDescription;
     }
 
+    boolean followsMembers() {
+        return followsMembers == 1;
+    }
+
     List<PollOptionEntity> options() {
         return options;
     }
@@ -126,14 +136,25 @@ public class PollEntity {
         }
     }
 
-    void addOptions(List<String> texts) {
-        for (int index = 0; index < texts.size(); index++)
-            options.add(new PollOptionEntity(this, index + 1, texts.get(index)));
+    /**
+     * Updates option rows by number so votes keep their option row; rows only disappear when a draft lost options.
+     */
+    void synchronizeOptions(List<Option> desired) {
+        Map<Integer, String> texts = new HashMap<>();
+        desired.forEach(option -> texts.put(option.number(), option.text()));
+        options.removeIf(option -> !texts.containsKey(option.number()));
+        options.forEach(option -> option.changeText(texts.get(option.number())));
+        Set<Integer> existing = new HashSet<>();
+        options.forEach(option -> existing.add(option.number()));
+        desired.stream().filter(option -> !existing.contains(option.number()))
+                .forEach(option -> options.add(new PollOptionEntity(this, option.number(), option.text())));
     }
 
-    void addTemplateSnapshotOptions(List<String> texts) {
-        for (int index = 0; index < texts.size(); index++)
-            templateSnapshotOptions.add(new PollTemplateSnapshotOptionEntity(this, index + 1, texts.get(index)));
+    void addMissingTemplateSnapshotOptions(List<Option> desired) {
+        Set<Integer> existing = new HashSet<>();
+        templateSnapshotOptions.forEach(option -> existing.add(option.number()));
+        desired.stream().filter(option -> !existing.contains(option.number()))
+                .forEach(option -> templateSnapshotOptions.add(new PollTemplateSnapshotOptionEntity(this, option.number(), option.text())));
     }
 
     void synchronizeVotes(List<Vote> desiredVotes) {

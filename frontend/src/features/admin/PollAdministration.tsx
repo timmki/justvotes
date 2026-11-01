@@ -11,6 +11,7 @@ import {useI18n} from '../../shared/i18n/I18nProvider';
 import {QueryState} from '../../shared/ui/QueryState';
 import {RouteState} from '../../shared/ui/RouteState';
 import {catalogQueries} from './catalogQueries';
+import {groupName} from './TemplateCatalog';
 
 type Poll = components['schemas']['Poll'];
 type PollState = Poll['state'];
@@ -240,7 +241,7 @@ export function CreatePoll() {
                 htmlFor="poll-group">{t('admin.templateGroup')}</label><select id="poll-group" required value={groupId}
                                                                                onChange={(event) => setGroupId(event.target.value)}>
                 <option value="">{t('admin.selectGroup')}</option>
-                {availableGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select>
+                {availableGroups.map((group) => <option key={group.id} value={group.id}>{groupName(group, t)}</option>)}</select>
                 <button className="primary-button" type="submit"
                         aria-busy={mutation.isPending} disabled={mutation.isPending || availableGroups.length === 0 || !groupId}>{mutation.isPending && <span className="button-spinner" aria-hidden="true"/>}{mutation.isPending && t('common.saving')}{!mutation.isPending && t('forms.submit')}</button>
                 {error && <p className="form-error" role="alert">{t(error.messageKey)}</p>}</form>

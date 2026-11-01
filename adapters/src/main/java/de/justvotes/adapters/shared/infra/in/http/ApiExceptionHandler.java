@@ -18,6 +18,7 @@ import de.justvotes.pollmanagement.core.exception.PollNotFoundException;
 import de.justvotes.pollmanagement.core.exception.ResultsNotAvailableException;
 import de.justvotes.pollmanagement.core.exception.VoteNotFoundException;
 import de.justvotes.templatecatalog.core.exception.CatalogItemNotFoundException;
+import de.justvotes.templatecatalog.core.exception.CatalogItemManagedException;
 import de.justvotes.templatecatalog.core.exception.CatalogNameAlreadyExistsException;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.core.Ordered;
@@ -125,6 +126,11 @@ public final class ApiExceptionHandler {
     @ExceptionHandler(PollNotActiveException.class)
     ResponseEntity<ProblemDetail> pollNotActive(PollNotActiveException exception) {
         return problem(HttpStatus.CONFLICT, "poll-not-active", "The poll is not active.");
+    }
+
+    @ExceptionHandler(CatalogItemManagedException.class)
+    ResponseEntity<ProblemDetail> catalogItemManaged(CatalogItemManagedException exception) {
+        return problem(HttpStatus.CONFLICT, "catalog-item-managed", "This catalog entry is maintained automatically.");
     }
 
     @ExceptionHandler({IllegalStateException.class, CatalogNameAlreadyExistsException.class, DataIntegrityViolationException.class})

@@ -5,7 +5,11 @@ import de.justvotes.pollmanagement.core.model.Poll.TemplateGroupId;
 import java.util.List;
 
 public record TemplateGroupSnapshot(TemplateGroupId id, String name, String description,
-                                    List<String> optionTexts) {
+                                    List<String> optionTexts, boolean followsMembers) {
+    public TemplateGroupSnapshot(TemplateGroupId id, String name, String description, List<String> optionTexts) {
+        this(id, name, description, optionTexts, false);
+    }
+
     public TemplateGroupSnapshot {
         if (description == null) {
             description = "";

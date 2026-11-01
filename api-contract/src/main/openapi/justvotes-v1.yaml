@@ -39,7 +39,7 @@ x-status-matrix:
     '403': missing/invalid CSRF token, insufficient role (`access-denied`), or pending password change (`password-change-required`)
     '404': missing resource or unknown route
     '405': unsupported HTTP method
-    '409': illegal poll transition, duplicate name, conflicting state, or account and invitation conflicts (`identity-taken`, `email-already-invited`, `invitation-not-usable`, `invitation-delivery-unavailable`, `account-not-manageable`, `already-authenticated`)
+    '409': illegal poll transition, duplicate name, conflicting state, or account and invitation conflicts (`identity-taken`, `email-already-invited`, `invitation-not-usable`, `invitation-delivery-unavailable`, `account-not-manageable`, `already-authenticated`), or a change to the automatically maintained members group or its templates (`catalog-item-managed`)
     '413': contact file larger than 1 MB (`contact-import-too-large`)
     '415': unsupported request media type
     '422': password rejected (`password-policy-violation`, `current-password-invalid`)
@@ -1676,6 +1676,7 @@ components:
         - PollReopened
         - PollSoftDeleted
         - PollRestored
+        - PollOptionAdded
         - VoteCast
         - VoteReplaced
         - VoteWithdrawn
@@ -1692,6 +1693,7 @@ components:
         - PollReopened
         - PollSoftDeleted
         - PollRestored
+        - PollOptionAdded
     VoteAuditEventType:
       type: string
       description: Vote events in the public poll audit.
@@ -2161,6 +2163,15 @@ components:
           $ref: '#/components/schemas/TemplateId'
         name:
           type: string
+        managed:
+          type: boolean
+          description: True for a member's template; it cannot be renamed or deleted (`catalog-item-managed`). Always sent by the server; absent means false.
+    TemplateGroupKind:
+      type: string
+      description: "`members` is the single group the system keeps in sync with all user identities; polls created from it receive new members as options while in `draft` or `active`."
+      enum:
+        - manual
+        - members
     TemplateGroup:
       type: object
       additionalProperties: false
@@ -2175,6 +2186,9 @@ components:
           type: string
         description:
           type: string
+        kind:
+          $ref: '#/components/schemas/TemplateGroupKind'
+          description: Always sent by the server; absent means `manual`.
     Poll:
       type: object
       additionalProperties: false
@@ -2314,6 +2328,7 @@ components:
           $ref: '#/components/schemas/AuditEventType'
     AuditEntryBase:
       type: object
+      description: For `PollOptionAdded`, `selection` holds the added option text, `optionNumber` its number and `reason` is `member-joined`; the actor is `System`.
       required:
         - actor
         - occurredAt

@@ -250,6 +250,35 @@ describe('AdminPage template catalog', () => {
         expect(screen.getByRole('status')).toHaveTextContent('Fehlgeschlagen: 0');
     });
 
+    it('shows the members group as automatic and read-only', async () => {
+        mockSession(adminSession());
+        vi.spyOn(apiClient, 'getGroups').mockResolvedValue([{id: 'g_v1_members', name: 'Alle Mitglieder', description: '', kind: 'members'}]);
+        vi.spyOn(apiClient, 'getTemplates').mockResolvedValue([{id: 't_v1_anna', name: 'Anna', managed: true}]);
+        vi.spyOn(apiClient, 'getTemplatesInGroup').mockResolvedValue([{id: 't_v1_anna', name: 'Anna', managed: true}]);
+
+        renderAdmin('/admin/groups');
+
+        expect(await screen.findByRole('button', {name: 'Alle Mitglieder Automatisch'})).toBeVisible();
+        expect(await screen.findByText('Anna')).toBeVisible();
+        expect(screen.getByText(/enthält automatisch alle Mitglieder/)).toBeVisible();
+        expect(screen.queryByLabelText('Gruppe umbenennen')).not.toBeInTheDocument();
+        expect(screen.queryByRole('checkbox', {name: 'Vorlage auswählen Anna'})).not.toBeInTheDocument();
+    });
+
+    it('hides rename and delete for member templates', async () => {
+        mockSession(adminSession());
+        vi.spyOn(apiClient, 'getTemplates').mockResolvedValue([{id: 't_v1_anna', name: 'Anna', managed: true}, {id: 't_v1_ja', name: 'Ja', managed: false}]);
+
+        renderAdmin('/admin/templates');
+
+        const anna = (await screen.findByRole('checkbox', {name: 'Vorlage auswählen Anna'})).closest('li') as HTMLElement;
+        expect(anna).toHaveTextContent('Automatisch');
+        expect(within(anna).getByRole('checkbox')).toBeDisabled();
+        expect(within(anna).queryByRole('button', {name: 'Löschen'})).not.toBeInTheDocument();
+        const ja = screen.getByRole('checkbox', {name: 'Vorlage auswählen Ja'}).closest('li') as HTMLElement;
+        expect(within(ja).getByRole('button', {name: 'Löschen'})).toBeVisible();
+    });
+
     it('adds and removes memberships without deleting the global template', async () => {
         mockSession(adminSession());
         vi.spyOn(apiClient, 'getGroups').mockResolvedValue([{id: 'g_v1_group', name: 'Board', description: 'A board'}]);
@@ -757,6 +786,19 @@ describe('Admin poll lifecycle', () => {
         expect(screen.getByRole('button', {name: 'Speichern'})).toBeDisabled();
         fireEvent.change(select, {target: {value: 'g_v1_full'}});
         expect(screen.getByRole('button', {name: 'Speichern'})).toBeEnabled();
+    });
+
+    it('shows the translated members group name when creating a poll', async () => {
+        mockSession(adminSession());
+        vi.spyOn(apiClient, 'getAdminPolls').mockResolvedValue([]);
+        vi.spyOn(apiClient, 'getGroups').mockResolvedValue([{id: 'g_v1_members', name: 'Stored name', description: '', kind: 'members'}]);
+        vi.spyOn(apiClient, 'getTemplatesInGroup').mockResolvedValue([{id: 't_v1_anna', name: 'Anna', managed: true}]);
+
+        renderAdmin('/admin/polls');
+
+        const select = await screen.findByLabelText('Vorlagengruppe');
+        expect(await within(select).findByRole('option', {name: 'Alle Mitglieder'})).toBeVisible();
+        expect(within(select).queryByRole('option', {name: 'Stored name'})).toBeNull();
     });
 
     it('keeps poll creation values after the server rejects the snapshot', async () => {

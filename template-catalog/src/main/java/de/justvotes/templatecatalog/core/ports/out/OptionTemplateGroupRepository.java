@@ -16,6 +16,8 @@ public interface OptionTemplateGroupRepository {
 
     List<OptionTemplateGroup> findAll();
 
+    Optional<OptionTemplateGroup> findMembersGroup();
+
     OptionTemplateGroup save(OptionTemplateGroup group);
 
     void delete(OptionTemplateGroup group);

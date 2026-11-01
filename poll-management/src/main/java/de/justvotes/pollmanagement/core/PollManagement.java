@@ -9,6 +9,7 @@ import de.justvotes.pollmanagement.core.model.Poll.State;
 import de.justvotes.pollmanagement.core.model.Poll.TemplateGroup;
 import de.justvotes.pollmanagement.core.model.Poll.TemplateGroupId;
 import de.justvotes.pollmanagement.core.model.PollSummary;
+import de.justvotes.pollmanagement.core.ports.in.ExtendMemberPolls;
 import de.justvotes.pollmanagement.core.ports.in.ManagePolls;
 import de.justvotes.pollmanagement.core.ports.in.ViewPolls;
 import de.justvotes.pollmanagement.core.ports.out.PollEventPublisher;
@@ -21,7 +22,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.function.Function;
 
-public final class PollManagement implements ManagePolls, ViewPolls {
+public final class PollManagement implements ManagePolls, ViewPolls, ExtendMemberPolls {
     private final PollRepository polls;
     private final TemplateGroupSnapshotProvider templateGroups;
     private final PollEventPublisher events;
@@ -37,7 +38,7 @@ public final class PollManagement implements ManagePolls, ViewPolls {
     @Override
     public Poll createDraft(String title, TemplateGroupId templateGroupId, String systemAdmin) {
         return Try.of(() -> templateGroups.snapshotOf(templateGroupId))
-                .map(snapshot -> Poll.privateDraftFrom(new TemplateGroup(snapshot.id(), snapshot.name(), snapshot.description()), title, systemAdmin, snapshot.optionTexts()))
+                .map(snapshot -> Poll.privateDraftFrom(new TemplateGroup(snapshot.id(), snapshot.name(), snapshot.description(), snapshot.followsMembers()), title, systemAdmin, snapshot.optionTexts()))
                 .map(polls::save)
                 .get();
     }
@@ -113,6 +114,17 @@ public final class PollManagement implements ManagePolls, ViewPolls {
         Poll poll = poll(pollId);
         poll.requireDeleted();
         polls.delete(poll);
+    }
+
+    @Override
+    public void memberJoined(String identity) {
+        Instant now = clock.now();
+        for (Poll poll : polls.findAllFollowingMembers()) {
+            poll.addMemberOption(identity, now).ifPresent(event -> {
+                polls.save(poll);
+                events.publish(event);
+            });
+        }
     }
 
     @Override

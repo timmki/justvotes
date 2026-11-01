@@ -30,6 +30,7 @@ import de.justvotes.accountmanagement.core.ports.in.ManageInvitations;
 import de.justvotes.accountmanagement.core.ports.out.AccountRepository;
 import de.justvotes.accountmanagement.core.ports.out.InvitationMailer;
 import de.justvotes.accountmanagement.core.ports.out.InvitationRepository;
+import de.justvotes.accountmanagement.core.ports.out.MemberJoinedListener;
 import de.justvotes.accountmanagement.core.ports.out.PasswordHasher;
 import de.justvotes.accountmanagement.core.ports.out.TokenGenerator;
 import de.justvotes.accountmanagement.core.ports.out.UtcClock;
@@ -46,9 +47,17 @@ public final class InvitationManagement implements ManageInvitations, AcceptInvi
     private final InvitationMailer mailer;
     private final UtcClock clock;
     private final ContactInvitations contacts;
+    private final MemberJoinedListener members;
 
     public InvitationManagement(InvitationRepository invitations, AccountRepository accounts, PasswordHasher hasher,
                                 TokenGenerator tokens, InvitationMailer mailer, UtcClock clock) {
+        this(invitations, accounts, hasher, tokens, mailer, clock, identity -> {
+        });
+    }
+
+    public InvitationManagement(InvitationRepository invitations, AccountRepository accounts, PasswordHasher hasher,
+                                TokenGenerator tokens, InvitationMailer mailer, UtcClock clock, MemberJoinedListener members) {
+        this.members = members;
         this.invitations = invitations;
         this.accounts = accounts;
         this.hasher = hasher;
@@ -136,6 +145,7 @@ public final class InvitationManagement implements ManageInvitations, AcceptInvi
         AccountId createdId = created.id().orElseThrow();
         invitation.accept(tokenHash, createdId, now);
         invitations.save(invitation);
+        members.memberJoined(accountIdentity.value());
         return created;
     }
 

@@ -7,6 +7,7 @@ import de.justvotes.templatecatalog.core.model.OptionTemplate.OptionTemplateId;
 import de.justvotes.templatecatalog.core.model.OptionTemplateGroup;
 import de.justvotes.templatecatalog.core.model.OptionTemplateGroup.OptionTemplateGroupId;
 import de.justvotes.templatecatalog.core.ports.in.ManageTemplateCatalog;
+import de.justvotes.templatecatalog.core.ports.in.SyncMemberTemplates;
 import de.justvotes.templatecatalog.core.ports.in.ViewTemplateCatalog;
 import de.justvotes.templatecatalog.core.ports.out.OptionTemplateGroupRepository;
 import de.justvotes.templatecatalog.core.ports.out.OptionTemplateRepository;
@@ -14,8 +15,9 @@ import io.vavr.API;
 import io.vavr.control.Try;
 
 import java.util.List;
+import java.util.Locale;
 
-public class TemplateCatalogAdministration implements ManageTemplateCatalog, ViewTemplateCatalog {
+public class TemplateCatalogAdministration implements ManageTemplateCatalog, ViewTemplateCatalog, SyncMemberTemplates {
     private final OptionTemplateRepository templates;
     private final OptionTemplateGroupRepository groups;
 
@@ -47,6 +49,7 @@ public class TemplateCatalogAdministration implements ManageTemplateCatalog, Vie
     public void deleteTemplate(long templateId) {
         Try.of(() -> OptionTemplateId.of(templateId))
                 .map(this::template)
+                .andThen(OptionTemplate::requireUnmanaged)
                 .andThen(template -> this.groups.findAllReferencing(OptionTemplateId.of(templateId))
                         .forEach(group -> {
                             group.removeTemplate(OptionTemplateId.of(templateId));
@@ -79,6 +82,7 @@ public class TemplateCatalogAdministration implements ManageTemplateCatalog, Vie
     public void deleteGroup(long groupId) {
         Try.of(() -> OptionTemplateGroupId.of(groupId))
                 .map(this::group)
+                .andThen(OptionTemplateGroup::requireUnmanaged)
                 .andThen(groups::delete)
                 .get();
     }
@@ -107,6 +111,20 @@ public class TemplateCatalogAdministration implements ManageTemplateCatalog, Vie
             group.removeTemplate(template.id());
             return groups.save(group);
         }).get();
+    }
+
+    @Override
+    public void memberJoined(String identity) {
+        if (identity == null || identity.isBlank()) {
+            return;
+        }
+        OptionTemplateGroup members = groups.findMembersGroup()
+                .orElseThrow(() -> new IllegalStateException("The members group is missing."));
+        OptionTemplate template = templates.findByMemberIdentity(identity)
+                .or(() -> templates.findByNormalizedName(normalize(identity)).map(existing -> existing.representMember(identity)))
+                .orElseGet(() -> OptionTemplate.forMember(identity));
+        OptionTemplate saved = templates.save(template);
+        groups.save(members.addMember(saved.id()));
     }
 
     @Override
@@ -143,6 +161,10 @@ public class TemplateCatalogAdministration implements ManageTemplateCatalog, Vie
         if (usedByAnotherTemplate || usedByAnotherGroup) {
             throw new CatalogNameAlreadyExistsException(name);
         }
+    }
+
+    private static String normalize(String name) {
+        return name.trim().toLowerCase(Locale.ROOT);
     }
 
     private OptionTemplate template(OptionTemplateId id) {

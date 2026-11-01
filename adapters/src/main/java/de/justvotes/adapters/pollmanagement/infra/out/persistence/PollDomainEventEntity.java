@@ -1,6 +1,7 @@
 package de.justvotes.adapters.pollmanagement.infra.out.persistence;
 
 import de.justvotes.pollmanagement.core.event.PollDomainEvent;
+import de.justvotes.pollmanagement.core.event.PollOptionAdded;
 import de.justvotes.pollmanagement.core.model.Vote;
 import jakarta.persistence.*;
 
@@ -49,6 +50,9 @@ public class PollDomainEventEntity {
     PollDomainEventEntity(PollDomainEvent event) {
         this(event.pollId().value(), event.eventType(), event.actorId(), event.selection(), event.occurredAt());
         this.reason = event.reason();
+        if (event instanceof PollOptionAdded added) {
+            this.voteOptionNumber = added.optionNumber();
+        }
         Vote vote = event.affectedVote();
         if (vote != null) {
             this.voteId = Math.toIntExact(vote.id());

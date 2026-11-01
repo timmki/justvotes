@@ -13,6 +13,7 @@ public class OptionTemplateGroupEntity {
     private Integer id;
     private String name;
     private String description;
+    private String kind = "MANUAL";
 
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(name = "OptionTemplateGroupMember",
@@ -38,6 +39,10 @@ public class OptionTemplateGroupEntity {
 
     String description() {
         return description;
+    }
+
+    String kind() {
+        return kind;
     }
 
     void rename(String name) {

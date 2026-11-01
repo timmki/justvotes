@@ -52,6 +52,17 @@ so that session cookies set by the container also see the external HTTPS scheme.
 proxy must set `X-Forwarded-Proto` for this to work; direct, untrusted forwarded headers
 must not be allowed.
 
+## Members Group
+
+The template catalog always contains the group **Alle Mitglieder** (`kind: members`), created by
+Flyway migration `V9` from all existing user accounts. Whenever an invitation is accepted, the new
+identity is added to it as option template, and every poll created from this group that is still a
+draft or active receives the identity as a new option at the end. Existing options and votes are
+never changed; the addition appears in the poll's audit log as `PollOptionAdded`. Expired,
+archived and deleted polls and polls from other groups keep their options. The group and its
+member templates cannot be renamed, deleted or edited manually (`409 catalog-item-managed`);
+locked accounts stay members. See [ADR 0001](docs/adr/0001-mitlaufende-polls-der-mitgliedergruppe.md).
+
 ## Accounts, Sign-in and Invitations
 
 Every page and API requires a signed-in local account; without a session only the login page,

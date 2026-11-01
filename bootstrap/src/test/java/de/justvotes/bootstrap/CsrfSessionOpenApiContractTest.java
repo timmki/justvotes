@@ -262,14 +262,15 @@ class CsrfSessionOpenApiContractTest {
 
         assertThat(enumValues(schemas, "PollVisibility")).containsExactly("private", "public");
         assertThat(enumValues(schemas, "PollState")).containsExactly("draft", "active", "expired", "archived", "deleted");
+        assertThat(enumValues(schemas, "TemplateGroupKind")).containsExactly("manual", "members");
         assertThat(enumValues(schemas, "VoteStatus")).containsExactly("created", "replaced", "unchanged");
         assertThat(enumValues(schemas, "AuditEventType")).containsExactly(
                 "PollPublished", "PollExpired", "PollArchived", "PollRestoredFromArchive",
-                "PollExpiryChanged", "PollReopened", "PollSoftDeleted", "PollRestored",
+                "PollExpiryChanged", "PollReopened", "PollSoftDeleted", "PollRestored", "PollOptionAdded",
                 "VoteCast", "VoteReplaced", "VoteWithdrawn", "VoteRemovedByAdmin");
         assertThat(enumValues(schemas, "PollAuditEventType")).containsExactly(
                 "PollPublished", "PollExpired", "PollArchived", "PollRestoredFromArchive",
-                "PollExpiryChanged", "PollReopened", "PollSoftDeleted", "PollRestored");
+                "PollExpiryChanged", "PollReopened", "PollSoftDeleted", "PollRestored", "PollOptionAdded");
         assertThat(enumValues(schemas, "VoteAuditEventType")).containsExactly(
                 "VoteCast", "VoteReplaced", "VoteWithdrawn", "VoteRemovedByAdmin");
 
